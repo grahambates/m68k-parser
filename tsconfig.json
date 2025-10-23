@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "node20",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "outDir": "out",
+    "rootDir": "src",
+    "strict": true,
+    "moduleResolution": "nodenext",
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "isolatedModules": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "out", "src/webview"]
+}

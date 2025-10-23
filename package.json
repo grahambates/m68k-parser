@@ -1,0 +1,39 @@
+{
+  "name": "m68k-parser",
+  "version": "1.0.0",
+  "main": "out/index.js",
+  "scripts": {
+    "test": "jest",
+    "eslint": "eslint . --ext .ts",
+    "compile": "tsc",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "author": "Graham Bates",
+  "license": "MIT",
+  "description": "Motorola 68000 assembly parser",
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.9.1",
+    "eslint": "^9.38.0",
+    "jest": "^30.2.0",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.2"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/test/**/*.test.ts"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/test/**/*"
+    ]
+  }
+}
