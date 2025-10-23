@@ -19,6 +19,49 @@ function rx(template: string): string {
     .replace(/\s+/g, ""); // Remove all whitespace
 }
 
+// Mnemonics that never take operands (instructions and directives)
+// This helps distinguish positional comments from operands
+const NO_OPERAND_MNEMONICS = [
+  // CPU instructions
+  "nop",
+  "reset",
+  "rte",
+  "rtr",
+  "rts",
+  "trapv",
+  "illegal",
+  // Assembler directives - control flow
+  "endif",
+  "endc",
+  "else",
+  "endm",
+  "endr",
+  "end",
+  // Assembler directives - comments
+  "comment",
+  "rem",
+  "erem",
+  // Assembler directives - alignment
+  "even",
+  "odd",
+  // Assembler directives - listing control
+  "list",
+  "nolist",
+  "page",
+  "nopage",
+  // Assembler directives - sections and offsets
+  "popsection",
+  "pushsection",
+  "rsreset",
+  "clrfo",
+  "clrso",
+  // Assembler directives - local labels
+  "inline",
+  "einline",
+  // Assembler directives - macro control
+  "mexit",
+];
+
 // Assembly line parsing regex - built from documented components
 const labelGroup = rx(String.raw`
   (?<label>
@@ -29,7 +72,7 @@ const labelGroup = rx(String.raw`
 `);
 
 const noOperandMnemonics = rx(String.raw`
-  (?<mnemonic1>\.?(nop|reset|rte|rtr|rts|trapv|illegal|clrfo|clrso|comment|einline|even|inline|list|mexit|nolist|nopage|odd|page|popsection|pushsection|rsreset|endif|endc|else|elseif|endm|endr|erem))
+  (?<mnemonic1>\.?(${NO_OPERAND_MNEMONICS.join("|")}))
   (?<size1>\.[a-z0-9_.]*)?     # Size qualifier
 `);
 
