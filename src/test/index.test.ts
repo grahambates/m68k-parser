@@ -8,7 +8,7 @@ describe("parse", () => {
       );
       expect(line.label).toMatchObject({ start: 0, end: 5, label: "label" });
       expect(line.mnemonic).toMatchObject({ start: 10, end: 14, type: "instruction", instruction: "move" });
-      expect(line.size).toMatchObject({ start: 15, end: 16, size: "w" });
+      expect(line.qualifier).toMatchObject({ start: 15, end: 16, size: "w" });
       expect(line.operands).toHaveLength(2);
       expect(line.operands?.[0]).toMatchObject({
         start: 21,
@@ -91,7 +91,7 @@ describe("parse", () => {
       const line = parseLine("     move.w #1,10(a0,d1,w) ; comment here");
       expect(line).toMatchObject({
         mnemonic: { start: 5, end: 9, type: "instruction", instruction: "move" },
-        size: { start: 10, end: 11, size: "w" },
+        qualifier: { start: 10, end: 11, size: "w" },
         operands: [
           { start: 12, end: 14},
           { start: 15, end: 26},
@@ -104,7 +104,7 @@ describe("parse", () => {
       const line = parseLine("     bra.s ; comment here");
       expect(line).toMatchObject({
         mnemonic: { start: 5, end: 8, type: "instruction", instruction: "bra" },
-        size: { start: 9, end: 10, size: "s" },
+        qualifier: { start: 9, end: 10, size: "s" },
         comment: { start: 11, end: 25, content: "comment here" },
       });
     });
@@ -145,7 +145,7 @@ describe("parse", () => {
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
         mnemonic: { start: 10, end: 14, type: "instruction", instruction: "move" },
-        size: { start: 15, end: 16, size: "w" },
+        qualifier: { start: 15, end: 16, size: "w" },
         operands: [
           { start: 21, end: 23},
           { start: 25, end: 36},
@@ -187,8 +187,9 @@ describe("parse", () => {
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
         mnemonic: { start: 10, end: 14, type: "instruction", instruction: "move" },
-        size: { start: 15, end: 15, size: "" },
       });
+      // Empty qualifier is not created for incomplete/invalid sizes
+      expect(line.qualifier).toBeUndefined();
     });
 
     it("parses an incomplete operand list", () => {
@@ -206,7 +207,7 @@ describe("parse", () => {
       const line = parseLine(' dc.b "foo bar baz" ; comment');
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
-        size: { start: 4, end: 5, size: "b" },
+        qualifier: { start: 4, end: 5, size: "b" },
         operands: [{ start: 6, end: 19}],
         comment: {
           end: 29,
@@ -219,7 +220,7 @@ describe("parse", () => {
       const line = parseLine(" dc.b 'foo bar baz' ; comment");
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
-        size: { start: 4, end: 5, size: "b" },
+        qualifier: { start: 4, end: 5, size: "b" },
         operands: [{ start: 6, end: 19}],
         comment: {
           end: 29,
@@ -232,7 +233,7 @@ describe("parse", () => {
       const line = parseLine(" dc.b 'foo bar baz");
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
-        size: { start: 4, end: 5, size: "b" },
+        qualifier: { start: 4, end: 5, size: "b" },
         operands: [{ start: 6, end: 18}],
       });
     });
@@ -272,15 +273,90 @@ describe("parse", () => {
       });
     });
 
-    it("parses a size containing a macro parameter", () => {
+    it("parses a numeric macro parameter as mnemonic", () => {
+      const line = parseLine(" \\1.w d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          start: 1,
+          end: 3,
+          type: "macro-parameter",
+          paramType: "numeric",
+          param: "1",
+        },
+        qualifier: { start: 4, end: 5, type: "size", size: "w" },
+        operands: [
+          { type: "data-register", register: "d0" },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
+    it("parses a special macro parameter as mnemonic", () => {
+      const line = parseLine(" \\@.l d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          start: 1,
+          end: 3,
+          type: "macro-parameter",
+          paramType: "special",
+          param: "@",
+        },
+        qualifier: { start: 4, end: 5, type: "size", size: "l" },
+      });
+    });
+
+    it("parses a named macro parameter as mnemonic", () => {
+      const line = parseLine(" \\<inst> d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          start: 1,
+          end: 8,
+          type: "macro-parameter",
+          paramType: "named",
+          param: "inst",
+        },
+      });
+    });
+
+    it("parses a numeric macro parameter as qualifier", () => {
       const line = parseLine(" move.\\1 d0,d1");
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
-        size: { start: 6, end: 8, size: "\\1" },
+        qualifier: {
+          start: 6,
+          end: 8,
+          type: "macro-parameter",
+          paramType: "numeric",
+          param: "1",
+        },
         operands: [
           { start: 9, end: 11},
           { start: 12, end: 14},
         ],
+      });
+    });
+
+    it("parses a special macro parameter as qualifier", () => {
+      const line = parseLine(" move.\\@ d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        qualifier: {
+          type: "macro-parameter",
+          paramType: "special",
+          param: "@",
+        },
+      });
+    });
+
+    it("parses a named macro parameter as qualifier", () => {
+      const line = parseLine(" move.\\<size> d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        qualifier: {
+          type: "macro-parameter",
+          paramType: "named",
+          param: "size",
+        },
       });
     });
 
@@ -326,7 +402,7 @@ describe("parse", () => {
             end: 60,
           },
         ],
-        size: {
+        qualifier: {
           end: 5,
           start: 4,
         },

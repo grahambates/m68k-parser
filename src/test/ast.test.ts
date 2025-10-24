@@ -47,7 +47,7 @@ describe("parse AST", () => {
 
     it("parses size with type", () => {
       const line = parseLine("  move.w d0,d1");
-      expect(line.size).toMatchObject({
+      expect(line.qualifier).toMatchObject({
         type: "size",
         size: "w",
       });
@@ -562,7 +562,7 @@ describe("parse AST", () => {
         end: 14,
       });
 
-      expect(line.size).toMatchObject({
+      expect(line.qualifier).toMatchObject({
         type: "size",
         start: 15,
         end: 16,

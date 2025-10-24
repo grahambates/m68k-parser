@@ -1,4 +1,9 @@
-import { ParsedLine, OperandNode, DirectiveNode } from "./types";
+import {
+  ParsedLine,
+  OperandNode,
+  DirectiveNode,
+  MacroParameterNode,
+} from "./types";
 import { parseOperand } from "./operand-parser";
 import { parseExpression } from "./expression-parser";
 import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
@@ -8,6 +13,35 @@ function rx(template: string): string {
   return template
     .replace(/\s*#.*$/gm, "") // Remove comments (# to end of line)
     .replace(/\s+/g, ""); // Remove all whitespace
+}
+
+// Helper to parse macro parameters: \1, \@, \<name>
+function parseMacroParameter(
+  text: string,
+  start: number,
+  end: number,
+): MacroParameterNode | null {
+  const match = /^\\(\d+|@|<([^>]+)>)$/.exec(text);
+  if (!match) return null;
+
+  const param = match[1];
+  let paramType: "numeric" | "special" | "named";
+
+  if (/^\d+$/.test(param)) {
+    paramType = "numeric";
+  } else if (param === "@") {
+    paramType = "special";
+  } else {
+    paramType = "named";
+  }
+
+  return {
+    type: "macro-parameter",
+    start,
+    end,
+    paramType,
+    param: paramType === "named" ? match[2] : param,
+  };
 }
 
 // Assembly line parsing regex - built from documented components
@@ -116,30 +150,36 @@ export function parseLine(text: string): ParsedLine {
       const start = end + text.substring(end).indexOf(mnemonicText);
       end = start + mnemonicText.length;
 
-      // Determine mnemonic type
-      const lcMnemonic = mnemonicText.toLowerCase();
-
-      if (isInstruction(lcMnemonic)) {
-        line.mnemonic = {
-          type: "instruction",
-          start,
-          end,
-          instruction: lcMnemonic,
-        };
-      } else if (isDirective(lcMnemonic)) {
-        line.mnemonic = {
-          type: "directive",
-          start,
-          end,
-          directive: lcMnemonic,
-        };
+      // Check if it's a macro parameter first
+      const macroParam = parseMacroParameter(mnemonicText, start, end);
+      if (macroParam) {
+        line.mnemonic = macroParam;
       } else {
-        line.mnemonic = {
-          type: "macro",
-          start,
-          end,
-          macro: mnemonicText,
-        };
+        // Determine mnemonic type
+        const lcMnemonic = mnemonicText.toLowerCase();
+
+        if (isInstruction(lcMnemonic)) {
+          line.mnemonic = {
+            type: "instruction",
+            start,
+            end,
+            instruction: lcMnemonic,
+          };
+        } else if (isDirective(lcMnemonic)) {
+          line.mnemonic = {
+            type: "directive",
+            start,
+            end,
+            directive: lcMnemonic,
+          };
+        } else {
+          line.mnemonic = {
+            type: "macro",
+            start,
+            end,
+            macro: mnemonicText,
+          };
+        }
       }
     }
 
@@ -149,16 +189,21 @@ export function parseLine(text: string): ParsedLine {
       sizeText = sizeText.substring(1);
       end = start + sizeText.length;
 
-      const lcSize = sizeText.toLowerCase();
-      if (isSize(lcSize)) {
-        line.qualifier = {
-          type: "size",
-          start,
-          end,
-          size: lcSize,
-        };
+      // Check if it's a macro parameter first
+      const macroParam = parseMacroParameter(sizeText, start, end);
+      if (macroParam) {
+        line.qualifier = macroParam;
+      } else {
+        const lcSize = sizeText.toLowerCase();
+        if (isSize(lcSize)) {
+          line.qualifier = {
+            type: "size",
+            start,
+            end,
+            size: lcSize,
+          };
+        }
       }
-      // TODO: other types e.g. Macro arg
     }
 
     // Special handling for iif directive - it needs operands AND comment merged

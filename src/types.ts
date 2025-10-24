@@ -19,13 +19,19 @@ export type {
   Size,
 };
 
-export type MnemonicNode = InstructionNode | DirectiveNode | MacroNode;
+export type MnemonicNode =
+  | InstructionNode
+  | DirectiveNode
+  | MacroNode
+  | MacroParameterNode;
+
+export type QualifierNode = SizeNode | MacroParameterNode;
 
 export interface ParsedLine {
   inlineCondition?: ExpressionNode; // For iif directive: the condition expression
   label?: LabelNode;
   mnemonic?: MnemonicNode;
-  qualifier?: SizeNode;
+  qualifier?: QualifierNode;
   operands?: OperandNode[];
   comment?: CommentNode;
 }
