@@ -6,11 +6,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w label+4");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "label" },
-          right: { type: "numeric-literal", format: "decimal", text: "4" },
+          right: { type: "numeric-literal", format: "decimal", value: "4" },
         },
       });
     });
@@ -19,11 +19,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w offset-8");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "-",
           left: { type: "symbol", name: "offset" },
-          right: { type: "numeric-literal", format: "decimal", text: "8" },
+          right: { type: "numeric-literal", format: "decimal", value: "8" },
         },
       });
     });
@@ -32,7 +32,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w width*height");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "*",
           left: { type: "symbol", name: "width" },
@@ -45,7 +45,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w total/count");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "/",
           left: { type: "symbol", name: "total" },
@@ -58,11 +58,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w value%16");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "%",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "decimal", text: "16" },
+          right: { type: "numeric-literal", format: "decimal", value: "16" },
         },
       });
     });
@@ -71,11 +71,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w value//16");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "%",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "decimal", text: "16" },
+          right: { type: "numeric-literal", format: "decimal", value: "16" },
         },
       });
     });
@@ -86,11 +86,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w value&$FF");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "&",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", text: "$FF" },
+          right: { type: "numeric-literal", format: "hex", value: "$FF" },
         },
       });
     });
@@ -99,11 +99,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w flags|$80");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "|",
           left: { type: "symbol", name: "flags" },
-          right: { type: "numeric-literal", format: "hex", text: "$80" },
+          right: { type: "numeric-literal", format: "hex", value: "$80" },
         },
       });
     });
@@ -112,11 +112,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w flags!$80");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "|",
           left: { type: "symbol", name: "flags" },
-          right: { type: "numeric-literal", format: "hex", text: "$80" },
+          right: { type: "numeric-literal", format: "hex", value: "$80" },
         },
       });
     });
@@ -125,11 +125,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w value^$FFFF");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "^",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", text: "$FFFF" },
+          right: { type: "numeric-literal", format: "hex", value: "$FFFF" },
         },
       });
     });
@@ -138,11 +138,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w value~$FFFF");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "^",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", text: "$FFFF" },
+          right: { type: "numeric-literal", format: "hex", value: "$FFFF" },
         },
       });
     });
@@ -151,11 +151,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w 1<<8");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "<<",
-          left: { type: "numeric-literal", format: "decimal", text: "1" },
-          right: { type: "numeric-literal", format: "decimal", text: "8" },
+          left: { type: "numeric-literal", format: "decimal", value: "1" },
+          right: { type: "numeric-literal", format: "decimal", value: "8" },
         },
       });
     });
@@ -164,11 +164,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w value>>4");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: ">>",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "decimal", text: "4" },
+          right: { type: "numeric-literal", format: "decimal", value: "4" },
         },
       });
     });
@@ -179,7 +179,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a<b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "<",
           left: { type: "symbol", name: "a" },
@@ -192,7 +192,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a>b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: ">",
           left: { type: "symbol", name: "a" },
@@ -205,7 +205,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a<=b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "<=",
           left: { type: "symbol", name: "a" },
@@ -218,7 +218,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a>=b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: ">=",
           left: { type: "symbol", name: "a" },
@@ -231,7 +231,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a==b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "=",
           left: { type: "symbol", name: "a" },
@@ -244,7 +244,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a=b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "=",
           left: { type: "symbol", name: "a" },
@@ -257,7 +257,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a!=b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "<>",
           left: { type: "symbol", name: "a" },
@@ -270,7 +270,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a<>b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "<>",
           left: { type: "symbol", name: "a" },
@@ -285,7 +285,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a&&b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "&&",
           left: { type: "symbol", name: "a" },
@@ -298,7 +298,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a||b");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "||",
           left: { type: "symbol", name: "a" },
@@ -313,7 +313,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w +value");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "unary-op",
           operator: "+",
           operand: { type: "symbol", name: "value" },
@@ -325,7 +325,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w -value");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "unary-op",
           operator: "-",
           operand: { type: "symbol", name: "value" },
@@ -337,7 +337,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w !flag");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "unary-op",
           operator: "!",
           operand: { type: "symbol", name: "flag" },
@@ -349,7 +349,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w ~mask");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "unary-op",
           operator: "~",
           operand: { type: "symbol", name: "mask" },
@@ -363,7 +363,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w (a+b)*c");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "*",
           left: {
@@ -384,7 +384,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w ((a+b)*c)+d");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "+",
           left: {
@@ -415,7 +415,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a+b*c");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "a" },
@@ -433,14 +433,14 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a<<2&mask");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "&",
           left: {
             type: "binary-op",
             operator: "<<",
             left: { type: "symbol", name: "a" },
-            right: { type: "numeric-literal", format: "decimal", text: "2" },
+            right: { type: "numeric-literal", format: "decimal", value: "2" },
           },
           right: { type: "symbol", name: "mask" },
         },
@@ -451,7 +451,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a&b+c");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "+",
           left: {
@@ -469,7 +469,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a+b<c");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "<",
           left: {
@@ -487,7 +487,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w a<b&&c>d");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "&&",
           left: {
@@ -516,7 +516,7 @@ describe("Expression Parsing", () => {
       const operand = line.operands?.[0];
       expect(operand?.type).toBe("value");
       if (operand?.type === "value") {
-        expect(operand.expression?.type).toBe("binary-op");
+        expect(operand.value?.type).toBe("binary-op");
       }
     });
 
@@ -524,11 +524,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  move label+4,d0");
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
-        expression: {
+        address: {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "label" },
-          right: { type: "numeric-literal", format: "decimal", text: "4" },
+          right: { type: "numeric-literal", format: "decimal", value: "4" },
         },
       });
     });
@@ -537,7 +537,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("SIZE equ width*height");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "*",
           left: { type: "symbol", name: "width" },
@@ -550,7 +550,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w (value&$FF)|(flags<<8)");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "|",
           left: {
@@ -559,7 +559,7 @@ describe("Expression Parsing", () => {
               type: "binary-op",
               operator: "&",
               left: { type: "symbol", name: "value" },
-              right: { type: "numeric-literal", format: "hex", text: "$FF" },
+              right: { type: "numeric-literal", format: "hex", value: "$FF" },
             },
           },
           right: {
@@ -568,7 +568,7 @@ describe("Expression Parsing", () => {
               type: "binary-op",
               operator: "<<",
               left: { type: "symbol", name: "flags" },
-              right: { type: "numeric-literal", format: "decimal", text: "8" },
+              right: { type: "numeric-literal", format: "decimal", value: "8" },
             },
           },
         },
@@ -579,11 +579,11 @@ describe("Expression Parsing", () => {
       const line = parseLine("  dc.w *+10");
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "+",
           left: { type: "current-address" },
-          right: { type: "numeric-literal", format: "decimal", text: "10" },
+          right: { type: "numeric-literal", format: "decimal", value: "10" },
         },
       });
     });
@@ -596,16 +596,14 @@ describe("Expression Parsing", () => {
         type: "absolute-address",
         start: 9,
         end: 19,
-        text: "(BASE+4).w",
-        expression: {
+        address: {
           type: "group",
           expression: {
             type: "binary-op",
             operator: "+",
             left: { type: "symbol", name: "BASE" },
-            right: { type: "numeric-literal", format: "decimal", text: "4" },
+            right: { type: "numeric-literal", format: "decimal", value: "4" },
           },
-          text: "(BASE+4)",
           start: 9,
           end: 19,
         },
@@ -618,7 +616,7 @@ describe("Expression Parsing", () => {
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
         addressSize: "w",
-        expression: {
+        address: {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "BASE" },
@@ -631,7 +629,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  move.l BASE+offset,d0");
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
-        expression: {
+        address: {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "BASE" },
@@ -644,7 +642,7 @@ describe("Expression Parsing", () => {
       const line = parseLine("  move #width*height,d0");
       expect(line.operands?.[0]).toMatchObject({
         type: "immediate",
-        expression: {
+        value: {
           type: "binary-op",
           operator: "*",
           left: { type: "symbol", name: "width" },
@@ -678,7 +676,7 @@ describe("Expression Parsing", () => {
             type: "binary-op",
             operator: "*",
             left: { type: "symbol", name: "index" },
-            right: { type: "numeric-literal", format: "decimal", text: "4" },
+            right: { type: "numeric-literal", format: "decimal", value: "4" },
           },
         },
       });

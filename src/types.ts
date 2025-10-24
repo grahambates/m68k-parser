@@ -6,118 +6,6 @@ export interface ParsedLine {
   comment?: CommentNode;
 }
 
-// Base node - all AST nodes extend this
-export interface Node {
-  start: number;
-  end: number;
-  text: string;
-}
-
-// Label
-export interface LabelNode extends Node {
-  type: "label";
-  scope: "global" | "local";
-}
-
-// Mnemonic
-export interface MnemonicNode extends Node {
-  type: "mnemonic";
-  category: "instruction" | "directive" | "macro";
-}
-
-// Size qualifier
-export interface SizeNode extends Node {
-  type: "size";
-}
-
-// Comment
-export interface CommentNode extends Node {
-  type: "comment";
-  hasPrefix: boolean; // true if starts with ; or *
-}
-
-// Expression node types
-export type ExpressionNode =
-  | NumericLiteralNode
-  | SymbolNode
-  | BinaryOperatorNode
-  | UnaryOperatorNode
-  | GroupNode
-  | CurrentAddressNode;
-
-// Numeric literal in an expression
-export interface NumericLiteralNode extends Node {
-  type: "numeric-literal";
-  format: "decimal" | "hex" | "binary" | "octal";
-}
-
-// Symbol/identifier reference
-export interface SymbolNode extends Node {
-  type: "symbol";
-  name: string; // The identifier name like "label" or "MYCONST"
-}
-
-// Binary operation
-export interface BinaryOperatorNode extends Node {
-  type: "binary-op";
-  operator:
-    | "+"
-    | "-"
-    | "*"
-    | "/"
-    | "%"
-    | "&"
-    | "|"
-    | "^"
-    | "<<"
-    | ">>"
-    | "&&"
-    | "||"
-    | "="
-    | "<>"
-    | "<"
-    | ">"
-    | "<="
-    | ">=";
-  left: ExpressionNode;
-  right: ExpressionNode;
-}
-
-// Unary operation
-export interface UnaryOperatorNode extends Node {
-  type: "unary-op";
-  operator: "+" | "-" | "~" | "!";
-  operand: ExpressionNode;
-}
-
-// Grouped expression
-export interface GroupNode extends Node {
-  type: "group";
-  expression: ExpressionNode;
-}
-
-// Current address (*)
-export interface CurrentAddressNode extends Node {
-  type: "current-address";
-}
-
-// Operand types (addressing modes)
-export type OperandNode =
-  | DataRegisterNode
-  | AddressRegisterNode
-  | SpecialRegisterNode
-  | RegisterListNode
-  | ImmediateNode
-  | AddressRegisterIndirectNode
-  | AddressRegisterIndirectDisplacementNode
-  | AddressRegisterIndirectIndexNode
-  | AbsoluteAddressNode
-  | PCRelativeNode
-  | StringLiteralNode
-  | MacroParameterNode
-  | ValueNode
-  | UnknownNode;
-
 export type DataRegister =
   | "d0"
   | "d1"
@@ -150,6 +38,129 @@ export type SpecialRegister =
   | "dfc"
   | "cacr"
   | "caar";
+
+export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
+
+export type BinaryOp =
+  | "+"
+  | "-"
+  | "*"
+  | "/"
+  | "%"
+  | "&"
+  | "|"
+  | "^"
+  | "<<"
+  | ">>"
+  | "&&"
+  | "||"
+  | "="
+  | "<>"
+  | "<"
+  | ">"
+  | "<="
+  | ">=";
+
+export type UnaryOp = "+" | "-" | "~" | "!";
+
+// Base node - all AST nodes extend this
+export interface Node {
+  start: number;
+  end: number;
+}
+
+// Label
+export interface LabelNode extends Node {
+  type: "label";
+  scope: "global" | "local";
+  label: string;
+}
+
+// Mnemonic
+export interface MnemonicNode extends Node {
+  type: "mnemonic";
+  category: "instruction" | "directive" | "macro";
+  mnemonic: string;
+}
+
+// Size qualifier
+export interface SizeNode extends Node {
+  type: "size";
+  size: string;
+}
+
+// Comment
+export interface CommentNode extends Node {
+  type: "comment";
+  hasPrefix: boolean; // true if starts with ; or *
+  content: string; // The comment text without the prefix
+}
+
+// Expression node types
+export type ExpressionNode =
+  | NumericLiteralNode
+  | SymbolNode
+  | BinaryOperatorNode
+  | UnaryOperatorNode
+  | GroupNode
+  | CurrentAddressNode
+  | UnknownNode;
+
+// Numeric literal in an expression
+export interface NumericLiteralNode extends Node {
+  type: "numeric-literal";
+  format: NumberFormat;
+  value: string;
+}
+
+// Symbol/identifier reference
+export interface SymbolNode extends Node {
+  type: "symbol";
+  name: string; // The identifier name like "label" or "MYCONST"
+}
+
+// Binary operation
+export interface BinaryOperatorNode extends Node {
+  type: "binary-op";
+  operator: BinaryOp;
+  left: ExpressionNode;
+  right: ExpressionNode;
+}
+
+// Unary operation
+export interface UnaryOperatorNode extends Node {
+  type: "unary-op";
+  operator: UnaryOp;
+  operand: ExpressionNode;
+}
+
+// Grouped expression
+export interface GroupNode extends Node {
+  type: "group";
+  expression: ExpressionNode;
+}
+
+// Current address (*)
+export interface CurrentAddressNode extends Node {
+  type: "current-address";
+}
+
+// Operand types (addressing modes)
+export type OperandNode =
+  | DataRegisterNode
+  | AddressRegisterNode
+  | SpecialRegisterNode
+  | RegisterListNode
+  | ImmediateNode
+  | AddressRegisterIndirectNode
+  | AddressRegisterIndirectDisplacementNode
+  | AddressRegisterIndirectIndexNode
+  | AbsoluteAddressNode
+  | PCRelativeNode
+  | StringLiteralNode
+  | MacroParameterNode
+  | ValueNode
+  | UnknownNode;
 
 // Data register (d0-d7)
 export interface DataRegisterNode extends Node {
@@ -185,7 +196,7 @@ export interface MacroParameterNode extends Node {
 // Immediate value (#123, #$FF, etc.)
 export interface ImmediateNode extends Node {
   type: "immediate";
-  expression: ExpressionNode; // Parsed expression (the part after #)
+  value: ExpressionNode; // Parsed expression (the part after #)
 }
 
 // Address register indirect: (a0), (a0)+, -(a0)
@@ -206,15 +217,15 @@ export interface AddressRegisterIndirectDisplacementNode extends Node {
 export interface AddressRegisterIndirectIndexNode extends Node {
   type: "address-register-indirect-index";
   displacement?: ExpressionNode; // Parsed displacement expression
-  baseRegister: string;
-  indexRegister: string;
+  baseRegister: AddressRegister;
+  indexRegister: DataRegister | AddressRegister;
   indexSize?: "w" | "l";
 }
 
 // Absolute address: $1000, label, (addr).w, (addr).l
 export interface AbsoluteAddressNode extends Node {
   type: "absolute-address";
-  expression: ExpressionNode; // Parsed expression
+  address: ExpressionNode; // Parsed expression
   addressSize?: "w" | "l";
 }
 
@@ -222,7 +233,7 @@ export interface AbsoluteAddressNode extends Node {
 export interface PCRelativeNode extends Node {
   type: "pc-relative";
   displacement: ExpressionNode; // Parsed displacement expression
-  indexRegister?: string;
+  indexRegister?: DataRegister | AddressRegister;
   indexSize?: "w" | "l";
 }
 
@@ -236,7 +247,7 @@ export interface StringLiteralNode extends Node {
 // Value operand (for directives and macros - numeric literals, constants, expressions)
 export interface ValueNode extends Node {
   type: "value";
-  expression: ExpressionNode; // Parsed expression
+  value: ExpressionNode; // Parsed expression
 }
 
 // Unknown/incomplete operand
@@ -249,7 +260,7 @@ export type Token =
   | {
       type: "number";
       value: string;
-      format: "decimal" | "hex" | "binary" | "octal";
+      format: NumberFormat;
     }
   | { type: "symbol"; value: string }
   | { type: "operator"; value: string }

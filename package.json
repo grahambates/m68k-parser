@@ -4,7 +4,7 @@
   "main": "out/index.js",
   "scripts": {
     "test": "jest",
-    "eslint": "eslint . --ext .ts",
+    "lint": "eslint src --ext .ts",
     "compile": "tsc",
     "format": "prettier --write \"src/**/*.ts\""
   },

@@ -92,7 +92,7 @@ export function parseLine(text: string): ParsedLine {
         type: "label",
         start,
         end,
-        text: labelText,
+        label: labelText,
         scope,
       };
     }
@@ -106,12 +106,13 @@ export function parseLine(text: string): ParsedLine {
       const lcMnemonic = mnemonicText.toLowerCase();
       const isInstruction = instructions.includes(lcMnemonic);
       const isDirective = directives.includes(lcMnemonic);
+      const isMacro = !isInstruction && !isDirective;
 
       line.mnemonic = {
         type: "mnemonic",
         start,
         end,
-        text: mnemonicText,
+        mnemonic: isMacro ? mnemonicText : lcMnemonic,
         category: isInstruction
           ? "instruction"
           : isDirective
@@ -130,7 +131,7 @@ export function parseLine(text: string): ParsedLine {
         type: "size",
         start,
         end,
-        text: sizeText,
+        size: sizeText.toLowerCase(),
       };
     }
 
@@ -163,18 +164,15 @@ export function parseLine(text: string): ParsedLine {
       const start = end + text.substring(end).indexOf(commentText);
       end = start + commentText.length;
 
-      // Check if comment has a prefix (;, *, or //)
+      // Check if comment has a prefix (; or *)
       const trimmed = commentText.trim();
-      const hasPrefix =
-        trimmed.startsWith(";") ||
-        trimmed.startsWith("*") ||
-        trimmed.startsWith("//");
+      const hasPrefix = trimmed.startsWith(";") || trimmed.startsWith("*");
 
       line.comment = {
         type: "comment",
         start,
         end,
-        text: commentText,
+        content: commentText.replace(/^(\s*[;*]\s*)/, "").trim(),
         hasPrefix,
       };
     }

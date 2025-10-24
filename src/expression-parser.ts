@@ -1,5 +1,5 @@
-import { ExpressionNode, Token } from './types';
-import { tokenizeExpression } from './tokenizer';
+import { ExpressionNode, Token } from "./types";
+import { tokenizeExpression } from "./tokenizer";
 
 /**
  * Parse an expression string into an expression AST
@@ -8,17 +8,19 @@ import { tokenizeExpression } from './tokenizer';
  * @param start - Start position in the original source
  * @param end - End position in the original source
  */
-export function parseExpression(expr: string, start: number = 0, end: number = 0): ExpressionNode {
+export function parseExpression(
+  expr: string,
+  start: number = 0,
+  end: number = 0,
+): ExpressionNode {
   const trimmed = expr.trim();
 
   // Handle empty expressions
   if (!trimmed) {
     return {
-      type: 'numeric-literal',
-      format: 'decimal',
-      text: '0',
+      type: "unknown",
       start,
-      end
+      end,
     };
   }
 
@@ -36,79 +38,78 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
   function parsePrimary(): ExpressionNode {
     const token = current();
 
-    if (token.type === 'number') {
+    if (token.type === "number") {
       const text = token.value;
       advance();
       return {
-        type: 'numeric-literal',
+        type: "numeric-literal",
         format: token.format,
-        text,
+        value: text,
         start,
-        end
+        end,
       };
     }
 
-    if (token.type === 'symbol') {
-      const text = token.value;
+    if (token.type === "symbol") {
       advance();
       return {
-        type: 'symbol',
+        type: "symbol",
         name: token.value,
-        text,
         start,
-        end
+        end,
       };
     }
 
-    if (token.type === 'current-address') {
+    if (token.type === "current-address") {
       advance();
       return {
-        type: 'current-address',
-        text: '*',
+        type: "current-address",
         start,
-        end
+        end,
       };
     }
 
-    if (token.type === 'lparen') {
+    if (token.type === "lparen") {
       advance();
       const expr = parseLogicalOr(); // Start from lowest precedence
-      if (current().type === 'rparen') {
+      if (current().type === "rparen") {
         advance();
       }
       return {
-        type: 'group',
+        type: "group",
         expression: expr,
-        text: trimmed,
         start,
-        end
+        end,
       };
     }
 
     // If we can't parse, return a default
     return {
-      type: 'numeric-literal',
-      format: 'decimal',
-      text: '0',
+      type: "unknown",
       start,
-      end
+      end,
     };
   }
 
   function parseUnary(): ExpressionNode {
     const token = current();
 
-    if (token.type === 'operator' && (token.value === '+' || token.value === '-' || token.value === '!' || token.value === '~')) {
-      const operator = token.value as '+' | '-' | '~' | '!';
+    if (
+      token.type === "operator" &&
+      (token.value === "+" ||
+        token.value === "-" ||
+        token.value === "!" ||
+        token.value === "~")
+    ) {
+      const operator = token.value as "+" | "-" | "~" | "!";
       advance();
       const operand = parseUnary();
       return {
-        type: 'unary-op',
+        type: "unary-op",
         operator,
         operand,
-        text: trimmed,
         start,
-        end
+        end,
       };
     }
 
@@ -119,18 +120,20 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseUnary();
 
     let token = current();
-    while (token.type === 'operator' && (token.value === '<<' || token.value === '>>')) {
-      const operator = token.value as '<<' | '>>';
+    while (
+      token.type === "operator" &&
+      (token.value === "<<" || token.value === ">>")
+    ) {
+      const operator = token.value as "<<" | ">>";
       advance();
       const right = parseUnary();
       left = {
-        type: 'binary-op',
+        type: "binary-op",
         operator,
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -142,17 +145,16 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseShift();
 
     let token = current();
-    while (token.type === 'operator' && token.value === '&') {
+    while (token.type === "operator" && token.value === "&") {
       advance();
       const right = parseShift();
       left = {
-        type: 'binary-op',
-        operator: '&',
+        type: "binary-op",
+        operator: "&",
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -164,17 +166,19 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseBitwiseAnd();
 
     let token = current();
-    while (token.type === 'operator' && (token.value === '^' || token.value === '~')) {
+    while (
+      token.type === "operator" &&
+      (token.value === "^" || token.value === "~")
+    ) {
       advance();
       const right = parseBitwiseAnd();
       left = {
-        type: 'binary-op',
-        operator: '^',
+        type: "binary-op",
+        operator: "^",
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -186,18 +190,20 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseBitwiseXor();
 
     let token = current();
-    while (token.type === 'operator' && (token.value === '|' || token.value === '!')) {
-      const operator = '|' as const;
+    while (
+      token.type === "operator" &&
+      (token.value === "|" || token.value === "!")
+    ) {
+      const operator = "|" as const;
       advance();
       const right = parseBitwiseXor();
       left = {
-        type: 'binary-op',
+        type: "binary-op",
         operator,
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -209,19 +215,24 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseBitwiseOr();
 
     let token = current();
-    while (token.type === 'operator' && (token.value === '*' || token.value === '/' || token.value === '%' || token.value === '//')) {
+    while (
+      token.type === "operator" &&
+      (token.value === "*" ||
+        token.value === "/" ||
+        token.value === "%" ||
+        token.value === "//")
+    ) {
       const op = token.value;
-      const operator = (op === '//' ? '%' : op) as '*' | '/' | '%';
+      const operator = (op === "//" ? "%" : op) as "*" | "/" | "%";
       advance();
       const right = parseBitwiseOr();
       left = {
-        type: 'binary-op',
+        type: "binary-op",
         operator,
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -233,18 +244,20 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseMultiplicative();
 
     let token = current();
-    while (token.type === 'operator' && (token.value === '+' || token.value === '-')) {
-      const operator = token.value as '+' | '-';
+    while (
+      token.type === "operator" &&
+      (token.value === "+" || token.value === "-")
+    ) {
+      const operator = token.value as "+" | "-";
       advance();
       const right = parseMultiplicative();
       left = {
-        type: 'binary-op',
+        type: "binary-op",
         operator,
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -256,19 +269,20 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseAdditive();
 
     let token = current();
-    while (token.type === 'operator' &&
-           ['<', '>', '<=', '>='].includes(token.value)) {
-      const operator = token.value as '<' | '>' | '<=' | '>=';
+    while (
+      token.type === "operator" &&
+      ["<", ">", "<=", ">="].includes(token.value)
+    ) {
+      const operator = token.value as "<" | ">" | "<=" | ">=";
       advance();
       const right = parseAdditive();
       left = {
-        type: 'binary-op',
+        type: "binary-op",
         operator,
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -280,20 +294,23 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseComparison();
 
     let token = current();
-    while (token.type === 'operator' &&
-           ['==', '=', '!=', '<>'].includes(token.value)) {
+    while (
+      token.type === "operator" &&
+      ["==", "=", "!=", "<>"].includes(token.value)
+    ) {
       const op = token.value;
-      const operator = (op === '==' ? '=' : op === '!=' ? '<>' : op) as '=' | '<>';
+      const operator = (op === "==" ? "=" : op === "!=" ? "<>" : op) as
+        | "="
+        | "<>";
       advance();
       const right = parseComparison();
       left = {
-        type: 'binary-op',
+        type: "binary-op",
         operator,
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -305,17 +322,16 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseEquality();
 
     let token = current();
-    while (token.type === 'operator' && token.value === '&&') {
+    while (token.type === "operator" && token.value === "&&") {
       advance();
       const right = parseEquality();
       left = {
-        type: 'binary-op',
-        operator: '&&',
+        type: "binary-op",
+        operator: "&&",
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }
@@ -327,17 +343,16 @@ export function parseExpression(expr: string, start: number = 0, end: number = 0
     let left = parseLogicalAnd();
 
     let token = current();
-    while (token.type === 'operator' && token.value === '||') {
+    while (token.type === "operator" && token.value === "||") {
       advance();
       const right = parseLogicalAnd();
       left = {
-        type: 'binary-op',
-        operator: '||',
+        type: "binary-op",
+        operator: "||",
         left,
         right,
-        text: trimmed,
         start,
-        end
+        end,
       };
       token = current();
     }

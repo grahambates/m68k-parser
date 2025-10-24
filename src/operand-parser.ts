@@ -1,4 +1,4 @@
-import { OperandNode } from "./types";
+import { AddressRegister, DataRegister, OperandNode } from "./types";
 import { parseExpression } from "./expression-parser";
 import { isAddressRegister, isDataRegister, isSpecialRegister } from "./syntax";
 
@@ -23,7 +23,6 @@ export function parseOperand(
       type: "unknown",
       start,
       end,
-      text,
     };
   }
 
@@ -47,7 +46,6 @@ export function parseOperand(
       type: "string-literal",
       start,
       end,
-      text,
       quote,
       content,
     };
@@ -61,8 +59,7 @@ export function parseOperand(
       type: "immediate",
       start,
       end,
-      text,
-      expression: parseExpression(exprText, exprStart, end),
+      value: parseExpression(exprText, exprStart, end),
     };
   }
 
@@ -75,7 +72,6 @@ export function parseOperand(
       type: "data-register",
       start,
       end,
-      text,
       register,
     };
   }
@@ -86,7 +82,6 @@ export function parseOperand(
       type: "address-register",
       start,
       end,
-      text,
       register,
     };
   }
@@ -97,7 +92,6 @@ export function parseOperand(
       type: "special-register",
       start,
       end,
-      text,
       register,
     };
   }
@@ -112,7 +106,6 @@ export function parseOperand(
       type: "register-list",
       start,
       end,
-      text,
       registers,
     };
   }
@@ -135,7 +128,6 @@ export function parseOperand(
       type: "macro-parameter",
       start,
       end,
-      text,
       paramType,
       param,
     };
@@ -148,7 +140,6 @@ export function parseOperand(
       type: "address-register-indirect",
       start,
       end,
-      text,
       register: preDecMatch[1].toLowerCase(),
       mode: "pre-decrement",
     };
@@ -161,7 +152,6 @@ export function parseOperand(
       type: "address-register-indirect",
       start,
       end,
-      text,
       register: postIncMatch[1].toLowerCase(),
       mode: "post-increment",
     };
@@ -173,14 +163,18 @@ export function parseOperand(
   const indexedMatch = /^([^(]*)\(([^,)]+),(.+)\)$/i.exec(trimmed);
   if (indexedMatch) {
     const displacement = indexedMatch[1].trim();
-    const baseReg = indexedMatch[2].trim().toLowerCase();
+    const baseReg = indexedMatch[2].trim().toLowerCase() as
+      | AddressRegister
+      | "pc";
     const indexPart = indexedMatch[3].trim();
 
     // Parse index register and size: d1.w, a2.l, etc.
     // The index part might be "d1.w" or "d1,w" (alternate syntax)
-    const indexMatch = /^([ad][0-7]|sp)[.,]?([wl])?$/i.exec(indexPart);
+    const indexMatch = /^([ad][0-7]|sp).?([wl])?$/i.exec(indexPart);
     if (indexMatch) {
-      const indexRegister = indexMatch[1].toLowerCase();
+      const indexRegister = indexMatch[1].toLowerCase() as
+        | DataRegister
+        | AddressRegister;
       const indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
 
       // PC relative with index
@@ -189,7 +183,6 @@ export function parseOperand(
           type: "pc-relative",
           start,
           end,
-          text,
           displacement: parseExpression(displacement || "0", start, end),
           indexRegister,
           indexSize,
@@ -201,7 +194,6 @@ export function parseOperand(
         type: "address-register-indirect-index",
         start,
         end,
-        text,
         displacement: displacement
           ? parseExpression(displacement, start, end)
           : undefined,
@@ -224,7 +216,6 @@ export function parseOperand(
         type: "pc-relative",
         start,
         end,
-        text,
         displacement: parseExpression(displacement || "0", start, end),
       };
     }
@@ -235,7 +226,6 @@ export function parseOperand(
         type: "address-register-indirect",
         start,
         end,
-        text,
         register,
         mode: "simple",
       };
@@ -246,7 +236,6 @@ export function parseOperand(
       type: "address-register-indirect-displacement",
       start,
       end,
-      text,
       displacement: parseExpression(displacement, start, end),
       register,
     };
@@ -259,8 +248,7 @@ export function parseOperand(
       type: "absolute-address",
       start,
       end,
-      text,
-      expression: parseExpression(absoluteSizedMatch[1], start, end),
+      address: parseExpression(absoluteSizedMatch[1], start, end),
       addressSize: absoluteSizedMatch[2].toLowerCase() as "w" | "l",
     };
   }
@@ -272,8 +260,7 @@ export function parseOperand(
       type: "absolute-address",
       start,
       end,
-      text,
-      expression: parseExpression(absoluteWithSizeMatch[1], start, end),
+      address: parseExpression(absoluteWithSizeMatch[1], start, end),
       addressSize: absoluteWithSizeMatch[2].toLowerCase() as "w" | "l",
     };
   }
@@ -288,8 +275,7 @@ export function parseOperand(
       type: "absolute-address",
       start,
       end,
-      text,
-      expression: expr,
+      address: expr,
     };
   } else {
     // For directives and macros, use value type
@@ -297,8 +283,7 @@ export function parseOperand(
       type: "value",
       start,
       end,
-      text,
-      expression: expr,
+      value: expr,
     };
   }
 }
