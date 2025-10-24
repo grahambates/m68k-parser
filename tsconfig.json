@@ -1,17 +1,16 @@
 {
   "compilerOptions": {
-    "module": "node20",
+    "module": "esnext",
     "target": "ES2022",
     "lib": ["ES2022"],
     "outDir": "out",
     "rootDir": "src",
     "strict": true,
-    "moduleResolution": "nodenext",
-    "sourceMap": true,
+    "moduleResolution": "bundler",
     "skipLibCheck": true,
-    "declaration": true,
     "isolatedModules": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "out", "src/webview"]
+  "exclude": ["node_modules", "dist", "src/test", "**/*.test.ts"]
 }
+

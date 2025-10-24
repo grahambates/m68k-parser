@@ -165,6 +165,7 @@ export type OperandNode =
   | AddressRegisterIndirectIndexNode
   | AbsoluteAddressNode
   | PCRelativeNode
+  | PCRelativeIndexNode
   | StringLiteralNode
   | MacroParameterNode
   | ValueNode
@@ -237,11 +238,17 @@ export interface AbsoluteAddressNode extends Node {
   addressSize?: "w" | "l";
 }
 
-// PC relative: offset(pc), offset(pc,d0)
+// PC relative: offset(pc)
 export interface PCRelativeNode extends Node {
   type: "pc-relative";
   displacement: ExpressionNode; // Parsed displacement expression
-  indexRegister?: DataRegister | AddressRegister;
+}
+
+// PC relative: offset(pc,d0)
+export interface PCRelativeIndexNode extends Node {
+  type: "pc-relative-index";
+  displacement: ExpressionNode; // Parsed displacement expression
+  indexRegister: DataRegister | AddressRegister;
   indexSize?: "w" | "l";
 }
 

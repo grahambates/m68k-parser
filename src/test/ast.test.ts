@@ -222,7 +222,7 @@ describe("parse AST", () => {
 
         const indexed = parseLine("  move offset(pc,d0.w),d1");
         expect(indexed.operands?.[0]).toMatchObject({
-          type: "pc-relative",
+          type: "pc-relative-index",
           displacement: {
             type: "symbol",
             name: "offset",

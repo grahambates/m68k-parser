@@ -1,20 +1,54 @@
 {
   "name": "m68k-parser",
   "version": "1.0.0",
-  "main": "out/index.js",
-  "scripts": {
-    "test": "jest",
-    "lint": "eslint src --ext .ts",
-    "compile": "tsc",
-    "format": "prettier --write \"src/**/*.ts\""
-  },
+  "description": "Motorola 68000 assembly parser with full expression and addressing mode support",
   "author": "Graham Bates",
   "license": "MIT",
-  "description": "Motorola 68000 assembly parser",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "m68k",
+    "68000",
+    "motorola",
+    "assembly",
+    "parser",
+    "assembler",
+    "ast"
+  ],
+  "scripts": {
+    "build": "npm run clean && npm run build:bundle && npm run build:types",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist",
+    "build:bundle": "node build.js",
+    "clean": "rm -rf dist",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepublishOnly": "npm run build && npm test"
+  },
   "devDependencies": {
     "@eslint/js": "^9.38.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.9.1",
+    "esbuild": "^0.25.11",
     "eslint": "^9.38.0",
     "jest": "^30.2.0",
     "prettier": "^3.6.2",

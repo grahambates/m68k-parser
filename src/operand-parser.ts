@@ -51,6 +51,31 @@ export function parseOperand(
     };
   }
 
+  // Macro parameter: \1, \@, \<name>, etc.
+  const macroParamMatch = /^\\([0-9]+|@|<[^>]+>)$/i.exec(trimmed);
+  if (macroParamMatch) {
+    const param = macroParamMatch[1];
+    let paramType: "numeric" | "special" | "named";
+
+    if (/^[0-9]+$/.test(param)) {
+      paramType = "numeric";
+    } else if (param === "@") {
+      paramType = "special";
+    } else {
+      paramType = "named";
+    }
+
+    return {
+      type: "macro-parameter",
+      start,
+      end,
+      paramType,
+      param,
+    };
+  }
+
+  // Addressing modes:
+
   // Immediate: #value
   if (trimmed.startsWith("#")) {
     const exprText = trimmed.slice(1);
@@ -66,7 +91,7 @@ export function parseOperand(
   // Check potential register types
   const register = trimmed.toLowerCase();
 
-  // Data register: d0-d7
+  // Data Register Direct: Dn
   if (isDataRegister(register)) {
     return {
       type: "data-register",
@@ -76,7 +101,7 @@ export function parseOperand(
     };
   }
 
-  // Address register: a0-a7, sp
+  // Address register direct: An
   if (isAddressRegister(register)) {
     return {
       type: "address-register",
@@ -110,51 +135,103 @@ export function parseOperand(
     };
   }
 
-  // Macro parameter: \1, \@, \<name>, etc.
-  const macroParamMatch = /^\\([0-9]+|@|<[^>]+>)$/i.exec(trimmed);
-  if (macroParamMatch) {
-    const param = macroParamMatch[1];
-    let paramType: "numeric" | "special" | "named";
-
-    if (/^[0-9]+$/.test(param)) {
-      paramType = "numeric";
-    } else if (param === "@") {
-      paramType = "special";
-    } else {
-      paramType = "named";
-    }
-
-    return {
-      type: "macro-parameter",
-      start,
-      end,
-      paramType,
-      param,
-    };
-  }
-
-  // Address register indirect with pre-decrement: -(an)
+  // Address register indirect with pre-decrement: -(An)
   const preDecMatch = /^-\(([^)]+)\)$/i.exec(trimmed);
   if (preDecMatch) {
     return {
       type: "address-register-indirect",
+      mode: "pre-decrement",
       start,
       end,
       register: preDecMatch[1].toLowerCase(),
-      mode: "pre-decrement",
     };
   }
 
-  // Address register indirect with post-increment: (an)+
+  // Address register indirect with post-increment: (An)+
   const postIncMatch = /^\(([^)]+)\)\+$/i.exec(trimmed);
   if (postIncMatch) {
     return {
       type: "address-register-indirect",
+      mode: "post-increment",
       start,
       end,
       register: postIncMatch[1].toLowerCase(),
-      mode: "post-increment",
     };
+  }
+
+  // Address register indirect with displacement (displacement inside parens): (disp,an) or (disp,pc)
+  // Check this first before indexed addressing to distinguish (disp,An) from (An,Rn)
+  // Pattern: parentheses with comma, where second part is an ADDRESS register or PC (not data register)
+  const dispInParensMatch = /^\(([^,)]+),\s*(a[0-7]|sp|pc)\s*\)$/i.exec(
+    trimmed,
+  );
+  if (dispInParensMatch) {
+    const displacement = dispInParensMatch[1].trim();
+    const register = dispInParensMatch[2].trim().toLowerCase();
+
+    // PC relative without index: (disp,pc)
+    if (register === "pc") {
+      return {
+        type: "pc-relative",
+        start,
+        end,
+        displacement: parseExpression(displacement, start, end),
+      };
+    }
+
+    // Address register indirect with displacement: (disp,an)
+    return {
+      type: "address-register-indirect-displacement",
+      start,
+      end,
+      displacement: parseExpression(displacement, start, end),
+      register,
+    };
+  }
+
+  // Address register indirect with index (displacement inside parens): (d8,an,rn.size) or (d8,pc,rn.size)
+  // Check for 3 comma-separated parts inside parentheses
+  const indexedInParensMatch = /^\(([^,)]+),\s*([^,)]+),\s*(.+)\)$/i.exec(
+    trimmed,
+  );
+  if (indexedInParensMatch) {
+    const displacement = indexedInParensMatch[1].trim();
+    const baseReg = indexedInParensMatch[2].trim().toLowerCase() as
+      | AddressRegister
+      | "pc";
+    const indexPart = indexedInParensMatch[3].trim();
+
+    // Parse index register and size: d1.w, a2.l, d1, a2, etc.
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?$/i.exec(indexPart);
+    if (indexMatch) {
+      const indexRegister = indexMatch[1].toLowerCase() as
+        | DataRegister
+        | AddressRegister;
+      const indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+
+      // PC relative with index
+      if (baseReg === "pc") {
+        return {
+          type: "pc-relative-index",
+          start,
+          end,
+          displacement: parseExpression(displacement, start, end),
+          indexRegister,
+          indexSize,
+        };
+      }
+
+      // Address register indirect with index
+      return {
+        type: "address-register-indirect-index",
+        start,
+        end,
+        displacement: parseExpression(displacement, start, end),
+        baseRegister: baseReg,
+        indexRegister,
+        indexSize,
+      };
+    }
   }
 
   // Address register indirect with index: disp(an,rn.size) or (an,rn.size)
@@ -180,7 +257,7 @@ export function parseOperand(
       // PC relative with index
       if (baseReg === "pc") {
         return {
-          type: "pc-relative",
+          type: "pc-relative-index",
           start,
           end,
           displacement: parseExpression(displacement || "0", start, end),
