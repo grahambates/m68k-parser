@@ -74,7 +74,7 @@ export interface Node {
 // Label
 export interface LabelNode extends Node {
   type: "label";
-  scope: "global" | "local";
+  scope: "global" | "local" | "external";
   label: string;
 }
 

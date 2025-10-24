@@ -51,24 +51,24 @@ describe("parse", () => {
       });
     });
 
-    it("parses a label with double colon", () => {
+    it("parses a label with double colon (external)", () => {
       const line = parseLine("label::");
       expect(line).toMatchObject({
-        label: { start: 0, end: 5, label: "label" },
+        label: { start: 0, end: 5, label: "label", scope: "external" },
       });
     });
 
     it("parses a local label", () => {
       const line = parseLine(".label:");
       expect(line).toMatchObject({
-        label: { start: 0, end: 6, label: ".label" },
+        label: { start: 0, end: 6, label: ".label", scope: "local" },
       });
     });
 
     it("parses a local label with alternate syntax", () => {
       const line = parseLine("label$:");
       expect(line).toMatchObject({
-        label: { start: 0, end: 6, label: "label$" },
+        label: { start: 0, end: 6, label: "label$", scope: "local" },
       });
     });
 

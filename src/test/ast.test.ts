@@ -16,6 +16,13 @@ describe("parse AST", () => {
         label: ".local",
         scope: "local",
       });
+
+      const external = parseLine("exported::");
+      expect(external.label).toMatchObject({
+        type: "label",
+        label: "exported",
+        scope: "external",
+      });
     });
 
     it("parses instructions, directives, and macros", () => {

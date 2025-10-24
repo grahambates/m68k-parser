@@ -78,15 +78,28 @@ export function parseLine(text: string): ParsedLine {
     let end = 0;
 
     if (groups.label) {
-      let labelText = groups.label.trim();
+      const originalLabel = groups.label.trim();
+      let labelText = originalLabel;
+
+      // Check for double colon (external label) before stripping
+      const hasDoubleColon = labelText.includes("::");
+
+      // Strip colons from the end
       while (labelText.endsWith(":")) {
         labelText = labelText.substring(0, labelText.length - 1);
       }
       const start = text.indexOf(labelText);
       end = start + labelText.length;
 
-      // Determine if label is local (starts with '.')
-      const scope = labelText.startsWith(".") ? "local" : "global";
+      // Determine label scope
+      let scope: "global" | "local" | "external";
+      if (hasDoubleColon) {
+        scope = "external";
+      } else if (labelText.startsWith(".") || labelText.endsWith("$")) {
+        scope = "local";
+      } else {
+        scope = "global";
+      }
 
       line.label = {
         type: "label",
