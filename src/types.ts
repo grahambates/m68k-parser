@@ -211,10 +211,16 @@ export interface RegisterListNode extends Node {
   registers: string[]; // Array of register specs like ['d0-d7', 'a0-a6']
 }
 
-// Macro parameter (\1, \@, \<name>)
+// Macro parameter (\1, \@, \<name>, \a-\z, \?n, \., \+, \-)
 export interface MacroParameterNode extends Node {
   type: "macro-parameter";
-  paramType: "numeric" | "special" | "named"; // \1, \@, \<name>
+  paramType:
+    | "numeric"  // \1-\9
+    | "letter"   // \a-\z (args 10-35)
+    | "special"  // \@
+    | "named"    // \<name>
+    | "query"    // \?n (length of arg n)
+    | "carg";    // \. (current), \+ (inc), \- (dec)
   param: string; // The parameter identifier
 }
 

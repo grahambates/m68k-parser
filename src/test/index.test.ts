@@ -360,6 +360,97 @@ describe("parse", () => {
       });
     });
 
+    it("parses letter macro parameters (\\a-\\z) as mnemonic", () => {
+      const line = parseLine(" \\k.w d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "letter",
+          param: "k",
+        },
+        qualifier: { type: "size", size: "w" },
+      });
+    });
+
+    it("parses letter macro parameters as qualifier", () => {
+      const line = parseLine(" move.\\z d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: { type: "instruction", instruction: "move" },
+        qualifier: {
+          type: "macro-parameter",
+          paramType: "letter",
+          param: "z",
+        },
+      });
+    });
+
+    it("parses query macro parameter (\\?n) as mnemonic", () => {
+      const line = parseLine(" \\?1 d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "query",
+          param: "1",
+        },
+      });
+    });
+
+    it("parses query macro parameter (\\?a) with letter", () => {
+      const line = parseLine(" \\?k d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "query",
+          param: "k",
+        },
+      });
+    });
+
+    it("parses CARG current operator (\\.) as mnemonic", () => {
+      const line = parseLine(" \\. d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "carg",
+          param: ".",
+        },
+        operands: [
+          { type: "data-register", register: "d0" },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
+    it("parses CARG increment operator (\\+) as mnemonic", () => {
+      const line = parseLine(" \\+ d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "carg",
+          param: "+",
+        },
+        operands: [
+          { type: "data-register", register: "d0" },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
+    it("parses CARG decrement operator (\\-) as mnemonic", () => {
+      const line = parseLine(" \\- d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "carg",
+          param: "-",
+        },
+        operands: [
+          { type: "data-register", register: "d0" },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
     it("parses an operand containing a macro parameter", () => {
       const line = parseLine(" move \\1,d0");
       expect(line).toMatchObject({

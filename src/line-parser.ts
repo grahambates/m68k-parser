@@ -15,24 +15,44 @@ function rx(template: string): string {
     .replace(/\s+/g, ""); // Remove all whitespace
 }
 
-// Helper to parse macro parameters: \1, \@, \<name>
+// Helper to parse macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-
 function parseMacroParameter(
   text: string,
   start: number,
   end: number,
 ): MacroParameterNode | null {
-  const match = /^\\(\d+|@|<([^>]+)>)$/.exec(text);
+  // Match various macro parameter formats
+  const match = /^\\(\d+|[a-z]|@|<([^>]+)>|\?(\d+|[a-z])|[.+\-])$/.exec(text);
   if (!match) return null;
 
   const param = match[1];
-  let paramType: "numeric" | "special" | "named";
+  let paramType: "numeric" | "letter" | "special" | "named" | "query" | "carg";
+  let paramValue: string;
 
   if (/^\d+$/.test(param)) {
+    // \1-\9
     paramType = "numeric";
+    paramValue = param;
+  } else if (/^[a-z]$/.test(param)) {
+    // \a-\z (args 10-35)
+    paramType = "letter";
+    paramValue = param;
   } else if (param === "@") {
+    // \@
     paramType = "special";
+    paramValue = "@";
+  } else if (param.startsWith("?")) {
+    // \?n or \?a (query length)
+    paramType = "query";
+    paramValue = match[3]; // captured group after ?
+  } else if (param === "." || param === "+" || param === "-") {
+    // \., \+, \-
+    paramType = "carg";
+    paramValue = param;
   } else {
+    // \<name>
     paramType = "named";
+    paramValue = match[2]; // captured group inside <>
   }
 
   return {
@@ -40,7 +60,7 @@ function parseMacroParameter(
     start,
     end,
     paramType,
-    param: paramType === "named" ? match[2] : param,
+    param: paramValue,
   };
 }
 
@@ -73,7 +93,7 @@ const operandPatternForSecond = rx(String.raw`
 `);
 
 const regularMnemonic = rx(String.raw`
-  (?<mnemonic>([^\s.,;*=]+|=)) # Mnemonic
+  (?<mnemonic>(\\[.+\-]|[^\s.,;*=]+|=)) # Mnemonic (including \., \+, \-)
   (?<size>\.[^\s.,;*]*)?       # Size qualifier
   (\s*(?<operands>             # Operand list:
     (?<op1>${operandPattern})  # First operand
