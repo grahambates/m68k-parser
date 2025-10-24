@@ -602,5 +602,26 @@ describe("parse", () => {
         ],
       });
     });
+
+    it("parses ifmacrod directive", () => {
+      const line = parseLine("    ifmacrod MYMACRO");
+      expect(line).toMatchObject({
+        mnemonic: {
+          start: 4,
+          end: 12,
+          type: "directive",
+          directive: "ifmacrod",
+        },
+        operands: [
+          {
+            type: "value",
+            value: {
+              type: "symbol",
+              name: "MYMACRO",
+            },
+          },
+        ],
+      });
+    });
   });
 });

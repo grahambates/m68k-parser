@@ -72,6 +72,7 @@ export const directives = [
   "ifnc",
   "ifnd",
   "ifne",
+  "ifmacrod",
   "ifmacrond",
   "ifp1",
   "iif",
