@@ -69,6 +69,28 @@ export function parseExpression(
       };
     }
 
+    if (token.type === "macro-parameter") {
+      const param = token.value;
+      advance();
+
+      let paramType: "numeric" | "special" | "named";
+      if (/^\d+$/.test(param)) {
+        paramType = "numeric";
+      } else if (param === "@") {
+        paramType = "special";
+      } else {
+        paramType = "named";
+      }
+
+      return {
+        type: "macro-parameter",
+        paramType,
+        param,
+        start,
+        end,
+      };
+    }
+
     if (token.type === "lparen") {
       advance();
       const expr = parseLogicalOr(); // Start from lowest precedence

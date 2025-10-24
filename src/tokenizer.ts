@@ -146,6 +146,43 @@ export function tokenizeExpression(expr: string): Token[] {
       continue;
     }
 
+    // Macro parameters: \1, \@, \<name>
+    if (char === "\\") {
+      i++; // Skip the backslash
+      if (i < expr.length) {
+        // Check for \@
+        if (expr[i] === "@") {
+          tokens.push({ type: "macro-parameter", value: "@" });
+          i++;
+          continue;
+        }
+        // Check for \<name>
+        if (expr[i] === "<") {
+          let value = "<";
+          i++;
+          while (i < expr.length && expr[i] !== ">") {
+            value += expr[i++];
+          }
+          if (i < expr.length && expr[i] === ">") {
+            value += expr[i++];
+          }
+          tokens.push({ type: "macro-parameter", value });
+          continue;
+        }
+        // Check for \number
+        if (/\d/.test(expr[i])) {
+          let value = "";
+          while (i < expr.length && /\d/.test(expr[i])) {
+            value += expr[i++];
+          }
+          tokens.push({ type: "macro-parameter", value });
+          continue;
+        }
+      }
+      // If we couldn't parse it as a macro parameter, treat backslash as unknown
+      continue;
+    }
+
     // Symbols/identifiers: start with letter/underscore/dot, contain alphanumeric/underscore/dot/dollar
     if (/[a-z_.]/i.test(char)) {
       let value = "";

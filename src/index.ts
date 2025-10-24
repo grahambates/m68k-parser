@@ -13,6 +13,7 @@ export type {
   UnaryOperatorNode,
   GroupNode,
   CurrentAddressNode,
+  MacroParameterExpressionNode,
   OperandNode,
   DataRegisterNode,
   AddressRegisterNode,

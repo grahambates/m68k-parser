@@ -104,6 +104,7 @@ export type ExpressionNode =
   | UnaryOperatorNode
   | GroupNode
   | CurrentAddressNode
+  | MacroParameterExpressionNode
   | UnknownNode;
 
 // Numeric literal in an expression
@@ -143,6 +144,13 @@ export interface GroupNode extends Node {
 // Current address (*)
 export interface CurrentAddressNode extends Node {
   type: "current-address";
+}
+
+// Macro parameter in expression (\1, \@, \<name>)
+export interface MacroParameterExpressionNode extends Node {
+  type: "macro-parameter";
+  paramType: "numeric" | "special" | "named";
+  param: string;
 }
 
 // Operand types (addressing modes)
@@ -267,4 +275,5 @@ export type Token =
   | { type: "lparen" }
   | { type: "rparen" }
   | { type: "current-address" }
+  | { type: "macro-parameter"; value: string }
   | { type: "eof" };
