@@ -332,5 +332,108 @@ describe("parse", () => {
         },
       });
     });
+
+    it("parses iif directive with simple condition", () => {
+      const line = parseLine("    iif DEBUG dc.w $1234");
+      expect(line).toMatchObject({
+        mnemonic: { start: 4, end: 7, type: "directive", directive: "iif" },
+        inlineCondition: {
+          type: "symbol",
+          name: "DEBUG",
+          start: 8,
+          end: 13,
+        },
+        operands: [
+          {
+            type: "value",
+            start: 19,
+            end: 24,
+            value: {
+              type: "numeric-literal",
+              value: 4660,
+            },
+          },
+        ],
+      });
+    });
+
+    it("parses iif directive with expression condition", () => {
+      const line = parseLine("    iif REPTN==1 move.l d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: { start: 4, end: 7, type: "directive", directive: "iif" },
+        inlineCondition: {
+          type: "binary-op",
+          operator: "=",
+          left: {
+            type: "builtin-symbol",
+            name: "REPTN",
+          },
+          right: {
+            type: "numeric-literal",
+            value: 1,
+          },
+        },
+        operands: [
+          { type: "data-register", register: "d0" },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
+    it("parses iif directive with label (from docs example)", () => {
+      const line = parseLine("foo iif bar equ 42");
+      expect(line).toMatchObject({
+        label: { start: 0, end: 3, label: "foo" },
+        mnemonic: { start: 4, end: 7, type: "directive", directive: "iif" },
+        inlineCondition: {
+          type: "symbol",
+          name: "bar",
+        },
+        operands: [
+          {
+            type: "value",
+            value: {
+              type: "numeric-literal",
+              value: 42,
+            },
+          },
+        ],
+      });
+    });
+
+    it("parses iif directive with multiple operands in statement", () => {
+      const line = parseLine("    iif MODE&1 dc.w $1234,$5678");
+      expect(line).toMatchObject({
+        mnemonic: { start: 4, end: 7, type: "directive", directive: "iif" },
+        inlineCondition: {
+          type: "binary-op",
+          operator: "&",
+          left: {
+            type: "symbol",
+            name: "MODE",
+          },
+          right: {
+            type: "numeric-literal",
+            value: 1,
+          },
+        },
+        operands: [
+          {
+            type: "value",
+            value: {
+              type: "numeric-literal",
+              value: 4660,
+            },
+          },
+          {
+            type: "value",
+            value: {
+              type: "numeric-literal",
+              value: 22136,
+            },
+          },
+        ],
+      });
+    });
   });
 });

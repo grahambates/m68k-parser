@@ -1,5 +1,6 @@
 import { ParsedLine, OperandNode } from "./types";
 import { parseOperand } from "./operand-parser";
+import { parseExpression } from "./expression-parser";
 import { directives, instructions, noOperand } from "./syntax";
 
 // Helper to strip comments and normalize whitespace from regex strings
@@ -158,8 +159,68 @@ export function parseLine(text: string): ParsedLine {
       };
     }
 
-    if (groups.operands) {
-      // Split on comma, unless in parens
+    // Special handling for iif directive - it needs operands AND comment merged
+    const isIif = line.mnemonic?.type === "directive" &&
+                  (line.mnemonic as any).directive === "iif";
+
+    if (isIif && (groups.operands || groups.comment)) {
+      // For iif, merge operands and comment, then split at real comment marker
+      const fullText = groups.operands
+        ? (groups.comment ? groups.operands + " " + groups.comment : groups.operands)
+        : (groups.comment || "");
+
+      // Find real comment (starts with ; or *)
+      const commentMatch = /^(.*?)\s*([;*].*)$/.exec(fullText);
+      const fullOperands = commentMatch ? commentMatch[1] : fullText;
+      const actualComment = commentMatch ? commentMatch[2] : null;
+
+      // Parse iif: <expression> <statement>
+      const match = /^(\S+)\s+(.*)$/.exec(fullOperands);
+      if (match) {
+        const conditionText = match[1];
+        const statementText = match[2];
+
+        // Parse condition as expression
+        const condStart = end + text.substring(end).indexOf(conditionText);
+        const condEnd = condStart + conditionText.length;
+
+        line.inlineCondition = parseExpression(conditionText, condStart, condEnd);
+
+        // Parse the statement as a separate line to extract its operands
+        // Add leading whitespace to ensure proper parsing (avoids label detection)
+        const paddedStatement = "  " + statementText;
+        const statementLine = parseLine(paddedStatement);
+
+        // Adjust positions based on actual position in original text
+        const statementStart = text.indexOf(statementText);
+
+        if (statementLine.operands) {
+          // Adjust operand positions to be relative to the original text
+          // Account for the 2-char padding we added
+          line.operands = statementLine.operands.map(op => ({
+            ...op,
+            start: statementStart + op.start - 2,
+            end: statementStart + op.end - 2,
+          }));
+        }
+
+        end = text.length; // Move to end of line
+      }
+
+      // Handle actual comment if present
+      if (actualComment) {
+        const start = text.indexOf(actualComment);
+        const commentText = actualComment;
+        line.comment = {
+          type: "comment",
+          start,
+          end: start + commentText.length,
+          content: commentText.replace(/^[;*]\s*/, "").trim(),
+          hasPrefix: true,
+        };
+      }
+    } else if (groups.operands) {
+      // Standard operand parsing
       const operandTexts = groups.operands.split(/,\s*(?![^()<>]*[)>])/);
 
       const operands: OperandNode[] = [];
@@ -184,7 +245,8 @@ export function parseLine(text: string): ParsedLine {
       line.operands = operands;
     }
 
-    if (groups.comment && groups.comment.trim()) {
+    // Only set comment if not already handled by iif
+    if (groups.comment && groups.comment.trim() && !isIif) {
       const commentText = groups.comment;
       const start = end + text.substring(end).indexOf(commentText);
       end = start + commentText.length;
@@ -201,6 +263,7 @@ export function parseLine(text: string): ParsedLine {
         hasPrefix,
       };
     }
+    // For iif, comment is already handled in the iif-specific code above
   }
 
   return line;

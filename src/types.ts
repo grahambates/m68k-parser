@@ -6,6 +6,7 @@ export interface ParsedLine {
   size?: SizeNode;
   operands?: OperandNode[];
   comment?: CommentNode;
+  inlineCondition?: ExpressionNode; // For iif directive: the condition expression
 }
 
 export type DataRegister =
