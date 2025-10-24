@@ -941,6 +941,113 @@ describe("Expression Parsing", () => {
       });
     });
 
+    it("parses __G2 Devpac CPU type symbol", () => {
+      const line = parseLine("  dc.w __G2");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__G2",
+        },
+      });
+    });
+
+    it("parses __LK Devpac output file type symbol", () => {
+      const line = parseLine("  dc.w __LK");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__LK",
+        },
+      });
+    });
+
+    it("parses __CPU PhxAss CPU type symbol", () => {
+      const line = parseLine("  dc.w __CPU");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__CPU",
+        },
+      });
+    });
+
+    it("parses __FPU PhxAss FPU type symbol", () => {
+      const line = parseLine("  dc.w __FPU");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__FPU",
+        },
+      });
+    });
+
+    it("parses __MMU PhxAss MMU type symbol", () => {
+      const line = parseLine("  dc.w __MMU");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__MMU",
+        },
+      });
+    });
+
+    it("parses __OPTC PhxAss optimization flags symbol", () => {
+      const line = parseLine("  dc.w __OPTC");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__OPTC",
+        },
+      });
+    });
+
+    it("parses _MOVEMBYTES BAsm MOVEM bytes symbol", () => {
+      const line = parseLine("  dc.w _MOVEMBYTES");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "_MOVEMBYTES",
+        },
+      });
+    });
+
+    it("parses __MOVEMREGS BAsm MOVEM register count symbol", () => {
+      const line = parseLine("  dc.w __MOVEMREGS");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__MOVEMREGS",
+        },
+      });
+    });
+
+    it("parses __VASM version/CPU bitfield symbol", () => {
+      const line = parseLine("  dc.w __VASM&$ff");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "binary-op",
+          operator: "&",
+          left: {
+            type: "builtin-symbol",
+            name: "__VASM",
+          },
+          right: {
+            type: "numeric-literal",
+            value: 255,
+          },
+        },
+      });
+    });
+
     it("treats similar names as regular symbols", () => {
       const line = parseLine("  dc.w __RSX");
       expect(line.operands?.[0]).toMatchObject({

@@ -138,7 +138,22 @@ export interface SymbolNode extends Node {
 // Built-in assembler symbols
 export interface BuiltinSymbolNode extends Node {
   type: "builtin-symbol";
-  name: "__RS" | "__SO" | "__FO" | "REPTN" | "CARG" | "NARG";
+  name:
+    | "__RS"       // Structure offset counter
+    | "__SO"       // Structure offset (same as __RS)
+    | "__FO"       // Structure offset with fill
+    | "REPTN"      // Repeat loop counter
+    | "CARG"       // Macro argument counter
+    | "NARG"       // Number of macro arguments
+    | "__G2"       // Devpac: CPU type info
+    | "__LK"       // Devpac: Output file type
+    | "__CPU"      // PhxAss: CPU type
+    | "__FPU"      // PhxAss: FPU type
+    | "__MMU"      // PhxAss: MMU type
+    | "__OPTC"     // PhxAss: Optimization flags
+    | "_MOVEMBYTES" // BAsm: MOVEM bytes
+    | "__MOVEMREGS" // BAsm: MOVEM register count
+    | "__VASM";    // vasm version/CPU bitfield
 }
 
 // Binary operation

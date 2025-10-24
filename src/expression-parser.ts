@@ -61,11 +61,15 @@ export function parseExpression(
       advance();
 
       // Check if it's a built-in symbol
-      const builtinSymbols = ["__RS", "__SO", "__FO", "REPTN", "CARG", "NARG"] as const;
+      const builtinSymbols = [
+        "__RS", "__SO", "__FO", "REPTN", "CARG", "NARG",
+        "__G2", "__LK", "__CPU", "__FPU", "__MMU", "__OPTC",
+        "_MOVEMBYTES", "__MOVEMREGS", "__VASM"
+      ] as const;
       if (builtinSymbols.includes(symbolName as any)) {
         return {
           type: "builtin-symbol",
-          name: symbolName as "__RS" | "__SO" | "__FO" | "REPTN" | "CARG" | "NARG",
+          name: symbolName as typeof builtinSymbols[number],
           start,
           end,
         };
