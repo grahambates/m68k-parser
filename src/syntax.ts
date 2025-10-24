@@ -1,4 +1,5 @@
-import { AddressRegister, DataRegister, SpecialRegister } from "./types";
+// Derive types from const arrays to avoid duplication
+// Arrays are marked as const to enable type inference
 
 export const directives = [
   "=",
@@ -141,7 +142,13 @@ export const directives = [
   "weak",
   "xdef",
   "xref",
-];
+] as const;
+
+export type Directive = (typeof directives)[number];
+
+export function isDirective(mnemonic: string): mnemonic is Directive {
+  return directives.includes(mnemonic as Directive);
+}
 
 export const instructions = [
   "abcd",
@@ -636,11 +643,17 @@ export const instructions = [
   "unpk",
   "wddata",
   "wdebug",
-];
+] as const;
+
+export type Instruction = (typeof instructions)[number];
+
+export function isInstruction(mnemonic: string): mnemonic is Instruction {
+  return instructions.includes(mnemonic as Instruction);
+}
 
 // Mnemonics that never take operands (instructions and directives)
 // This helps distinguish positional comments from operands
-export const noOperand = [
+export const noOperand: (Instruction | Directive)[] = [
   // CPU instructions
   "illegal",
   "nop",
@@ -673,9 +686,9 @@ export const noOperand = [
   "pushsection",
   "rem",
   "rsreset",
-];
+] as const;
 
-export const dataRegisters: DataRegister[] = [
+export const dataRegisters = [
   "d0",
   "d1",
   "d2",
@@ -684,13 +697,15 @@ export const dataRegisters: DataRegister[] = [
   "d5",
   "d6",
   "d7",
-];
+] as const;
+
+export type DataRegister = (typeof dataRegisters)[number];
 
 export function isDataRegister(reg: string): reg is DataRegister {
   return dataRegisters.includes(reg as DataRegister);
 }
 
-export const addressRegisters: AddressRegister[] = [
+export const addressRegisters = [
   "a0",
   "a1",
   "a2",
@@ -700,13 +715,15 @@ export const addressRegisters: AddressRegister[] = [
   "a6",
   "a7",
   "sp",
-];
+] as const;
+
+export type AddressRegister = (typeof addressRegisters)[number];
 
 export function isAddressRegister(reg: string): reg is AddressRegister {
   return addressRegisters.includes(reg as AddressRegister);
 }
 
-export const specialRegisters: SpecialRegister[] = [
+export const specialRegisters = [
   "sr",
   "ccr",
   "usp",
@@ -717,8 +734,42 @@ export const specialRegisters: SpecialRegister[] = [
   "dfc",
   "cacr",
   "caar",
-];
+] as const;
+
+export type SpecialRegister = (typeof specialRegisters)[number];
 
 export function isSpecialRegister(reg: string): reg is SpecialRegister {
   return specialRegisters.includes(reg as SpecialRegister);
+}
+
+export const builtinSymbols = [
+  "__RS",
+  "__SO",
+  "__FO",
+  "REPTN",
+  "CARG",
+  "NARG",
+  "__G2",
+  "__LK",
+  "__CPU",
+  "__FPU",
+  "__MMU",
+  "__OPTC",
+  "_MOVEMBYTES",
+  "__MOVEMREGS",
+  "__VASM",
+] as const;
+
+export type BuiltinSymbol = (typeof builtinSymbols)[number];
+
+export function isBuiltinSymbol(symbol: string): symbol is BuiltinSymbol {
+  return builtinSymbols.includes(symbol as BuiltinSymbol);
+}
+
+export const sizes = ["b", "w", "l", "s", "d", "x"] as const;
+
+export type Size = (typeof sizes)[number];
+
+export function isSize(size: string): size is Size {
+  return sizes.includes(size as Size);
 }

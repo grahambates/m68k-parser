@@ -1,7 +1,7 @@
-import { ParsedLine, OperandNode } from "./types";
+import { ParsedLine, OperandNode, DirectiveNode } from "./types";
 import { parseOperand } from "./operand-parser";
 import { parseExpression } from "./expression-parser";
-import { directives, instructions, noOperand } from "./syntax";
+import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
 
 // Helper to strip comments and normalize whitespace from regex strings
 function rx(template: string): string {
@@ -118,17 +118,15 @@ export function parseLine(text: string): ParsedLine {
 
       // Determine mnemonic type
       const lcMnemonic = mnemonicText.toLowerCase();
-      const isInstruction = instructions.includes(lcMnemonic);
-      const isDirective = directives.includes(lcMnemonic);
 
-      if (isInstruction) {
+      if (isInstruction(lcMnemonic)) {
         line.mnemonic = {
           type: "instruction",
           start,
           end,
           instruction: lcMnemonic,
         };
-      } else if (isDirective) {
+      } else if (isDirective(lcMnemonic)) {
         line.mnemonic = {
           type: "directive",
           start,
@@ -151,23 +149,30 @@ export function parseLine(text: string): ParsedLine {
       sizeText = sizeText.substring(1);
       end = start + sizeText.length;
 
-      line.size = {
-        type: "size",
-        start,
-        end,
-        size: sizeText.toLowerCase(),
-      };
+      const lcSize = sizeText.toLowerCase();
+      if (isSize(lcSize)) {
+        line.qualifier = {
+          type: "size",
+          start,
+          end,
+          size: lcSize,
+        };
+      }
+      // TODO: other types e.g. Macro arg
     }
 
     // Special handling for iif directive - it needs operands AND comment merged
-    const isIif = line.mnemonic?.type === "directive" &&
-                  (line.mnemonic as any).directive === "iif";
+    const isIif =
+      line.mnemonic?.type === "directive" &&
+      (line.mnemonic as DirectiveNode).directive === "iif";
 
     if (isIif && (groups.operands || groups.comment)) {
       // For iif, merge operands and comment, then split at real comment marker
       const fullText = groups.operands
-        ? (groups.comment ? groups.operands + " " + groups.comment : groups.operands)
-        : (groups.comment || "");
+        ? groups.comment
+          ? groups.operands + " " + groups.comment
+          : groups.operands
+        : groups.comment || "";
 
       // Find real comment (starts with ; or *)
       const commentMatch = /^(.*?)\s*([;*].*)$/.exec(fullText);
@@ -184,7 +189,11 @@ export function parseLine(text: string): ParsedLine {
         const condStart = end + text.substring(end).indexOf(conditionText);
         const condEnd = condStart + conditionText.length;
 
-        line.inlineCondition = parseExpression(conditionText, condStart, condEnd);
+        line.inlineCondition = parseExpression(
+          conditionText,
+          condStart,
+          condEnd,
+        );
 
         // Parse the statement as a separate line to extract its operands
         // Add leading whitespace to ensure proper parsing (avoids label detection)
@@ -197,7 +206,7 @@ export function parseLine(text: string): ParsedLine {
         if (statementLine.operands) {
           // Adjust operand positions to be relative to the original text
           // Account for the 2-char padding we added
-          line.operands = statementLine.operands.map(op => ({
+          line.operands = statementLine.operands.map((op) => ({
             ...op,
             start: statementStart + op.start - 2,
             end: statementStart + op.end - 2,
@@ -231,13 +240,14 @@ export function parseLine(text: string): ParsedLine {
         end = start + opText.length;
 
         // Parse operand to determine its type, passing mnemonic category for context
-        const category = line.mnemonic?.type === "instruction"
-          ? "instruction"
-          : line.mnemonic?.type === "directive"
-            ? "directive"
-            : line.mnemonic?.type === "macro"
-              ? "macro"
-              : undefined;
+        const category =
+          line.mnemonic?.type === "instruction"
+            ? "instruction"
+            : line.mnemonic?.type === "directive"
+              ? "directive"
+              : line.mnemonic?.type === "macro"
+                ? "macro"
+                : undefined;
         const operand = parseOperand(opText, start, end, category);
         operands.push(operand);
       }

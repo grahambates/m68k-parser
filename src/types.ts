@@ -1,46 +1,34 @@
+// Import and re-export register types from syntax (derived from const arrays)
+import type {
+  DataRegister,
+  AddressRegister,
+  SpecialRegister,
+  BuiltinSymbol,
+  Instruction,
+  Directive,
+  Size,
+} from "./syntax";
+
+export type {
+  DataRegister,
+  AddressRegister,
+  SpecialRegister,
+  BuiltinSymbol,
+  Instruction,
+  Directive,
+  Size,
+};
+
 export type MnemonicNode = InstructionNode | DirectiveNode | MacroNode;
 
 export interface ParsedLine {
+  inlineCondition?: ExpressionNode; // For iif directive: the condition expression
   label?: LabelNode;
   mnemonic?: MnemonicNode;
-  size?: SizeNode;
+  qualifier?: SizeNode;
   operands?: OperandNode[];
   comment?: CommentNode;
-  inlineCondition?: ExpressionNode; // For iif directive: the condition expression
 }
-
-export type DataRegister =
-  | "d0"
-  | "d1"
-  | "d2"
-  | "d3"
-  | "d4"
-  | "d5"
-  | "d6"
-  | "d7";
-
-export type AddressRegister =
-  | "a0"
-  | "a1"
-  | "a2"
-  | "a3"
-  | "a4"
-  | "a5"
-  | "a6"
-  | "a7"
-  | "sp";
-
-export type SpecialRegister =
-  | "sr"
-  | "ccr"
-  | "usp"
-  | "ssp"
-  | "pc"
-  | "vbr"
-  | "sfc"
-  | "dfc"
-  | "cacr"
-  | "caar";
 
 export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
 
@@ -100,7 +88,7 @@ export interface MacroNode extends Node {
 // Size qualifier
 export interface SizeNode extends Node {
   type: "size";
-  size: string;
+  size: Size;
 }
 
 // Comment
@@ -139,22 +127,7 @@ export interface SymbolNode extends Node {
 // Built-in assembler symbols
 export interface BuiltinSymbolNode extends Node {
   type: "builtin-symbol";
-  name:
-    | "__RS"       // Structure offset counter
-    | "__SO"       // Structure offset (same as __RS)
-    | "__FO"       // Structure offset with fill
-    | "REPTN"      // Repeat loop counter
-    | "CARG"       // Macro argument counter
-    | "NARG"       // Number of macro arguments
-    | "__G2"       // Devpac: CPU type info
-    | "__LK"       // Devpac: Output file type
-    | "__CPU"      // PhxAss: CPU type
-    | "__FPU"      // PhxAss: FPU type
-    | "__MMU"      // PhxAss: MMU type
-    | "__OPTC"     // PhxAss: Optimization flags
-    | "_MOVEMBYTES" // BAsm: MOVEM bytes
-    | "__MOVEMREGS" // BAsm: MOVEM register count
-    | "__VASM";    // vasm version/CPU bitfield
+  name: BuiltinSymbol;
 }
 
 // Binary operation
