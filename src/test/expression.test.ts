@@ -10,7 +10,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "label" },
-          right: { type: "numeric-literal", format: "decimal", value: "4" },
+          right: { type: "numeric-literal", format: "decimal", value: 4 },
         },
       });
     });
@@ -23,7 +23,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "-",
           left: { type: "symbol", name: "offset" },
-          right: { type: "numeric-literal", format: "decimal", value: "8" },
+          right: { type: "numeric-literal", format: "decimal", value: 8 },
         },
       });
     });
@@ -62,7 +62,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "%",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "decimal", value: "16" },
+          right: { type: "numeric-literal", format: "decimal", value: 16 },
         },
       });
     });
@@ -75,7 +75,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "%",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "decimal", value: "16" },
+          right: { type: "numeric-literal", format: "decimal", value: 16 },
         },
       });
     });
@@ -90,7 +90,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "&",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", value: "$FF" },
+          right: { type: "numeric-literal", format: "hex", value: 0xFF },
         },
       });
     });
@@ -103,7 +103,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "|",
           left: { type: "symbol", name: "flags" },
-          right: { type: "numeric-literal", format: "hex", value: "$80" },
+          right: { type: "numeric-literal", format: "hex", value: 0x80 },
         },
       });
     });
@@ -116,7 +116,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "|",
           left: { type: "symbol", name: "flags" },
-          right: { type: "numeric-literal", format: "hex", value: "$80" },
+          right: { type: "numeric-literal", format: "hex", value: 0x80 },
         },
       });
     });
@@ -129,7 +129,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "^",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", value: "$FFFF" },
+          right: { type: "numeric-literal", format: "hex", value: 0xFFFF },
         },
       });
     });
@@ -142,7 +142,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "^",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", value: "$FFFF" },
+          right: { type: "numeric-literal", format: "hex", value: 0xFFFF },
         },
       });
     });
@@ -154,8 +154,8 @@ describe("Expression Parsing", () => {
         value: {
           type: "binary-op",
           operator: "<<",
-          left: { type: "numeric-literal", format: "decimal", value: "1" },
-          right: { type: "numeric-literal", format: "decimal", value: "8" },
+          left: { type: "numeric-literal", format: "decimal", value: 1 },
+          right: { type: "numeric-literal", format: "decimal", value: 8 },
         },
       });
     });
@@ -168,7 +168,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: ">>",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "decimal", value: "4" },
+          right: { type: "numeric-literal", format: "decimal", value: 4 },
         },
       });
     });
@@ -440,7 +440,7 @@ describe("Expression Parsing", () => {
             type: "binary-op",
             operator: "<<",
             left: { type: "symbol", name: "a" },
-            right: { type: "numeric-literal", format: "decimal", value: "2" },
+            right: { type: "numeric-literal", format: "decimal", value: 2 },
           },
           right: { type: "symbol", name: "mask" },
         },
@@ -528,7 +528,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "+",
           left: { type: "symbol", name: "label" },
-          right: { type: "numeric-literal", format: "decimal", value: "4" },
+          right: { type: "numeric-literal", format: "decimal", value: 4 },
         },
       });
     });
@@ -559,7 +559,7 @@ describe("Expression Parsing", () => {
               type: "binary-op",
               operator: "&",
               left: { type: "symbol", name: "value" },
-              right: { type: "numeric-literal", format: "hex", value: "$FF" },
+              right: { type: "numeric-literal", format: "hex", value: 0xFF },
             },
           },
           right: {
@@ -568,7 +568,7 @@ describe("Expression Parsing", () => {
               type: "binary-op",
               operator: "<<",
               left: { type: "symbol", name: "flags" },
-              right: { type: "numeric-literal", format: "decimal", value: "8" },
+              right: { type: "numeric-literal", format: "decimal", value: 8 },
             },
           },
         },
@@ -583,7 +583,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "+",
           left: { type: "current-address" },
-          right: { type: "numeric-literal", format: "decimal", value: "10" },
+          right: { type: "numeric-literal", format: "decimal", value: 10 },
         },
       });
     });
@@ -602,7 +602,7 @@ describe("Expression Parsing", () => {
             type: "binary-op",
             operator: "+",
             left: { type: "symbol", name: "BASE" },
-            right: { type: "numeric-literal", format: "decimal", value: "4" },
+            right: { type: "numeric-literal", format: "decimal", value: 4 },
           },
           start: 9,
           end: 19,
@@ -676,8 +676,183 @@ describe("Expression Parsing", () => {
             type: "binary-op",
             operator: "*",
             left: { type: "symbol", name: "index" },
-            right: { type: "numeric-literal", format: "decimal", value: "4" },
+            right: { type: "numeric-literal", format: "decimal", value: 4 },
           },
+        },
+      });
+    });
+  });
+
+  describe("Numeric literal parsing", () => {
+    it("parses decimal numbers", () => {
+      const line1 = parseLine("  dc.w 42");
+      expect(line1.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "decimal",
+          raw: "42",
+          value: 42,
+        },
+      });
+
+      const line2 = parseLine("  dc.w 0");
+      expect(line2.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "decimal",
+          raw: "0",
+          value: 0,
+        },
+      });
+
+      const line3 = parseLine("  dc.w 65535");
+      expect(line3.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "decimal",
+          raw: "65535",
+          value: 65535,
+        },
+      });
+    });
+
+    it("parses hexadecimal numbers", () => {
+      const line1 = parseLine("  dc.w $FF");
+      expect(line1.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "hex",
+          raw: "$FF",
+          value: 255,
+        },
+      });
+
+      const line2 = parseLine("  dc.w $1234");
+      expect(line2.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "hex",
+          raw: "$1234",
+          value: 0x1234,
+        },
+      });
+
+      const line3 = parseLine("  dc.w $ABCD");
+      expect(line3.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "hex",
+          raw: "$ABCD",
+          value: 0xABCD,
+        },
+      });
+
+      const line4 = parseLine("  dc.w $0");
+      expect(line4.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "hex",
+          raw: "$0",
+          value: 0,
+        },
+      });
+    });
+
+    it("parses binary numbers", () => {
+      const line1 = parseLine("  dc.w %1010");
+      expect(line1.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "binary",
+          raw: "%1010",
+          value: 10,
+        },
+      });
+
+      const line2 = parseLine("  dc.w %11111111");
+      expect(line2.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "binary",
+          raw: "%11111111",
+          value: 255,
+        },
+      });
+
+      const line3 = parseLine("  dc.w %1");
+      expect(line3.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "binary",
+          raw: "%1",
+          value: 1,
+        },
+      });
+
+      const line4 = parseLine("  dc.w %0");
+      expect(line4.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "binary",
+          raw: "%0",
+          value: 0,
+        },
+      });
+    });
+
+    it("parses octal numbers", () => {
+      const line1 = parseLine("  dc.w @77");
+      expect(line1.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "octal",
+          raw: "@77",
+          value: 63,
+        },
+      });
+
+      const line2 = parseLine("  dc.w @377");
+      expect(line2.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "octal",
+          raw: "@377",
+          value: 255,
+        },
+      });
+
+      const line3 = parseLine("  dc.w @7");
+      expect(line3.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "octal",
+          raw: "@7",
+          value: 7,
+        },
+      });
+
+      const line4 = parseLine("  dc.w @0");
+      expect(line4.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "numeric-literal",
+          format: "octal",
+          raw: "@0",
+          value: 0,
         },
       });
     });

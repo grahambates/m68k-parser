@@ -39,12 +39,18 @@ export function parseExpression(
     const token = current();
 
     if (token.type === "number") {
-      const text = token.value;
       advance();
+      const value = Number(
+        token.value
+          .replace(/^\$/, "0x")
+          .replace(/^%/, "0b")
+          .replace(/^@/, "0o"),
+      );
       return {
         type: "numeric-literal",
         format: token.format,
-        value: text,
+        raw: token.value,
+        value,
         start,
         end,
       };

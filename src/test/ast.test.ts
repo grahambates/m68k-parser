@@ -267,7 +267,7 @@ describe("parse AST", () => {
             expression: {
               type: "numeric-literal",
               format: "hex",
-              value: "$1000",
+              value: 0x1000,
               start: 7,
               end: 16,
             },

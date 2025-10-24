@@ -111,7 +111,8 @@ export type ExpressionNode =
 export interface NumericLiteralNode extends Node {
   type: "numeric-literal";
   format: NumberFormat;
-  value: string;
+  raw: string;
+  value: number;
 }
 
 // Symbol/identifier reference
