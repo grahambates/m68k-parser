@@ -1,0 +1,687 @@
+import { parseLine } from "../index";
+
+describe("Expression Parsing", () => {
+  describe("Arithmetic operators", () => {
+    it("parses addition", () => {
+      const line = parseLine("  dc.w label+4");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "label" },
+          right: { type: "numeric-literal", format: "decimal", text: "4" },
+        },
+      });
+    });
+
+    it("parses subtraction", () => {
+      const line = parseLine("  dc.w offset-8");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "-",
+          left: { type: "symbol", name: "offset" },
+          right: { type: "numeric-literal", format: "decimal", text: "8" },
+        },
+      });
+    });
+
+    it("parses multiplication", () => {
+      const line = parseLine("  dc.w width*height");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "*",
+          left: { type: "symbol", name: "width" },
+          right: { type: "symbol", name: "height" },
+        },
+      });
+    });
+
+    it("parses division", () => {
+      const line = parseLine("  dc.w total/count");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "/",
+          left: { type: "symbol", name: "total" },
+          right: { type: "symbol", name: "count" },
+        },
+      });
+    });
+
+    it("parses modulo with %", () => {
+      const line = parseLine("  dc.w value%16");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "%",
+          left: { type: "symbol", name: "value" },
+          right: { type: "numeric-literal", format: "decimal", text: "16" },
+        },
+      });
+    });
+
+    it("parses modulo with //", () => {
+      const line = parseLine("  dc.w value//16");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "%",
+          left: { type: "symbol", name: "value" },
+          right: { type: "numeric-literal", format: "decimal", text: "16" },
+        },
+      });
+    });
+  });
+
+  describe("Bitwise operators", () => {
+    it("parses bitwise AND", () => {
+      const line = parseLine("  dc.w value&$FF");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "&",
+          left: { type: "symbol", name: "value" },
+          right: { type: "numeric-literal", format: "hex", text: "$FF" },
+        },
+      });
+    });
+
+    it("parses bitwise OR with |", () => {
+      const line = parseLine("  dc.w flags|$80");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "|",
+          left: { type: "symbol", name: "flags" },
+          right: { type: "numeric-literal", format: "hex", text: "$80" },
+        },
+      });
+    });
+
+    it("parses bitwise OR with !", () => {
+      const line = parseLine("  dc.w flags!$80");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "|",
+          left: { type: "symbol", name: "flags" },
+          right: { type: "numeric-literal", format: "hex", text: "$80" },
+        },
+      });
+    });
+
+    it("parses bitwise XOR with ^", () => {
+      const line = parseLine("  dc.w value^$FFFF");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "^",
+          left: { type: "symbol", name: "value" },
+          right: { type: "numeric-literal", format: "hex", text: "$FFFF" },
+        },
+      });
+    });
+
+    it("parses bitwise XOR with ~", () => {
+      const line = parseLine("  dc.w value~$FFFF");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "^",
+          left: { type: "symbol", name: "value" },
+          right: { type: "numeric-literal", format: "hex", text: "$FFFF" },
+        },
+      });
+    });
+
+    it("parses left shift", () => {
+      const line = parseLine("  dc.w 1<<8");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "<<",
+          left: { type: "numeric-literal", format: "decimal", text: "1" },
+          right: { type: "numeric-literal", format: "decimal", text: "8" },
+        },
+      });
+    });
+
+    it("parses right shift", () => {
+      const line = parseLine("  dc.w value>>4");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: ">>",
+          left: { type: "symbol", name: "value" },
+          right: { type: "numeric-literal", format: "decimal", text: "4" },
+        },
+      });
+    });
+  });
+
+  describe("Comparison operators", () => {
+    it("parses less than", () => {
+      const line = parseLine("  dc.w a<b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "<",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses greater than", () => {
+      const line = parseLine("  dc.w a>b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: ">",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses less than or equal", () => {
+      const line = parseLine("  dc.w a<=b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "<=",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses greater than or equal", () => {
+      const line = parseLine("  dc.w a>=b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: ">=",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses equality with ==", () => {
+      const line = parseLine("  dc.w a==b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "=",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses equality with =", () => {
+      const line = parseLine("  dc.w a=b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "=",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses inequality with !=", () => {
+      const line = parseLine("  dc.w a!=b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "<>",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses inequality with <>", () => {
+      const line = parseLine("  dc.w a<>b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "<>",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+  });
+
+  describe("Logical operators", () => {
+    it("parses logical AND", () => {
+      const line = parseLine("  dc.w a&&b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "&&",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+
+    it("parses logical OR", () => {
+      const line = parseLine("  dc.w a||b");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "||",
+          left: { type: "symbol", name: "a" },
+          right: { type: "symbol", name: "b" },
+        },
+      });
+    });
+  });
+
+  describe("Unary operators", () => {
+    it("parses unary plus", () => {
+      const line = parseLine("  dc.w +value");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "unary-op",
+          operator: "+",
+          operand: { type: "symbol", name: "value" },
+        },
+      });
+    });
+
+    it("parses unary minus", () => {
+      const line = parseLine("  dc.w -value");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "unary-op",
+          operator: "-",
+          operand: { type: "symbol", name: "value" },
+        },
+      });
+    });
+
+    it("parses logical NOT", () => {
+      const line = parseLine("  dc.w !flag");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "unary-op",
+          operator: "!",
+          operand: { type: "symbol", name: "flag" },
+        },
+      });
+    });
+
+    it("parses bitwise complement", () => {
+      const line = parseLine("  dc.w ~mask");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "unary-op",
+          operator: "~",
+          operand: { type: "symbol", name: "mask" },
+        },
+      });
+    });
+  });
+
+  describe("Parentheses and grouping", () => {
+    it("parses grouped expressions", () => {
+      const line = parseLine("  dc.w (a+b)*c");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "*",
+          left: {
+            type: "group",
+            expression: {
+              type: "binary-op",
+              operator: "+",
+              left: { type: "symbol", name: "a" },
+              right: { type: "symbol", name: "b" },
+            },
+          },
+          right: { type: "symbol", name: "c" },
+        },
+      });
+    });
+
+    it("parses nested parentheses", () => {
+      const line = parseLine("  dc.w ((a+b)*c)+d");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: {
+            type: "group",
+            expression: {
+              type: "binary-op",
+              operator: "*",
+              left: {
+                type: "group",
+                expression: {
+                  type: "binary-op",
+                  operator: "+",
+                  left: { type: "symbol", name: "a" },
+                  right: { type: "symbol", name: "b" },
+                },
+              },
+              right: { type: "symbol", name: "c" },
+            },
+          },
+          right: { type: "symbol", name: "d" },
+        },
+      });
+    });
+  });
+
+  describe("Operator precedence", () => {
+    it("multiplication before addition", () => {
+      const line = parseLine("  dc.w a+b*c");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "a" },
+          right: {
+            type: "binary-op",
+            operator: "*",
+            left: { type: "symbol", name: "b" },
+            right: { type: "symbol", name: "c" },
+          },
+        },
+      });
+    });
+
+    it("shifts before bitwise AND", () => {
+      const line = parseLine("  dc.w a<<2&mask");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "&",
+          left: {
+            type: "binary-op",
+            operator: "<<",
+            left: { type: "symbol", name: "a" },
+            right: { type: "numeric-literal", format: "decimal", text: "2" },
+          },
+          right: { type: "symbol", name: "mask" },
+        },
+      });
+    });
+
+    it("bitwise before arithmetic", () => {
+      const line = parseLine("  dc.w a&b+c");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: {
+            type: "binary-op",
+            operator: "&",
+            left: { type: "symbol", name: "a" },
+            right: { type: "symbol", name: "b" },
+          },
+          right: { type: "symbol", name: "c" },
+        },
+      });
+    });
+
+    it("arithmetic before comparison", () => {
+      const line = parseLine("  dc.w a+b<c");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "<",
+          left: {
+            type: "binary-op",
+            operator: "+",
+            left: { type: "symbol", name: "a" },
+            right: { type: "symbol", name: "b" },
+          },
+          right: { type: "symbol", name: "c" },
+        },
+      });
+    });
+
+    it("comparison before logical AND", () => {
+      const line = parseLine("  dc.w a<b&&c>d");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "&&",
+          left: {
+            type: "binary-op",
+            operator: "<",
+            left: { type: "symbol", name: "a" },
+            right: { type: "symbol", name: "b" },
+          },
+          right: {
+            type: "binary-op",
+            operator: ">",
+            left: { type: "symbol", name: "c" },
+            right: { type: "symbol", name: "d" },
+          },
+        },
+      });
+    });
+  });
+
+  describe("Complex real-world expressions", () => {
+    it("parses vasm example from docs", () => {
+      const line = parseLine(
+        "  dc.w (DIW_XSTRT-17+(DIW_W>>4-1)<<4)>>1&$fc-SCROLL*8",
+      );
+      // Just verify it parses without error and produces a binary-op at top level
+      const operand = line.operands?.[0];
+      expect(operand?.type).toBe("value");
+      if (operand?.type === "value") {
+        expect(operand.expression?.type).toBe("binary-op");
+      }
+    });
+
+    it("parses label offset calculation", () => {
+      const line = parseLine("  move label+4,d0");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "absolute-address",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "label" },
+          right: { type: "numeric-literal", format: "decimal", text: "4" },
+        },
+      });
+    });
+
+    it("parses size calculation", () => {
+      const line = parseLine("SIZE equ width*height");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "*",
+          left: { type: "symbol", name: "width" },
+          right: { type: "symbol", name: "height" },
+        },
+      });
+    });
+
+    it("parses bit mask expression", () => {
+      const line = parseLine("  dc.w (value&$FF)|(flags<<8)");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "|",
+          left: {
+            type: "group",
+            expression: {
+              type: "binary-op",
+              operator: "&",
+              left: { type: "symbol", name: "value" },
+              right: { type: "numeric-literal", format: "hex", text: "$FF" },
+            },
+          },
+          right: {
+            type: "group",
+            expression: {
+              type: "binary-op",
+              operator: "<<",
+              left: { type: "symbol", name: "flags" },
+              right: { type: "numeric-literal", format: "decimal", text: "8" },
+            },
+          },
+        },
+      });
+    });
+
+    it("parses current address expression", () => {
+      const line = parseLine("  dc.w *+10");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "current-address" },
+          right: { type: "numeric-literal", format: "decimal", text: "10" },
+        },
+      });
+    });
+  });
+
+  describe("Expressions in different contexts", () => {
+    it("parses expression in absolute address with size qualifier (parens)", () => {
+      const line = parseLine("  move.l (BASE+4).w,d0");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "absolute-address",
+        start: 9,
+        end: 19,
+        text: "(BASE+4).w",
+        expression: {
+          type: "group",
+          expression: {
+            type: "binary-op",
+            operator: "+",
+            left: { type: "symbol", name: "BASE" },
+            right: { type: "numeric-literal", format: "decimal", text: "4" },
+          },
+          text: "(BASE+4)",
+          start: 9,
+          end: 19,
+        },
+        addressSize: "w",
+      });
+    });
+
+    it("parses expression in absolute address with size suffix", () => {
+      const line = parseLine("  move.l BASE+offset.w,d0");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "absolute-address",
+        addressSize: "w",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "BASE" },
+          right: { type: "symbol", name: "offset" },
+        },
+      });
+    });
+
+    it("parses expression in absolute address without size", () => {
+      const line = parseLine("  move.l BASE+offset,d0");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "absolute-address",
+        expression: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "BASE" },
+          right: { type: "symbol", name: "offset" },
+        },
+      });
+    });
+
+    it("parses expression in immediate operand", () => {
+      const line = parseLine("  move #width*height,d0");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "immediate",
+        expression: {
+          type: "binary-op",
+          operator: "*",
+          left: { type: "symbol", name: "width" },
+          right: { type: "symbol", name: "height" },
+        },
+      });
+    });
+
+    it("parses expression in displacement", () => {
+      const line = parseLine("  move base+offset(a0),d0");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "address-register-indirect-displacement",
+        displacement: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "base" },
+          right: { type: "symbol", name: "offset" },
+        },
+      });
+    });
+
+    it("parses expression in PC-relative", () => {
+      const line = parseLine("  bra table+index*4(pc)");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "pc-relative",
+        displacement: {
+          type: "binary-op",
+          operator: "+",
+          left: { type: "symbol", name: "table" },
+          right: {
+            type: "binary-op",
+            operator: "*",
+            left: { type: "symbol", name: "index" },
+            right: { type: "numeric-literal", format: "decimal", text: "4" },
+          },
+        },
+      });
+    });
+  });
+});
