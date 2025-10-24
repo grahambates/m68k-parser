@@ -18,26 +18,23 @@ describe("parse AST", () => {
       });
     });
 
-    it("parses mnemonics with category", () => {
+    it("parses instructions, directives, and macros", () => {
       const instruction = parseLine("  move d0,d1");
       expect(instruction.mnemonic).toMatchObject({
-        type: "mnemonic",
-        mnemonic: "move",
-        category: "instruction",
+        type: "instruction",
+        instruction: "move",
       });
 
       const directive = parseLine("  dc.b 1");
       expect(directive.mnemonic).toMatchObject({
-        type: "mnemonic",
-        mnemonic: "dc",
-        category: "directive",
+        type: "directive",
+        directive: "dc",
       });
 
-      const directive2 = parseLine("  foo");
-      expect(directive2.mnemonic).toMatchObject({
-        type: "mnemonic",
-        mnemonic: "foo",
-        category: "macro",
+      const macro = parseLine("  foo");
+      expect(macro.mnemonic).toMatchObject({
+        type: "macro",
+        macro: "foo",
       });
     });
 
@@ -431,8 +428,6 @@ describe("parse AST", () => {
       // Data definition directives should have value operands, not absolute-address
       const dcb = parseLine("  dc.b 0,1,2");
       expect(dcb.mnemonic).toMatchObject({
-        type: "mnemonic",
-        category: "directive",
       });
       expect(dcb.operands).toHaveLength(3);
       expect(dcb.operands?.[0]).toMatchObject({
@@ -496,8 +491,6 @@ describe("parse AST", () => {
         scope: "global",
       });
       expect(equ.mnemonic).toMatchObject({
-        type: "mnemonic",
-        category: "directive",
       });
       expect(equ.operands).toHaveLength(1);
       expect(equ.operands?.[0]).toMatchObject({
@@ -515,8 +508,6 @@ describe("parse AST", () => {
         scope: "global",
       });
       expect(set.mnemonic).toMatchObject({
-        type: "mnemonic",
-        category: "directive",
       });
 
       // = directive (already tested in index.test.ts but verify AST)
@@ -526,8 +517,6 @@ describe("parse AST", () => {
         scope: "global",
       });
       expect(equals.mnemonic).toMatchObject({
-        type: "mnemonic",
-        category: "directive",
       });
 
       // = directive without whitespace
@@ -537,8 +526,6 @@ describe("parse AST", () => {
         scope: "global",
       });
       expect(equalsNoSpace.mnemonic).toMatchObject({
-        type: "mnemonic",
-        category: "directive",
       });
       expect(equalsNoSpace.operands).toHaveLength(1);
       expect(equalsNoSpace.operands?.[0]).toMatchObject({
@@ -563,8 +550,7 @@ describe("parse AST", () => {
       });
 
       expect(line.mnemonic).toMatchObject({
-        type: "mnemonic",
-        category: "instruction",
+        type: "instruction",
         start: 10,
         end: 14,
       });

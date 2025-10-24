@@ -7,7 +7,7 @@ describe("parse", () => {
         "label:    move.w     #1,10(a0,d1,w)    ; comment here",
       );
       expect(line.label).toMatchObject({ start: 0, end: 5, label: "label" });
-      expect(line.mnemonic).toMatchObject({ start: 10, end: 14, mnemonic: "move" });
+      expect(line.mnemonic).toMatchObject({ start: 10, end: 14, type: "instruction", instruction: "move" });
       expect(line.size).toMatchObject({ start: 15, end: 16, size: "w" });
       expect(line.operands).toHaveLength(2);
       expect(line.operands?.[0]).toMatchObject({
@@ -28,7 +28,7 @@ describe("parse", () => {
       const line = parseLine("label: move #1,10(a0,d1,w) ; comment here");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 7, end: 11, mnemonic: "move" },
+        mnemonic: { start: 7, end: 11, type: "instruction", instruction: "move" },
         operands: [
           { start: 12, end: 14},
           { start: 15, end: 26},
@@ -83,14 +83,14 @@ describe("parse", () => {
       const line = parseLine("label:rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 6, end: 9, mnemonic: "rts" },
+        mnemonic: { start: 6, end: 9, type: "instruction", instruction: "rts" },
       });
     });
 
     it("parses an instruction line with no label", () => {
       const line = parseLine("     move.w #1,10(a0,d1,w) ; comment here");
       expect(line).toMatchObject({
-        mnemonic: { start: 5, end: 9, mnemonic: "move" },
+        mnemonic: { start: 5, end: 9, type: "instruction", instruction: "move" },
         size: { start: 10, end: 11, size: "w" },
         operands: [
           { start: 12, end: 14},
@@ -103,7 +103,7 @@ describe("parse", () => {
     it("parses an instruction line with no operands", () => {
       const line = parseLine("     bra.s ; comment here");
       expect(line).toMatchObject({
-        mnemonic: { start: 5, end: 8, mnemonic: "bra" },
+        mnemonic: { start: 5, end: 8, type: "instruction", instruction: "bra" },
         size: { start: 9, end: 10, size: "s" },
         comment: { start: 11, end: 25, content: "comment here" },
       });
@@ -113,7 +113,7 @@ describe("parse", () => {
       const line = parseLine("label: move #1,10(a0,d1.w) comment here");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 7, end: 11, mnemonic: "move" },
+        mnemonic: { start: 7, end: 11, type: "instruction", instruction: "move" },
         operands: [
           { start: 12, end: 14},
           { start: 15, end: 26},
@@ -125,7 +125,7 @@ describe("parse", () => {
     it("parses a comment by position for instructions with no operands", () => {
       const line = parseLine(" rts comment here");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 4, mnemonic: "rts" },
+        mnemonic: { start: 1, end: 4, type: "instruction", instruction: "rts" },
         comment: { start: 5, end: 17},
       });
     });
@@ -133,7 +133,7 @@ describe("parse", () => {
     it("parses a comment by separator for macros with no operands", () => {
       const line = parseLine(" mcr ; comment here");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 4, mnemonic: "mcr" },
+        mnemonic: { start: 1, end: 4, type: "macro", macro: "mcr" },
         comment: { start: 5, end: 19, content: "comment here" },
       });
     });
@@ -144,7 +144,7 @@ describe("parse", () => {
       );
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 10, end: 14, mnemonic: "move" },
+        mnemonic: { start: 10, end: 14, type: "instruction", instruction: "move" },
         size: { start: 15, end: 16, size: "w" },
         operands: [
           { start: 21, end: 23},
@@ -168,7 +168,7 @@ describe("parse", () => {
       const line = parseLine("label = value");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 6, end: 7, mnemonic: "=" },
+        mnemonic: { start: 6, end: 7, type: "directive", directive: "=" },
         operands: [{ start: 8, end: 13}],
       });
     });
@@ -177,7 +177,7 @@ describe("parse", () => {
       const line = parseLine("label=value");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 5, end: 6, mnemonic: "=" },
+        mnemonic: { start: 5, end: 6, type: "directive", directive: "=" },
         operands: [{ start: 6, end: 11}],
       });
     });
@@ -186,7 +186,7 @@ describe("parse", () => {
       const line = parseLine("label:    move.");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 10, end: 14, mnemonic: "move" },
+        mnemonic: { start: 10, end: 14, type: "instruction", instruction: "move" },
         size: { start: 15, end: 15, size: "" },
       });
     });
@@ -194,7 +194,7 @@ describe("parse", () => {
     it("parses an incomplete operand list", () => {
       const line = parseLine(" move d0,");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, mnemonic: "move" },
+        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
         operands: [
           { start: 6, end: 8},
           { start: 9, end: 9},
@@ -205,7 +205,7 @@ describe("parse", () => {
     it("parses an operand containing spaces in double quotes", () => {
       const line = parseLine(' dc.b "foo bar baz" ; comment');
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 3, mnemonic: "dc" },
+        mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
         size: { start: 4, end: 5, size: "b" },
         operands: [{ start: 6, end: 19}],
         comment: {
@@ -218,7 +218,7 @@ describe("parse", () => {
     it("parses an operand containing spaces with in single quotes", () => {
       const line = parseLine(" dc.b 'foo bar baz' ; comment");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 3, mnemonic: "dc" },
+        mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
         size: { start: 4, end: 5, size: "b" },
         operands: [{ start: 6, end: 19}],
         comment: {
@@ -231,7 +231,7 @@ describe("parse", () => {
     it("parses an operand containing spaces with unbalanced quotes", () => {
       const line = parseLine(" dc.b 'foo bar baz");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 3, mnemonic: "dc" },
+        mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
         size: { start: 4, end: 5, size: "b" },
         operands: [{ start: 6, end: 18}],
       });
@@ -241,7 +241,7 @@ describe("parse", () => {
       const line = parseLine("foo\\1bar: rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 8, label: "foo\\1bar" },
-        mnemonic: { start: 10, end: 13, mnemonic: "rts" },
+        mnemonic: { start: 10, end: 13, type: "instruction", instruction: "rts" },
       });
     });
 
@@ -249,7 +249,7 @@ describe("parse", () => {
       const line = parseLine("foo\\@bar: rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 8, label: "foo\\@bar" },
-        mnemonic: { start: 10, end: 13, mnemonic: "rts" },
+        mnemonic: { start: 10, end: 13, type: "instruction", instruction: "rts" },
       });
     });
 
@@ -257,14 +257,14 @@ describe("parse", () => {
       const line = parseLine("foo\\<reptn>bar: rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 14, label: "foo\\<reptn>bar" },
-        mnemonic: { start: 16, end: 19, mnemonic: "rts" },
+        mnemonic: { start: 16, end: 19, type: "instruction", instruction: "rts" },
       });
     });
 
     it("parses a mnemonic containing a macro parameter", () => {
       const line = parseLine(" b\\1 d0,d1");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 4, mnemonic: "b\\1" },
+        mnemonic: { start: 1, end: 4, type: "macro", macro: "b\\1" },
         operands: [
           { start: 5, end: 7},
           { start: 8, end: 10},
@@ -275,7 +275,7 @@ describe("parse", () => {
     it("parses a size containing a macro parameter", () => {
       const line = parseLine(" move.\\1 d0,d1");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, mnemonic: "move" },
+        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
         size: { start: 6, end: 8, size: "\\1" },
         operands: [
           { start: 9, end: 11},
@@ -287,7 +287,7 @@ describe("parse", () => {
     it("parses an operand containing a macro parameter", () => {
       const line = parseLine(" move \\1,d0");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, mnemonic: "move" },
+        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
         operands: [
           { start: 6, end: 8},
           { start: 9, end: 11},
@@ -298,7 +298,7 @@ describe("parse", () => {
     it("parses a quoted macro arguments", () => {
       const line = parseLine('    FOO     <1,"foo">,d2');
       expect(line).toMatchObject({
-        mnemonic: { start: 4, end: 7, mnemonic: "FOO" },
+        mnemonic: { start: 4, end: 7, type: "macro", macro: "FOO" },
         operands: [
           { start: 12, end: 21},
           { start: 22, end: 24},
@@ -312,6 +312,7 @@ describe("parse", () => {
       );
       expect(line).toMatchObject({
         mnemonic: {
+          type: "directive",
           end: 3,
           start: 1,
         },

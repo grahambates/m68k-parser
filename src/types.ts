@@ -1,3 +1,5 @@
+export type MnemonicNode = InstructionNode | DirectiveNode | MacroNode;
+
 export interface ParsedLine {
   label?: LabelNode;
   mnemonic?: MnemonicNode;
@@ -76,11 +78,22 @@ export interface LabelNode extends Node {
   label: string;
 }
 
-// Mnemonic
-export interface MnemonicNode extends Node {
-  type: "mnemonic";
-  category: "instruction" | "directive" | "macro";
-  mnemonic: string;
+// Instruction (e.g., move, add, bra)
+export interface InstructionNode extends Node {
+  type: "instruction";
+  instruction: string;
+}
+
+// Directive (e.g., dc, ds, equ)
+export interface DirectiveNode extends Node {
+  type: "directive";
+  directive: string;
+}
+
+// Macro invocation
+export interface MacroNode extends Node {
+  type: "macro";
+  macro: string;
 }
 
 // Size qualifier

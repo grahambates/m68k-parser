@@ -102,23 +102,33 @@ export function parseLine(text: string): ParsedLine {
       const start = end + text.substring(end).indexOf(mnemonicText);
       end = start + mnemonicText.length;
 
-      // Determine mnomonic category
+      // Determine mnemonic type
       const lcMnemonic = mnemonicText.toLowerCase();
       const isInstruction = instructions.includes(lcMnemonic);
       const isDirective = directives.includes(lcMnemonic);
-      const isMacro = !isInstruction && !isDirective;
 
-      line.mnemonic = {
-        type: "mnemonic",
-        start,
-        end,
-        mnemonic: isMacro ? mnemonicText : lcMnemonic,
-        category: isInstruction
-          ? "instruction"
-          : isDirective
-            ? "directive"
-            : "macro",
-      };
+      if (isInstruction) {
+        line.mnemonic = {
+          type: "instruction",
+          start,
+          end,
+          instruction: lcMnemonic,
+        };
+      } else if (isDirective) {
+        line.mnemonic = {
+          type: "directive",
+          start,
+          end,
+          directive: lcMnemonic,
+        };
+      } else {
+        line.mnemonic = {
+          type: "macro",
+          start,
+          end,
+          macro: mnemonicText,
+        };
+      }
     }
 
     if (groups.size || groups.size1) {
@@ -147,12 +157,14 @@ export function parseLine(text: string): ParsedLine {
         end = start + opText.length;
 
         // Parse operand to determine its type, passing mnemonic category for context
-        const operand = parseOperand(
-          opText,
-          start,
-          end,
-          line.mnemonic?.category,
-        );
+        const category = line.mnemonic?.type === "instruction"
+          ? "instruction"
+          : line.mnemonic?.type === "directive"
+            ? "directive"
+            : line.mnemonic?.type === "macro"
+              ? "macro"
+              : undefined;
+        const operand = parseOperand(opText, start, end, category);
         operands.push(operand);
       }
 
