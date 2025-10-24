@@ -857,4 +857,99 @@ describe("Expression Parsing", () => {
       });
     });
   });
+
+  describe("Built-in symbols", () => {
+    it("parses __RS offset counter", () => {
+      const line = parseLine("  dc.w __RS+4");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "binary-op",
+          operator: "+",
+          left: {
+            type: "builtin-symbol",
+            name: "__RS",
+          },
+          right: {
+            type: "numeric-literal",
+            value: 4,
+          },
+        },
+      });
+    });
+
+    it("parses __SO offset counter", () => {
+      const line = parseLine("  dc.w __SO");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__SO",
+        },
+      });
+    });
+
+    it("parses __FO offset counter", () => {
+      const line = parseLine("  dc.w __FO");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "__FO",
+        },
+      });
+    });
+
+    it("parses REPTN repeat counter", () => {
+      const line = parseLine("  dc.w REPTN*2");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "binary-op",
+          operator: "*",
+          left: {
+            type: "builtin-symbol",
+            name: "REPTN",
+          },
+          right: {
+            type: "numeric-literal",
+            value: 2,
+          },
+        },
+      });
+    });
+
+    it("parses CARG argument counter", () => {
+      const line = parseLine("  dc.w CARG");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "CARG",
+        },
+      });
+    });
+
+    it("parses NARG argument count", () => {
+      const line = parseLine("  dc.w NARG");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "builtin-symbol",
+          name: "NARG",
+        },
+      });
+    });
+
+    it("treats similar names as regular symbols", () => {
+      const line = parseLine("  dc.w __RSX");
+      expect(line.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "symbol",
+          name: "__RSX",
+        },
+      });
+    });
+  });
 });

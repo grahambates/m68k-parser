@@ -113,6 +113,7 @@ export interface CommentNode extends Node {
 export type ExpressionNode =
   | NumericLiteralNode
   | SymbolNode
+  | BuiltinSymbolNode
   | BinaryOperatorNode
   | UnaryOperatorNode
   | GroupNode
@@ -132,6 +133,12 @@ export interface NumericLiteralNode extends Node {
 export interface SymbolNode extends Node {
   type: "symbol";
   name: string; // The identifier name like "label" or "MYCONST"
+}
+
+// Built-in assembler symbols
+export interface BuiltinSymbolNode extends Node {
+  type: "builtin-symbol";
+  name: "__RS" | "__SO" | "__FO" | "REPTN" | "CARG" | "NARG";
 }
 
 // Binary operation
