@@ -44,6 +44,8 @@ export interface ParsedLine {
 
 export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
 
+export type AddressSize = "w" | "l";
+
 export type BinaryOp =
   | "+"
   | "-"
@@ -284,7 +286,7 @@ export interface AddressRegisterIndirectIndexNode extends Node {
   displacement?: ExpressionNode; // Parsed displacement expression
   baseRegister: AddressRegister;
   indexRegister: DataRegister | AddressRegister;
-  indexSize?: "w" | "l";
+  indexSize?: AddressSize;
   scaleFactor?: 1 | 2 | 4 | 8; // 68020+ scale factor
 }
 
@@ -292,7 +294,7 @@ export interface AddressRegisterIndirectIndexNode extends Node {
 export interface AbsoluteAddressNode extends Node {
   type: "absolute-address";
   address: ExpressionNode; // Parsed expression
-  addressSize?: "w" | "l";
+  addressSize?: AddressSize;
 }
 
 // PC relative: offset(pc)
@@ -306,7 +308,7 @@ export interface PCRelativeIndexNode extends Node {
   type: "pc-relative-index";
   displacement: ExpressionNode; // Parsed displacement expression
   indexRegister: DataRegister | AddressRegister;
-  indexSize?: "w" | "l";
+  indexSize?: AddressSize;
   scaleFactor?: 1 | 2 | 4 | 8; // 68020+ scale factor
 }
 
@@ -329,7 +331,7 @@ export interface MemoryIndirectNode extends Node {
   baseDisplacement?: ExpressionNode; // [bd,...]
   baseRegister?: AddressRegister; // [bd,An,...]
   indexRegister?: DataRegister | AddressRegister; // [bd,An,Rn,...]
-  indexSize?: "w" | "l";
+  indexSize?: AddressSize;
   scaleFactor?: 1 | 2 | 4 | 8;
   outerDisplacement?: ExpressionNode; // [...],od
 }

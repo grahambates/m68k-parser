@@ -4,6 +4,7 @@ import {
   FPUDataRegister,
   OperandNode,
   ExpressionNode,
+  AddressSize,
 } from "./types";
 import { parseExpression } from "./expression-parser";
 import {
@@ -294,7 +295,7 @@ export function parseOperand(
     let baseDisplacement: ExpressionNode | undefined;
     let baseRegister: AddressRegister | undefined;
     let indexRegister: DataRegister | AddressRegister | undefined;
-    let indexSize: "w" | "l" | undefined;
+    let indexSize: AddressSize | undefined;
     let scaleFactor: 1 | 2 | 4 | 8 | undefined;
 
     // Parse based on number of parts
@@ -326,7 +327,7 @@ export function parseOperand(
         indexRegister = indexMatch[1].toLowerCase() as
           | DataRegister
           | AddressRegister;
-        indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+        indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
         scaleFactor = indexMatch[3]
           ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
           : undefined;
@@ -353,7 +354,7 @@ export function parseOperand(
         indexRegister = indexMatch[1].toLowerCase() as
           | DataRegister
           | AddressRegister;
-        indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+        indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
         scaleFactor = indexMatch[3]
           ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
           : undefined;
@@ -449,7 +450,7 @@ export function parseOperand(
       const indexRegister = indexMatch[1].toLowerCase() as
         | DataRegister
         | AddressRegister;
-      const indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+      const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
       const scaleFactor = indexMatch[3]
         ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
         : undefined;
@@ -499,7 +500,7 @@ export function parseOperand(
       const indexRegister = indexMatch[1].toLowerCase() as
         | DataRegister
         | AddressRegister;
-      const indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+      const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
       const scaleFactor = indexMatch[3]
         ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
         : undefined;
@@ -578,7 +579,7 @@ export function parseOperand(
       start,
       end,
       address: parseExpression(absoluteSizedMatch[1], start, end),
-      addressSize: absoluteSizedMatch[2].toLowerCase() as "w" | "l",
+      addressSize: absoluteSizedMatch[2].toLowerCase() as AddressSize,
     };
   }
 
@@ -590,7 +591,7 @@ export function parseOperand(
       start,
       end,
       address: parseExpression(absoluteWithSizeMatch[1], start, end),
-      addressSize: absoluteWithSizeMatch[2].toLowerCase() as "w" | "l",
+      addressSize: absoluteWithSizeMatch[2].toLowerCase() as AddressSize,
     };
   }
 
