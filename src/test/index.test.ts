@@ -7,7 +7,12 @@ describe("parse", () => {
         "label:    move.w     #1,10(a0,d1,w)    ; comment here",
       );
       expect(line.label).toMatchObject({ start: 0, end: 5, label: "label" });
-      expect(line.mnemonic).toMatchObject({ start: 10, end: 14, type: "instruction", instruction: "move" });
+      expect(line.mnemonic).toMatchObject({
+        start: 10,
+        end: 14,
+        type: "instruction",
+        instruction: "move",
+      });
       expect(line.qualifier).toMatchObject({ start: 15, end: 16, size: "w" });
       expect(line.operands).toHaveLength(2);
       expect(line.operands?.[0]).toMatchObject({
@@ -28,10 +33,15 @@ describe("parse", () => {
       const line = parseLine("label: move #1,10(a0,d1,w) ; comment here");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 7, end: 11, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 7,
+          end: 11,
+          type: "instruction",
+          instruction: "move",
+        },
         operands: [
-          { start: 12, end: 14},
-          { start: 15, end: 26},
+          { start: 12, end: 14 },
+          { start: 15, end: 26 },
         ],
         comment: { start: 27, end: 41, content: "comment here" },
       });
@@ -90,11 +100,16 @@ describe("parse", () => {
     it("parses an instruction line with no label", () => {
       const line = parseLine("     move.w #1,10(a0,d1,w) ; comment here");
       expect(line).toMatchObject({
-        mnemonic: { start: 5, end: 9, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 5,
+          end: 9,
+          type: "instruction",
+          instruction: "move",
+        },
         qualifier: { start: 10, end: 11, size: "w" },
         operands: [
-          { start: 12, end: 14},
-          { start: 15, end: 26},
+          { start: 12, end: 14 },
+          { start: 15, end: 26 },
         ],
         comment: { start: 27, end: 41, content: "comment here" },
       });
@@ -113,12 +128,17 @@ describe("parse", () => {
       const line = parseLine("label: move #1,10(a0,d1.w) comment here");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 7, end: 11, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 7,
+          end: 11,
+          type: "instruction",
+          instruction: "move",
+        },
         operands: [
-          { start: 12, end: 14},
-          { start: 15, end: 26},
+          { start: 12, end: 14 },
+          { start: 15, end: 26 },
         ],
-        comment: { start: 27, end: 39},
+        comment: { start: 27, end: 39 },
       });
     });
 
@@ -126,7 +146,7 @@ describe("parse", () => {
       const line = parseLine(" rts comment here");
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 4, type: "instruction", instruction: "rts" },
-        comment: { start: 5, end: 17},
+        comment: { start: 5, end: 17 },
       });
     });
 
@@ -144,11 +164,16 @@ describe("parse", () => {
       );
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 10, end: 14, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 10,
+          end: 14,
+          type: "instruction",
+          instruction: "move",
+        },
         qualifier: { start: 15, end: 16, size: "w" },
         operands: [
-          { start: 21, end: 23},
-          { start: 25, end: 36},
+          { start: 21, end: 23 },
+          { start: 25, end: 36 },
         ],
         comment: { start: 40, end: 54, content: "comment here" },
       });
@@ -169,7 +194,7 @@ describe("parse", () => {
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
         mnemonic: { start: 6, end: 7, type: "directive", directive: "=" },
-        operands: [{ start: 8, end: 13}],
+        operands: [{ start: 8, end: 13 }],
       });
     });
 
@@ -178,7 +203,7 @@ describe("parse", () => {
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
         mnemonic: { start: 5, end: 6, type: "directive", directive: "=" },
-        operands: [{ start: 6, end: 11}],
+        operands: [{ start: 6, end: 11 }],
       });
     });
 
@@ -186,7 +211,12 @@ describe("parse", () => {
       const line = parseLine("label:    move.");
       expect(line).toMatchObject({
         label: { start: 0, end: 5, label: "label" },
-        mnemonic: { start: 10, end: 14, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 10,
+          end: 14,
+          type: "instruction",
+          instruction: "move",
+        },
       });
       // Empty qualifier is not created for incomplete/invalid sizes
       expect(line.qualifier).toBeUndefined();
@@ -195,10 +225,15 @@ describe("parse", () => {
     it("parses an incomplete operand list", () => {
       const line = parseLine(" move d0,");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 1,
+          end: 5,
+          type: "instruction",
+          instruction: "move",
+        },
         operands: [
-          { start: 6, end: 8},
-          { start: 9, end: 9},
+          { start: 6, end: 8 },
+          { start: 9, end: 9 },
         ],
       });
     });
@@ -208,7 +243,7 @@ describe("parse", () => {
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
         qualifier: { start: 4, end: 5, size: "b" },
-        operands: [{ start: 6, end: 19}],
+        operands: [{ start: 6, end: 19 }],
         comment: {
           end: 29,
           start: 20,
@@ -221,7 +256,7 @@ describe("parse", () => {
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
         qualifier: { start: 4, end: 5, size: "b" },
-        operands: [{ start: 6, end: 19}],
+        operands: [{ start: 6, end: 19 }],
         comment: {
           end: 29,
           start: 20,
@@ -234,7 +269,7 @@ describe("parse", () => {
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 3, type: "directive", directive: "dc" },
         qualifier: { start: 4, end: 5, size: "b" },
-        operands: [{ start: 6, end: 18}],
+        operands: [{ start: 6, end: 18 }],
       });
     });
 
@@ -242,7 +277,12 @@ describe("parse", () => {
       const line = parseLine("foo\\1bar: rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 8, label: "foo\\1bar" },
-        mnemonic: { start: 10, end: 13, type: "instruction", instruction: "rts" },
+        mnemonic: {
+          start: 10,
+          end: 13,
+          type: "instruction",
+          instruction: "rts",
+        },
       });
     });
 
@@ -250,7 +290,12 @@ describe("parse", () => {
       const line = parseLine("foo\\@bar: rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 8, label: "foo\\@bar" },
-        mnemonic: { start: 10, end: 13, type: "instruction", instruction: "rts" },
+        mnemonic: {
+          start: 10,
+          end: 13,
+          type: "instruction",
+          instruction: "rts",
+        },
       });
     });
 
@@ -258,7 +303,12 @@ describe("parse", () => {
       const line = parseLine("foo\\<reptn>bar: rts");
       expect(line).toMatchObject({
         label: { start: 0, end: 14, label: "foo\\<reptn>bar" },
-        mnemonic: { start: 16, end: 19, type: "instruction", instruction: "rts" },
+        mnemonic: {
+          start: 16,
+          end: 19,
+          type: "instruction",
+          instruction: "rts",
+        },
       });
     });
 
@@ -267,8 +317,8 @@ describe("parse", () => {
       expect(line).toMatchObject({
         mnemonic: { start: 1, end: 4, type: "macro", macro: "b\\1" },
         operands: [
-          { start: 5, end: 7},
-          { start: 8, end: 10},
+          { start: 5, end: 7 },
+          { start: 8, end: 10 },
         ],
       });
     });
@@ -321,7 +371,12 @@ describe("parse", () => {
     it("parses a numeric macro parameter as qualifier", () => {
       const line = parseLine(" move.\\1 d0,d1");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 1,
+          end: 5,
+          type: "instruction",
+          instruction: "move",
+        },
         qualifier: {
           start: 6,
           end: 8,
@@ -330,8 +385,8 @@ describe("parse", () => {
           param: "1",
         },
         operands: [
-          { start: 9, end: 11},
-          { start: 12, end: 14},
+          { start: 9, end: 11 },
+          { start: 12, end: 14 },
         ],
       });
     });
@@ -339,7 +394,12 @@ describe("parse", () => {
     it("parses a special macro parameter as qualifier", () => {
       const line = parseLine(" move.\\@ d0,d1");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 1,
+          end: 5,
+          type: "instruction",
+          instruction: "move",
+        },
         qualifier: {
           type: "macro-parameter",
           paramType: "special",
@@ -351,7 +411,12 @@ describe("parse", () => {
     it("parses a named macro parameter as qualifier", () => {
       const line = parseLine(" move.\\<size> d0,d1");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 1,
+          end: 5,
+          type: "instruction",
+          instruction: "move",
+        },
         qualifier: {
           type: "macro-parameter",
           paramType: "named",
@@ -454,10 +519,15 @@ describe("parse", () => {
     it("parses an operand containing a macro parameter", () => {
       const line = parseLine(" move \\1,d0");
       expect(line).toMatchObject({
-        mnemonic: { start: 1, end: 5, type: "instruction", instruction: "move" },
+        mnemonic: {
+          start: 1,
+          end: 5,
+          type: "instruction",
+          instruction: "move",
+        },
         operands: [
-          { start: 6, end: 8},
-          { start: 9, end: 11},
+          { start: 6, end: 8 },
+          { start: 9, end: 11 },
         ],
       });
     });
@@ -467,8 +537,8 @@ describe("parse", () => {
       expect(line).toMatchObject({
         mnemonic: { start: 4, end: 7, type: "macro", macro: "FOO" },
         operands: [
-          { start: 12, end: 21},
-          { start: 22, end: 24},
+          { start: 12, end: 21 },
+          { start: 22, end: 24 },
         ],
       });
     });

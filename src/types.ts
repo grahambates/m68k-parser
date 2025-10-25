@@ -246,15 +246,15 @@ export interface FPURegisterListNode extends Node {
 export interface MacroParameterNode extends Node {
   type: "macro-parameter";
   paramType:
-    | "numeric"  // \1-\9
-    | "letter"   // \a-\z (args 10-35)
-    | "special"  // \@
-    | "named"    // \<name>
-    | "query"    // \?n (length of arg n)
-    | "carg"     // \. (current), \+ (inc), \- (dec)
-    | "unique-push"       // \@! (push unique ID and insert)
+    | "numeric" // \1-\9
+    | "letter" // \a-\z (args 10-35)
+    | "special" // \@
+    | "named" // \<name>
+    | "query" // \?n (length of arg n)
+    | "carg" // \. (current), \+ (inc), \- (dec)
+    | "unique-push" // \@! (push unique ID and insert)
     | "unique-push-below" // \@? (push below top and insert)
-    | "unique-pull";      // \@@ (pull from stack and insert)
+    | "unique-pull"; // \@@ (pull from stack and insert)
   param: string; // The parameter identifier
 }
 
@@ -275,7 +275,7 @@ export interface AddressRegisterIndirectNode extends Node {
 export interface AddressRegisterIndirectDisplacementNode extends Node {
   type: "address-register-indirect-displacement";
   displacement: ExpressionNode; // Parsed displacement expression
-  register: string;
+  register: AddressRegister;
 }
 
 // Address register indirect with index: 10(a0,d1.w) or 10(a0,d1.w*2)

@@ -761,11 +761,7 @@ export function isFPUDataRegister(reg: string): reg is FPUDataRegister {
   return fpuDataRegisters.includes(reg as FPUDataRegister);
 }
 
-export const fpuControlRegisters = [
-  "fpcr",
-  "fpsr",
-  "fpiar",
-] as const;
+export const fpuControlRegisters = ["fpcr", "fpsr", "fpiar"] as const;
 
 export type FPUControlRegister = (typeof fpuControlRegisters)[number];
 

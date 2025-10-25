@@ -23,11 +23,21 @@ function parseMacroParameter(
 ): MacroParameterNode | null {
   // Match various macro parameter formats including extended \@! \@? \@@
   // Note: @\? needs escaping to match literal "?" character, not the quantifier
-  const match = /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
+  const match =
+    /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
   if (!match) return null;
 
   const param = match[1];
-  let paramType: "numeric" | "letter" | "special" | "named" | "query" | "carg" | "unique-push" | "unique-push-below" | "unique-pull";
+  let paramType:
+    | "numeric"
+    | "letter"
+    | "special"
+    | "named"
+    | "query"
+    | "carg"
+    | "unique-push"
+    | "unique-push-below"
+    | "unique-pull";
   let paramValue: string;
 
   if (/^\d+$/.test(param)) {

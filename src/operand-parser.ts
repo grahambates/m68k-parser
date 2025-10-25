@@ -17,9 +17,7 @@ import {
 /**
  * Expand a register range (e.g., "d0-d7") into individual registers
  */
-function expandRegisterRange(
-  spec: string,
-): (DataRegister | AddressRegister)[] {
+function expandRegisterRange(spec: string): (DataRegister | AddressRegister)[] {
   const rangeMatch = /^([ad])(\d+)-([ad])(\d+)$/i.exec(spec.toLowerCase());
   if (rangeMatch) {
     const prefix1 = rangeMatch[1];
@@ -427,7 +425,7 @@ export function parseOperand(
       start,
       end,
       displacement: parseExpression(displacement, start, end),
-      register,
+      register: register as AddressRegister,
     };
   }
 
@@ -444,7 +442,9 @@ export function parseOperand(
     const indexPart = indexedInParensMatch[3].trim();
 
     // Parse index register, size, and scale: d1.w*2, a2.l*4, d1*2, a2, etc.
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(indexPart);
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(
+      indexPart,
+    );
     if (indexMatch) {
       const indexRegister = indexMatch[1].toLowerCase() as
         | DataRegister
@@ -566,7 +566,7 @@ export function parseOperand(
       start,
       end,
       displacement: parseExpression(displacement, start, end),
-      register,
+      register: register as AddressRegister,
     };
   }
 

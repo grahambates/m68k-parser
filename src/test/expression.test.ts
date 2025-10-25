@@ -90,7 +90,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "&",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", value: 0xFF },
+          right: { type: "numeric-literal", format: "hex", value: 0xff },
         },
       });
     });
@@ -129,7 +129,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "^",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", value: 0xFFFF },
+          right: { type: "numeric-literal", format: "hex", value: 0xffff },
         },
       });
     });
@@ -142,7 +142,7 @@ describe("Expression Parsing", () => {
           type: "binary-op",
           operator: "^",
           left: { type: "symbol", name: "value" },
-          right: { type: "numeric-literal", format: "hex", value: 0xFFFF },
+          right: { type: "numeric-literal", format: "hex", value: 0xffff },
         },
       });
     });
@@ -559,7 +559,7 @@ describe("Expression Parsing", () => {
               type: "binary-op",
               operator: "&",
               left: { type: "symbol", name: "value" },
-              right: { type: "numeric-literal", format: "hex", value: 0xFF },
+              right: { type: "numeric-literal", format: "hex", value: 0xff },
             },
           },
           right: {
@@ -749,7 +749,7 @@ describe("Expression Parsing", () => {
           type: "numeric-literal",
           format: "hex",
           raw: "$ABCD",
-          value: 0xABCD,
+          value: 0xabcd,
         },
       });
 
