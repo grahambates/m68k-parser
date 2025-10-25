@@ -999,6 +999,18 @@ describe("parse", () => {
       expect(line.errors?.[0].code).toBe("UNCLOSED_BRACKET");
     });
 
+    it("reports error for unclosed parenthesis in expression", () => {
+      const line = parseLine(" move.w #(1+2,d0");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("UNCLOSED_PAREN");
+    });
+
+    it("reports error for unclosed paren in iif condition", () => {
+      const line = parseLine(" iif (cond move.w d0,d1");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.some((e) => e.code === "UNCLOSED_PAREN")).toBe(true);
+    });
+
     it("parses packed decimal size qualifier .p", () => {
       const line = parseLine(" dc.p #1.5");
       expect(line).toMatchObject({

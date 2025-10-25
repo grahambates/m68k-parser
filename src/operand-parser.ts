@@ -126,7 +126,7 @@ function parseMemoryIndirectWithTokens(
     if (isAddressRegister(part.toLowerCase())) {
       baseRegister = part.toLowerCase() as AddressRegister;
     } else {
-      baseDisplacement = parseExpression(part, start, end);
+      baseDisplacement = parseExpression(part, start, end).expression;
     }
   } else if (innerParts.length === 2) {
     // [bd,An] or [An,Rn.s*scale]
@@ -155,7 +155,7 @@ function parseMemoryIndirectWithTokens(
       }
     } else {
       // [bd,An]
-      baseDisplacement = parseExpression(first, start, end);
+      baseDisplacement = parseExpression(first, start, end).expression;
       if (isAddressRegister(second.toLowerCase())) {
         baseRegister = second.toLowerCase() as AddressRegister;
       }
@@ -166,7 +166,7 @@ function parseMemoryIndirectWithTokens(
     const an = innerParts[1];
     const idx = innerParts[2];
 
-    baseDisplacement = parseExpression(bd, start, end);
+    baseDisplacement = parseExpression(bd, start, end).expression;
     if (isAddressRegister(an.toLowerCase())) {
       baseRegister = an.toLowerCase() as AddressRegister;
     }
@@ -196,7 +196,7 @@ function parseMemoryIndirectWithTokens(
     consume("comma");
     const outerPart = parseExpressionFromTokens(["rparen", "eof"]);
     if (outerPart) {
-      outerDisplacement = parseExpression(outerPart, start, end);
+      outerDisplacement = parseExpression(outerPart, start, end).expression;
     }
   }
 
@@ -337,7 +337,8 @@ function parseIndexedAddressingWithTokens(
           type: "pc-relative-index",
           start,
           end,
-          displacement: parseExpression(displacement || "0", start, end),
+          displacement: parseExpression(displacement || "0", start, end)
+            .expression,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -351,7 +352,7 @@ function parseIndexedAddressingWithTokens(
           start,
           end,
           displacement: displacement
-            ? parseExpression(displacement, start, end)
+            ? parseExpression(displacement, start, end).expression
             : undefined,
           baseRegister: baseReg as AddressRegister,
           indexRegister,
@@ -381,7 +382,8 @@ function parseIndexedAddressingWithTokens(
             type: "pc-relative-index",
             start,
             end,
-            displacement: parseExpression(displacement || "0", start, end),
+            displacement: parseExpression(displacement || "0", start, end)
+              .expression,
             indexRegister,
             indexSize,
             scaleFactor: undefined,
@@ -395,7 +397,7 @@ function parseIndexedAddressingWithTokens(
             start,
             end,
             displacement: displacement
-              ? parseExpression(displacement, start, end)
+              ? parseExpression(displacement, start, end).expression
               : undefined,
             baseRegister: baseReg as AddressRegister,
             indexRegister,
@@ -448,7 +450,7 @@ function parseIndexedAddressingWithTokens(
           type: "pc-relative-index",
           start,
           end,
-          displacement: parseExpression(disp, start, end),
+          displacement: parseExpression(disp, start, end).expression,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -461,7 +463,7 @@ function parseIndexedAddressingWithTokens(
           type: "address-register-indirect-index",
           start,
           end,
-          displacement: parseExpression(disp, start, end),
+          displacement: parseExpression(disp, start, end).expression,
           baseRegister: baseReg as AddressRegister,
           indexRegister,
           indexSize,
@@ -526,7 +528,7 @@ function parseBitfieldWithTokens(
     };
   }
 
-  const offset = parseExpression(offsetPart, start, end);
+  const offset = parseExpression(offsetPart, start, end).expression;
   let width: ExpressionNode | undefined;
 
   // Check for width (after colon)
@@ -541,7 +543,7 @@ function parseBitfieldWithTokens(
     widthPart = widthPart.trim();
 
     if (widthPart) {
-      width = parseExpression(widthPart, start, end);
+      width = parseExpression(widthPart, start, end).expression;
     }
   }
 
@@ -723,13 +725,19 @@ export function parseOperand(
   if (trimmed.startsWith("#")) {
     const exprText = trimmed.slice(1);
     const exprStart = start + text.indexOf(exprText);
+    const { expression: exprValue, error: exprError } = parseExpression(
+      exprText,
+      exprStart,
+      end
+    );
     return {
       operand: {
         type: "immediate",
         start,
         end,
-        value: parseExpression(exprText, exprStart, end),
+        value: exprValue,
       },
+      error: exprError,
     };
   }
 
@@ -899,6 +907,11 @@ export function parseOperand(
   if (dispInParensMatch) {
     const displacement = dispInParensMatch[1].trim();
     const register = dispInParensMatch[2].trim().toLowerCase();
+    const { expression: dispExpr, error: dispError } = parseExpression(
+      displacement,
+      start,
+      end
+    );
 
     // PC relative without index: (disp,pc)
     if (register === "pc") {
@@ -907,8 +920,9 @@ export function parseOperand(
           type: "pc-relative",
           start,
           end,
-          displacement: parseExpression(displacement, start, end),
+          displacement: dispExpr,
         },
+        error: dispError,
       };
     }
 
@@ -918,9 +932,10 @@ export function parseOperand(
         type: "address-register-indirect-displacement",
         start,
         end,
-        displacement: parseExpression(displacement, start, end),
+        displacement: dispExpr,
         register: register as AddressRegister,
       },
+      error: dispError,
     };
   }
 
@@ -956,13 +971,19 @@ export function parseOperand(
 
     // PC relative without index
     if (register === "pc") {
+      const { expression: dispExpr, error: dispError } = parseExpression(
+        displacement || "0",
+        start,
+        end
+      );
       return {
         operand: {
           type: "pc-relative",
           start,
           end,
-          displacement: parseExpression(displacement || "0", start, end),
+          displacement: dispExpr,
         },
+        error: dispError,
       };
     }
 
@@ -980,42 +1001,60 @@ export function parseOperand(
     }
 
     // Address register indirect with displacement
+    const { expression: dispExpr, error: dispError } = parseExpression(
+      displacement,
+      start,
+      end
+    );
     return {
       operand: {
         type: "address-register-indirect-displacement",
         start,
         end,
-        displacement: parseExpression(displacement, start, end),
+        displacement: dispExpr,
         register: register as AddressRegister,
       },
+      error: dispError,
     };
   }
 
   // Absolute address with explicit size: (expr).w or (expr).l
   const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/i.exec(trimmed);
   if (absoluteSizedMatch) {
+    const { expression: addrExpr, error: addrError } = parseExpression(
+      absoluteSizedMatch[1],
+      start,
+      end
+    );
     return {
       operand: {
         type: "absolute-address",
         start,
         end,
-        address: parseExpression(absoluteSizedMatch[1], start, end),
+        address: addrExpr,
         addressSize: absoluteSizedMatch[2].toLowerCase() as AddressSize,
       },
+      error: addrError,
     };
   }
 
   // Absolute address with .w or .l suffix (without parens): label.w, $1000.w
   const absoluteWithSizeMatch = /^(.+)\.(w|l)$/i.exec(trimmed);
   if (absoluteWithSizeMatch) {
+    const { expression: addrExpr, error: addrError } = parseExpression(
+      absoluteWithSizeMatch[1],
+      start,
+      end
+    );
     return {
       operand: {
         type: "absolute-address",
         start,
         end,
-        address: parseExpression(absoluteWithSizeMatch[1], start, end),
+        address: addrExpr,
         addressSize: absoluteWithSizeMatch[2].toLowerCase() as AddressSize,
       },
+      error: addrError,
     };
   }
 
@@ -1051,7 +1090,11 @@ export function parseOperand(
 
   // Everything else is treated as an expression (symbols, constants, arithmetic, etc.)
   // This includes: labels, complex expressions like "offset+4", arithmetic, etc.
-  const expr = parseExpression(trimmed, start, end);
+  const { expression: expr, error: exprError } = parseExpression(
+    trimmed,
+    start,
+    end
+  );
 
   if (mnemonicCategory === "instruction") {
     // For instructions, all expressions are absolute addresses
@@ -1062,6 +1105,7 @@ export function parseOperand(
         end,
         address: expr,
       },
+      error: exprError,
     };
   } else {
     // For directives and macros, use value type
@@ -1072,6 +1116,7 @@ export function parseOperand(
         end,
         value: expr,
       },
+      error: exprError,
     };
   }
 }

@@ -278,11 +278,16 @@ export function parseLine(text: string): ParsedLine {
         const condStart = end + text.substring(end).indexOf(conditionText);
         const condEnd = condStart + conditionText.length;
 
-        line.inlineCondition = parseExpression(
+        const { expression: condExpr, error: condError } = parseExpression(
           conditionText,
           condStart,
-          condEnd,
+          condEnd
         );
+        line.inlineCondition = condExpr;
+        if (condError) {
+          line.errors = line.errors || [];
+          line.errors.push(condError);
+        }
 
         // Parse the statement as a separate line to extract its operands
         // Add leading whitespace to ensure proper parsing (avoids label detection)

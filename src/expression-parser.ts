@@ -1,6 +1,11 @@
 import { ExpressionNode } from "./types";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
 import { isBuiltinSymbol } from "./syntax";
+import {
+  OperandParseError,
+  unclosedParen,
+  invalidExpression,
+} from "./parse-error";
 
 /**
  * Parse an expression string into an expression AST
@@ -8,25 +13,29 @@ import { isBuiltinSymbol } from "./syntax";
  * @param expr - The expression string to parse
  * @param start - Start position in the original source
  * @param end - End position in the original source
+ * @returns Expression node and optional error
  */
 export function parseExpression(
   expr: string,
   start: number = 0,
   end: number = 0,
-): ExpressionNode {
+): { expression: ExpressionNode; error?: OperandParseError } {
   const trimmed = expr.trim();
 
   // Handle empty expressions
   if (!trimmed) {
     return {
-      type: "unknown",
-      start,
-      end,
+      expression: {
+        type: "unknown",
+        start,
+        end,
+      },
     };
   }
 
   const tokens = tokenizeExpression(trimmed);
   let pos = 0;
+  let parseError: OperandParseError | undefined;
 
   function current(): ExpressionToken {
     return tokens[pos];
@@ -111,10 +120,16 @@ export function parseExpression(
     }
 
     if (token.type === "lparen") {
+      const parenPos = token.position;
       advance();
       const expr = parseLogicalOr(); // Start from lowest precedence
-      if (current().type === "rparen") {
+      if (current()?.type === "rparen") {
         advance();
+      } else {
+        // Missing closing parenthesis
+        if (!parseError) {
+          parseError = unclosedParen(start + parenPos);
+        }
       }
       return {
         type: "group",
@@ -124,7 +139,13 @@ export function parseExpression(
       };
     }
 
-    // If we can't parse, return a default
+    // If we can't parse, return unknown and set error
+    if (!parseError && token) {
+      parseError = invalidExpression(
+        `Unexpected token '${token.type}'`,
+        start + (token.position || 0)
+      );
+    }
     return {
       type: "unknown",
       start,
@@ -401,5 +422,6 @@ export function parseExpression(
     return left;
   }
 
-  return parseLogicalOr();
+  const expression = parseLogicalOr();
+  return { expression, error: parseError };
 }

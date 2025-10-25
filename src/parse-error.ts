@@ -21,7 +21,9 @@ export type OperandErrorCode =
   | "INVALID_ADDRESSING_MODE"
   | "MISSING_DISPLACEMENT"
   | "MISSING_INDEX_REGISTER"
-  | "DUPLICATE_COMPONENT";
+  | "DUPLICATE_COMPONENT"
+  | "MISSING_OPERAND"
+  | "INVALID_EXPRESSION";
 
 export interface OperandParseError {
   code: OperandErrorCode;
@@ -217,4 +219,25 @@ export function malformedBitfield(
   return createError("MALFORMED_BITFIELD", message, position, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",
   });
+}
+
+export function missingOperand(
+  operator: string,
+  position: number
+): OperandParseError {
+  return createError(
+    "MISSING_OPERAND",
+    `Missing operand for operator '${operator}'`,
+    position,
+    {
+      hint: "Binary operators require both left and right operands",
+    }
+  );
+}
+
+export function invalidExpression(
+  message: string,
+  position: number
+): OperandParseError {
+  return createError("INVALID_EXPRESSION", message, position);
 }
