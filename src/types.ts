@@ -3,6 +3,9 @@ import type {
   DataRegister,
   AddressRegister,
   SpecialRegister,
+  FPUDataRegister,
+  FPUControlRegister,
+  FPURegister,
   BuiltinSymbol,
   Instruction,
   Directive,
@@ -13,6 +16,9 @@ export type {
   DataRegister,
   AddressRegister,
   SpecialRegister,
+  FPUDataRegister,
+  FPUControlRegister,
+  FPURegister,
   BuiltinSymbol,
   Instruction,
   Directive,
@@ -174,14 +180,19 @@ export type OperandNode =
   | DataRegisterNode
   | AddressRegisterNode
   | SpecialRegisterNode
+  | FPUDataRegisterNode
+  | FPUControlRegisterNode
   | RegisterListNode
+  | FPURegisterListNode
   | ImmediateNode
   | AddressRegisterIndirectNode
   | AddressRegisterIndirectDisplacementNode
   | AddressRegisterIndirectIndexNode
+  | MemoryIndirectNode
   | AbsoluteAddressNode
   | PCRelativeNode
   | PCRelativeIndexNode
+  | BitfieldNode
   | StringLiteralNode
   | MacroParameterNode
   | ValueNode
@@ -205,10 +216,28 @@ export interface SpecialRegisterNode extends Node {
   register: SpecialRegister;
 }
 
+// FPU data register (fp0-fp7)
+export interface FPUDataRegisterNode extends Node {
+  type: "fpu-data-register";
+  register: FPUDataRegister;
+}
+
+// FPU control register (fpcr, fpsr, fpiar)
+export interface FPUControlRegisterNode extends Node {
+  type: "fpu-control-register";
+  register: FPUControlRegister;
+}
+
 // Register list (d0-d7/a0-a6, used in movem, etc.)
 export interface RegisterListNode extends Node {
   type: "register-list";
   registers: string[]; // Array of register specs like ['d0-d7', 'a0-a6']
+}
+
+// FPU register list (fp0-fp7, used in fmovem)
+export interface FPURegisterListNode extends Node {
+  type: "fpu-register-list";
+  registers: string[]; // Array of FPU register specs like ['fp0-fp7', 'fp1-3']
 }
 
 // Macro parameter (\1, \@, \<name>, \a-\z, \?n, \., \+, \-)
@@ -244,13 +273,14 @@ export interface AddressRegisterIndirectDisplacementNode extends Node {
   register: string;
 }
 
-// Address register indirect with index: 10(a0,d1.w)
+// Address register indirect with index: 10(a0,d1.w) or 10(a0,d1.w*2)
 export interface AddressRegisterIndirectIndexNode extends Node {
   type: "address-register-indirect-index";
   displacement?: ExpressionNode; // Parsed displacement expression
   baseRegister: AddressRegister;
   indexRegister: DataRegister | AddressRegister;
   indexSize?: "w" | "l";
+  scaleFactor?: 1 | 2 | 4 | 8; // 68020+ scale factor
 }
 
 // Absolute address: $1000, label, (addr).w, (addr).l
@@ -266,12 +296,13 @@ export interface PCRelativeNode extends Node {
   displacement: ExpressionNode; // Parsed displacement expression
 }
 
-// PC relative: offset(pc,d0)
+// PC relative: offset(pc,d0) or offset(pc,d0.w*2)
 export interface PCRelativeIndexNode extends Node {
   type: "pc-relative-index";
   displacement: ExpressionNode; // Parsed displacement expression
   indexRegister: DataRegister | AddressRegister;
   indexSize?: "w" | "l";
+  scaleFactor?: 1 | 2 | 4 | 8; // 68020+ scale factor
 }
 
 // String literal: "text", 'text', <text>
@@ -285,6 +316,24 @@ export interface StringLiteralNode extends Node {
 export interface ValueNode extends Node {
   type: "value";
   value: ExpressionNode; // Parsed expression
+}
+
+// Memory indirect addressing (68020+): ([bd,An,Rn.s*scale],od)
+export interface MemoryIndirectNode extends Node {
+  type: "memory-indirect";
+  baseDisplacement?: ExpressionNode; // [bd,...]
+  baseRegister?: AddressRegister; // [bd,An,...]
+  indexRegister?: DataRegister | AddressRegister; // [bd,An,Rn,...]
+  indexSize?: "w" | "l";
+  scaleFactor?: 1 | 2 | 4 | 8;
+  outerDisplacement?: ExpressionNode; // [...],od
+}
+
+// Bitfield specification (68020+): {offset:width}
+export interface BitfieldNode extends Node {
+  type: "bitfield";
+  offset: ExpressionNode; // Offset or register reference
+  width?: ExpressionNode; // Width or register reference (optional, defaults to 1)
 }
 
 // Unknown/incomplete operand

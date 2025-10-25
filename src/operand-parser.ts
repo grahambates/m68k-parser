@@ -1,6 +1,17 @@
-import { AddressRegister, DataRegister, OperandNode } from "./types";
+import {
+  AddressRegister,
+  DataRegister,
+  OperandNode,
+  ExpressionNode,
+} from "./types";
 import { parseExpression } from "./expression-parser";
-import { isAddressRegister, isDataRegister, isSpecialRegister } from "./syntax";
+import {
+  isAddressRegister,
+  isDataRegister,
+  isSpecialRegister,
+  isFPUDataRegister,
+  isFPUControlRegister,
+} from "./syntax";
 
 /**
  * Parse an operand string and determine its type (addressing mode)
@@ -74,6 +85,35 @@ export function parseOperand(
     };
   }
 
+  // Bitfield specification (68020+): {offset:width} or {offset}
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    const bitfieldContent = trimmed.slice(1, -1).trim();
+    const parts = bitfieldContent.split(":");
+
+    if (parts.length === 1 || parts.length === 2) {
+      const offsetText = parts[0].trim();
+      const offsetStart = start + text.indexOf(offsetText);
+      const offsetEnd = offsetStart + offsetText.length;
+      const offset = parseExpression(offsetText, offsetStart, offsetEnd);
+
+      let width: ExpressionNode | undefined;
+      if (parts.length === 2) {
+        const widthText = parts[1].trim();
+        const widthStart = start + text.indexOf(widthText);
+        const widthEnd = widthStart + widthText.length;
+        width = parseExpression(widthText, widthStart, widthEnd);
+      }
+
+      return {
+        type: "bitfield",
+        start,
+        end,
+        offset,
+        width,
+      };
+    }
+  }
+
   // Addressing modes:
 
   // Immediate: #value
@@ -90,6 +130,26 @@ export function parseOperand(
 
   // Check potential register types
   const register = trimmed.toLowerCase();
+
+  // FPU data registers: fp0-fp7
+  if (isFPUDataRegister(register)) {
+    return {
+      type: "fpu-data-register",
+      start,
+      end,
+      register,
+    };
+  }
+
+  // FPU control registers: fpcr, fpsr, fpiar
+  if (isFPUControlRegister(register)) {
+    return {
+      type: "fpu-control-register",
+      start,
+      end,
+      register,
+    };
+  }
 
   // Data Register Direct: Dn
   if (isDataRegister(register)) {
@@ -132,6 +192,114 @@ export function parseOperand(
       start,
       end,
       registers,
+    };
+  }
+
+  // FPU register list: fp0-fp7 or fp0/fp1/fp2 (used in fmovem)
+  const fpuRegisterListMatch =
+    /^fp[0-7](-fp[0-7])?(\/fp[0-7](-fp[0-7])?)*$/i.exec(trimmed);
+  if (fpuRegisterListMatch) {
+    // Split by / to get individual FPU register specs
+    const registers = trimmed.split("/").map((r) => r.trim().toLowerCase());
+    return {
+      type: "fpu-register-list",
+      start,
+      end,
+      registers,
+    };
+  }
+
+  // Memory indirect addressing (68020+): ([bd,An,Rn.s*scale],od) or ([bd,An],od) or ([An],od)
+  // Check for opening parenthesis followed by square bracket
+  const memIndirectMatch = /^\(\[([^\]]*)\](?:,\s*([^)]+))?\)$/i.exec(trimmed);
+  if (memIndirectMatch) {
+    const innerContent = memIndirectMatch[1]; // Content inside square brackets
+    const outerDisp = memIndirectMatch[2]?.trim(); // Outer displacement after ]
+
+    // Parse the inner content: can be bd,An,Rn.s*scale or An,Rn.s*scale or An or bd,An
+    const innerParts = innerContent.split(",").map((p) => p.trim());
+
+    let baseDisplacement: ExpressionNode | undefined;
+    let baseRegister: AddressRegister | undefined;
+    let indexRegister: DataRegister | AddressRegister | undefined;
+    let indexSize: "w" | "l" | undefined;
+    let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+
+    // Parse based on number of parts
+    if (innerParts.length === 1) {
+      // Just [An] or [bd]
+      const part = innerParts[0];
+      if (isAddressRegister(part.toLowerCase())) {
+        baseRegister = part.toLowerCase() as AddressRegister;
+      } else {
+        // It's a displacement
+        baseDisplacement = parseExpression(part, start, end);
+      }
+    } else if (innerParts.length === 2) {
+      // [bd,An] or [An,Rn.s*scale]
+      const first = innerParts[0];
+      const second = innerParts[1];
+
+      // Check if first is a base register to disambiguate
+      const firstIsBaseReg = isAddressRegister(first.toLowerCase());
+
+      // Check if second is a register with optional size/scale (index)
+      const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(second);
+
+      // If first is base register AND second matches index pattern -> [An,Rn.s*scale]
+      // Otherwise -> [bd,An]
+      if (firstIsBaseReg && indexMatch) {
+        // Format: [An,Rn.s*scale]
+        baseRegister = first.toLowerCase() as AddressRegister;
+        indexRegister = indexMatch[1].toLowerCase() as
+          | DataRegister
+          | AddressRegister;
+        indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+        scaleFactor = indexMatch[3]
+          ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
+          : undefined;
+      } else {
+        // Format: [bd,An]
+        baseDisplacement = parseExpression(first, start, end);
+        if (isAddressRegister(second.toLowerCase())) {
+          baseRegister = second.toLowerCase() as AddressRegister;
+        }
+      }
+    } else if (innerParts.length === 3) {
+      // [bd,An,Rn.s*scale]
+      const bd = innerParts[0];
+      const an = innerParts[1];
+      const idx = innerParts[2];
+
+      baseDisplacement = parseExpression(bd, start, end);
+      if (isAddressRegister(an.toLowerCase())) {
+        baseRegister = an.toLowerCase() as AddressRegister;
+      }
+
+      const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(idx);
+      if (indexMatch) {
+        indexRegister = indexMatch[1].toLowerCase() as
+          | DataRegister
+          | AddressRegister;
+        indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+        scaleFactor = indexMatch[3]
+          ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
+          : undefined;
+      }
+    }
+
+    return {
+      type: "memory-indirect",
+      start,
+      end,
+      baseDisplacement,
+      baseRegister,
+      indexRegister,
+      indexSize,
+      scaleFactor,
+      outerDisplacement: outerDisp
+        ? parseExpression(outerDisp, start, end)
+        : undefined,
     };
   }
 
@@ -201,13 +369,16 @@ export function parseOperand(
       | "pc";
     const indexPart = indexedInParensMatch[3].trim();
 
-    // Parse index register and size: d1.w, a2.l, d1, a2, etc.
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?$/i.exec(indexPart);
+    // Parse index register, size, and scale: d1.w*2, a2.l*4, d1*2, a2, etc.
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(indexPart);
     if (indexMatch) {
       const indexRegister = indexMatch[1].toLowerCase() as
         | DataRegister
         | AddressRegister;
       const indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+      const scaleFactor = indexMatch[3]
+        ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
+        : undefined;
 
       // PC relative with index
       if (baseReg === "pc") {
@@ -218,6 +389,7 @@ export function parseOperand(
           displacement: parseExpression(displacement, start, end),
           indexRegister,
           indexSize,
+          scaleFactor,
         };
       }
 
@@ -230,6 +402,7 @@ export function parseOperand(
         baseRegister: baseReg,
         indexRegister,
         indexSize,
+        scaleFactor,
       };
     }
   }
@@ -245,14 +418,17 @@ export function parseOperand(
       | "pc";
     const indexPart = indexedMatch[3].trim();
 
-    // Parse index register and size: d1.w, a2.l, etc.
-    // The index part might be "d1.w" or "d1,w" (alternate syntax)
-    const indexMatch = /^([ad][0-7]|sp).?([wl])?$/i.exec(indexPart);
+    // Parse index register, size, and scale: d1.w*2, a2.l*4, etc.
+    // The index part might be "d1.w*2" or "d1,w" (alternate syntax)
+    const indexMatch = /^([ad][0-7]|sp).?([wl])?\*?([1248])?$/i.exec(indexPart);
     if (indexMatch) {
       const indexRegister = indexMatch[1].toLowerCase() as
         | DataRegister
         | AddressRegister;
       const indexSize = indexMatch[2]?.toLowerCase() as "w" | "l" | undefined;
+      const scaleFactor = indexMatch[3]
+        ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
+        : undefined;
 
       // PC relative with index
       if (baseReg === "pc") {
@@ -263,6 +439,7 @@ export function parseOperand(
           displacement: parseExpression(displacement || "0", start, end),
           indexRegister,
           indexSize,
+          scaleFactor,
         };
       }
 
@@ -277,6 +454,7 @@ export function parseOperand(
         baseRegister: baseReg,
         indexRegister,
         indexSize,
+        scaleFactor,
       };
     }
   }

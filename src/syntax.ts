@@ -743,6 +743,42 @@ export function isSpecialRegister(reg: string): reg is SpecialRegister {
   return specialRegisters.includes(reg as SpecialRegister);
 }
 
+// FPU registers (68881/68882/68040+)
+export const fpuDataRegisters = [
+  "fp0",
+  "fp1",
+  "fp2",
+  "fp3",
+  "fp4",
+  "fp5",
+  "fp6",
+  "fp7",
+] as const;
+
+export type FPUDataRegister = (typeof fpuDataRegisters)[number];
+
+export function isFPUDataRegister(reg: string): reg is FPUDataRegister {
+  return fpuDataRegisters.includes(reg as FPUDataRegister);
+}
+
+export const fpuControlRegisters = [
+  "fpcr",
+  "fpsr",
+  "fpiar",
+] as const;
+
+export type FPUControlRegister = (typeof fpuControlRegisters)[number];
+
+export function isFPUControlRegister(reg: string): reg is FPUControlRegister {
+  return fpuControlRegisters.includes(reg as FPUControlRegister);
+}
+
+export type FPURegister = FPUDataRegister | FPUControlRegister;
+
+export function isFPURegister(reg: string): reg is FPURegister {
+  return isFPUDataRegister(reg) || isFPUControlRegister(reg);
+}
+
 export const builtinSymbols = [
   "__RS",
   "__SO",

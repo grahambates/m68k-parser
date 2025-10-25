@@ -623,5 +623,261 @@ describe("parse", () => {
         ],
       });
     });
+
+    it("parses FPU data register fp0", () => {
+      const line = parseLine(" fmove.x fp0,fp1");
+      expect(line).toMatchObject({
+        mnemonic: { type: "instruction", instruction: "fmove" },
+        qualifier: { type: "size", size: "x" },
+        operands: [
+          { type: "fpu-data-register", register: "fp0" },
+          { type: "fpu-data-register", register: "fp1" },
+        ],
+      });
+    });
+
+    it("parses FPU control register fpcr", () => {
+      const line = parseLine(" fmove.l fpcr,d0");
+      expect(line).toMatchObject({
+        mnemonic: { type: "instruction", instruction: "fmove" },
+        qualifier: { type: "size", size: "l" },
+        operands: [
+          { type: "fpu-control-register", register: "fpcr" },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
+
+    it("parses FPU register list", () => {
+      const line = parseLine(" fmovem.x fp0-fp7,-(sp)");
+      expect(line).toMatchObject({
+        mnemonic: { type: "instruction", instruction: "fmovem" },
+        qualifier: { type: "size", size: "x" },
+        operands: [
+          {
+            type: "fpu-register-list",
+            registers: ["fp0-fp7"],
+          },
+          {
+            type: "address-register-indirect",
+            mode: "pre-decrement",
+            register: "sp",
+          },
+        ],
+      });
+    });
+
+    it("parses FPU register list with multiple ranges", () => {
+      const line = parseLine(" fmovem.x fp0-fp3/fp5-fp7,(a0)");
+      expect(line).toMatchObject({
+        mnemonic: { type: "instruction", instruction: "fmovem" },
+        operands: [
+          {
+            type: "fpu-register-list",
+            registers: ["fp0-fp3", "fp5-fp7"],
+          },
+          {
+            type: "address-register-indirect",
+            mode: "simple",
+            register: "a0",
+          },
+        ],
+      });
+    });
+
+    it("parses indexed addressing with scale factor *2", () => {
+      const line = parseLine(" move.l (a0,d1.w*2),d0");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "address-register-indirect-index",
+            baseRegister: "a0",
+            indexRegister: "d1",
+            indexSize: "w",
+            scaleFactor: 2,
+          },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
+
+    it("parses indexed addressing with scale factor *4", () => {
+      const line = parseLine(" move.l 10(a0,d1.l*4),d0");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "address-register-indirect-index",
+            baseRegister: "a0",
+            indexRegister: "d1",
+            indexSize: "l",
+            scaleFactor: 4,
+            displacement: {
+              type: "numeric-literal",
+              value: 10,
+            },
+          },
+          {
+            type: "data-register",
+            register: "d0",
+          },
+        ],
+      });
+    });
+
+    it("parses PC relative with scale factor", () => {
+      const line = parseLine(" move.l table(pc,d0.w*2),d1");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "pc-relative-index",
+            indexRegister: "d0",
+            indexSize: "w",
+            scaleFactor: 2,
+            displacement: {
+              type: "symbol",
+              name: "table",
+            },
+          },
+          {
+            type: "data-register",
+            register: "d1",
+          },
+        ],
+      });
+    });
+
+    it("parses bitfield with offset and width", () => {
+      const line = parseLine(" bfchg {0:5},d0");
+      expect(line).toMatchObject({
+        mnemonic: { type: "instruction", instruction: "bfchg" },
+        operands: [
+          {
+            type: "bitfield",
+            offset: {
+              type: "numeric-literal",
+              value: 0,
+            },
+            width: {
+              type: "numeric-literal",
+              value: 5,
+            },
+          },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
+
+    it("parses bitfield with just offset", () => {
+      const line = parseLine(" bftst {10},d1");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "bitfield",
+            offset: {
+              type: "numeric-literal",
+              value: 10,
+            },
+          },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
+    it("parses bitfield with register offset and width", () => {
+      const line = parseLine(" bfexts {d0:d1},(a0)");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "bitfield",
+            offset: {
+              type: "symbol",
+              name: "d0",
+            },
+            width: {
+              type: "symbol",
+              name: "d1",
+            },
+          },
+          {
+            type: "address-register-indirect",
+            mode: "simple",
+            register: "a0",
+          },
+        ],
+      });
+    });
+
+    it("parses memory indirect with base register and outer displacement", () => {
+      const line = parseLine(" move.l ([a0],4),d0");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "memory-indirect",
+            baseRegister: "a0",
+            outerDisplacement: {
+              type: "numeric-literal",
+              value: 4,
+            },
+          },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
+
+    it("parses memory indirect with base displacement and register", () => {
+      const line = parseLine(" move.l ([8,a1]),d0");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "memory-indirect",
+            baseDisplacement: {
+              type: "numeric-literal",
+              value: 8,
+            },
+            baseRegister: "a1",
+          },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
+
+    it("parses memory indirect with index register", () => {
+      const line = parseLine(" move.l ([a0,d1.w]),d0");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "memory-indirect",
+            baseRegister: "a0",
+            indexRegister: "d1",
+            indexSize: "w",
+          },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
+
+    it("parses memory indirect with full syntax", () => {
+      const line = parseLine(" move.l ([16,a2,d3.l*4],32),d0");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "memory-indirect",
+            baseDisplacement: {
+              type: "numeric-literal",
+              value: 16,
+            },
+            baseRegister: "a2",
+            indexRegister: "d3",
+            indexSize: "l",
+            scaleFactor: 4,
+            outerDisplacement: {
+              type: "numeric-literal",
+              value: 32,
+            },
+          },
+          { type: "data-register", register: "d0" },
+        ],
+      });
+    });
   });
 });
