@@ -15,18 +15,18 @@ function rx(template: string): string {
     .replace(/\s+/g, ""); // Remove all whitespace
 }
 
-// Helper to parse macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-
+// Helper to parse macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
 function parseMacroParameter(
   text: string,
   start: number,
   end: number,
 ): MacroParameterNode | null {
-  // Match various macro parameter formats
-  const match = /^\\(\d+|[a-z]|@|<([^>]+)>|\?(\d+|[a-z])|[.+\-])$/.exec(text);
+  // Match various macro parameter formats including extended \@! \@? \@@
+  const match = /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+\-])$/.exec(text);
   if (!match) return null;
 
   const param = match[1];
-  let paramType: "numeric" | "letter" | "special" | "named" | "query" | "carg";
+  let paramType: "numeric" | "letter" | "special" | "named" | "query" | "carg" | "unique-push" | "unique-push-below" | "unique-pull";
   let paramValue: string;
 
   if (/^\d+$/.test(param)) {
@@ -37,6 +37,18 @@ function parseMacroParameter(
     // \a-\z (args 10-35)
     paramType = "letter";
     paramValue = param;
+  } else if (param === "@!") {
+    // \@! - push unique ID and insert
+    paramType = "unique-push";
+    paramValue = "@!";
+  } else if (param === "@?") {
+    // \@? - push unique ID below top and insert
+    paramType = "unique-push-below";
+    paramValue = "@?";
+  } else if (param === "@@") {
+    // \@@ - pull from stack and insert
+    paramType = "unique-pull";
+    paramValue = "@@";
   } else if (param === "@") {
     // \@
     paramType = "special";
@@ -93,7 +105,7 @@ const operandPatternForSecond = rx(String.raw`
 `);
 
 const regularMnemonic = rx(String.raw`
-  (?<mnemonic>(\\[.+\-]|[^\s.,;*=]+|=)) # Mnemonic (including \., \+, \-)
+  (?<mnemonic>(\\@[!?@]|\\[.+\-]|[^\s.,;*=]+|=)) # Mnemonic (including \@!, \@?, \@@, \., \+, \-)
   (?<size>\.[^\s.,;*]*)?       # Size qualifier
   (\s*(?<operands>             # Operand list:
     (?<op1>${operandPattern})  # First operand

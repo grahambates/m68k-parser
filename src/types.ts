@@ -240,7 +240,7 @@ export interface FPURegisterListNode extends Node {
   registers: string[]; // Array of FPU register specs like ['fp0-fp7', 'fp1-3']
 }
 
-// Macro parameter (\1, \@, \<name>, \a-\z, \?n, \., \+, \-)
+// Macro parameter (\1, \@, \<name>, \a-\z, \?n, \., \+, \-, \@!, \@?, \@@)
 export interface MacroParameterNode extends Node {
   type: "macro-parameter";
   paramType:
@@ -249,7 +249,10 @@ export interface MacroParameterNode extends Node {
     | "special"  // \@
     | "named"    // \<name>
     | "query"    // \?n (length of arg n)
-    | "carg";    // \. (current), \+ (inc), \- (dec)
+    | "carg"     // \. (current), \+ (inc), \- (dec)
+    | "unique-push"       // \@! (push unique ID and insert)
+    | "unique-push-below" // \@? (push below top and insert)
+    | "unique-pull";      // \@@ (pull from stack and insert)
   param: string; // The parameter identifier
 }
 

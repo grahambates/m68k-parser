@@ -803,7 +803,7 @@ export function isBuiltinSymbol(symbol: string): symbol is BuiltinSymbol {
   return builtinSymbols.includes(symbol as BuiltinSymbol);
 }
 
-export const sizes = ["b", "w", "l", "s", "d", "x"] as const;
+export const sizes = ["b", "w", "l", "s", "d", "x", "p", "q"] as const;
 
 export type Size = (typeof sizes)[number];
 

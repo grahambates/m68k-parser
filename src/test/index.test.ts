@@ -879,5 +879,70 @@ describe("parse", () => {
         ],
       });
     });
+
+    it("parses packed decimal size qualifier .p", () => {
+      const line = parseLine(" dc.p #1.5");
+      expect(line).toMatchObject({
+        mnemonic: { type: "directive", directive: "dc" },
+        qualifier: { type: "size", size: "p" },
+      });
+    });
+
+    it("parses quad size qualifier .q", () => {
+      const line = parseLine(" dc.q $0123456789abcdef");
+      expect(line).toMatchObject({
+        mnemonic: { type: "directive", directive: "dc" },
+        qualifier: { type: "size", size: "q" },
+      });
+    });
+
+    it("parses extended macro parameter \\@! (unique-push)", () => {
+      const line = parseLine(" \\@! d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "unique-push",
+          param: "@!",
+        },
+        operands: [
+          { type: "data-register", register: "d0" },
+          { type: "data-register", register: "d1" },
+        ],
+      });
+    });
+
+    it("parses extended macro parameter \\@? (unique-push-below)", () => {
+      const line = parseLine(" \\@? d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "unique-push-below",
+          param: "@?",
+        },
+      });
+    });
+
+    it("parses extended macro parameter \\@@ (unique-pull)", () => {
+      const line = parseLine(" \\@@ d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "unique-pull",
+          param: "@@",
+        },
+      });
+    });
+
+    it("parses \\@! with size qualifier", () => {
+      const line = parseLine(" \\@!.w d0,d1");
+      expect(line).toMatchObject({
+        mnemonic: {
+          type: "macro-parameter",
+          paramType: "unique-push",
+          param: "@!",
+        },
+        qualifier: { type: "size", size: "w" },
+      });
+    });
   });
 });
