@@ -22,7 +22,8 @@ function parseMacroParameter(
   end: number,
 ): MacroParameterNode | null {
   // Match various macro parameter formats including extended \@! \@? \@@
-  const match = /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+\-])$/.exec(text);
+  // Note: @\? needs escaping to match literal "?" character, not the quantifier
+  const match = /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
   if (!match) return null;
 
   const param = match[1];
@@ -105,7 +106,7 @@ const operandPatternForSecond = rx(String.raw`
 `);
 
 const regularMnemonic = rx(String.raw`
-  (?<mnemonic>(\\@[!?@]|\\[.+\-]|[^\s.,;*=]+|=)) # Mnemonic (including \@!, \@?, \@@, \., \+, \-)
+  (?<mnemonic>(\\@[!?@]|\\[.+-]|[^\s.,;*=]+|=)) # Mnemonic (including \@!, \@?, \@@, \., \+, \-)
   (?<size>\.[^\s.,;*]*)?       # Size qualifier
   (\s*(?<operands>             # Operand list:
     (?<op1>${operandPattern})  # First operand
