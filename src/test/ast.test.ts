@@ -379,20 +379,39 @@ describe("parse AST", () => {
         const range = parseLine("  movem d0-d7,-(sp)");
         expect(range.operands?.[0]).toMatchObject({
           type: "register-list",
-          registers: ["d0-d7"],
+          raw: ["d0-d7"],
+          registers: ["d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7"],
         });
 
         // Multiple ranges with slash
         const multi = parseLine("  movem d0-d7/a0-a6,(sp)");
         expect(multi.operands?.[0]).toMatchObject({
           type: "register-list",
-          registers: ["d0-d7", "a0-a6"],
+          raw: ["d0-d7", "a0-a6"],
+          registers: [
+            "d0",
+            "d1",
+            "d2",
+            "d3",
+            "d4",
+            "d5",
+            "d6",
+            "d7",
+            "a0",
+            "a1",
+            "a2",
+            "a3",
+            "a4",
+            "a5",
+            "a6",
+          ],
         });
 
         // Individual registers
         const individual = parseLine("  movem d0/d1/a0,(a0)");
         expect(individual.operands?.[0]).toMatchObject({
           type: "register-list",
+          raw: ["d0", "d1", "a0"],
           registers: ["d0", "d1", "a0"],
         });
 
@@ -400,7 +419,8 @@ describe("parse AST", () => {
         const mixed = parseLine("  movem d0-d2/d5/a0-a1,(sp)+");
         expect(mixed.operands?.[0]).toMatchObject({
           type: "register-list",
-          registers: ["d0-d2", "d5", "a0-a1"],
+          raw: ["d0-d2", "d5", "a0-a1"],
+          registers: ["d0", "d1", "d2", "d5", "a0", "a1"],
         });
       });
 
@@ -434,8 +454,7 @@ describe("parse AST", () => {
     it("parses directive operands as value type", () => {
       // Data definition directives should have value operands, not absolute-address
       const dcb = parseLine("  dc.b 0,1,2");
-      expect(dcb.mnemonic).toMatchObject({
-      });
+      expect(dcb.mnemonic).toMatchObject({});
       expect(dcb.operands).toHaveLength(3);
       expect(dcb.operands?.[0]).toMatchObject({
         type: "value",
@@ -497,8 +516,7 @@ describe("parse AST", () => {
         type: "label",
         scope: "global",
       });
-      expect(equ.mnemonic).toMatchObject({
-      });
+      expect(equ.mnemonic).toMatchObject({});
       expect(equ.operands).toHaveLength(1);
       expect(equ.operands?.[0]).toMatchObject({
         type: "value",
@@ -514,8 +532,7 @@ describe("parse AST", () => {
         type: "label",
         scope: "global",
       });
-      expect(set.mnemonic).toMatchObject({
-      });
+      expect(set.mnemonic).toMatchObject({});
 
       // = directive (already tested in index.test.ts but verify AST)
       const equals = parseLine("VALUE = $FF");
@@ -523,8 +540,7 @@ describe("parse AST", () => {
         type: "label",
         scope: "global",
       });
-      expect(equals.mnemonic).toMatchObject({
-      });
+      expect(equals.mnemonic).toMatchObject({});
 
       // = directive without whitespace
       const equalsNoSpace = parseLine("FOO=1");
@@ -532,8 +548,7 @@ describe("parse AST", () => {
         type: "label",
         scope: "global",
       });
-      expect(equalsNoSpace.mnemonic).toMatchObject({
-      });
+      expect(equalsNoSpace.mnemonic).toMatchObject({});
       expect(equalsNoSpace.operands).toHaveLength(1);
       expect(equalsNoSpace.operands?.[0]).toMatchObject({
         type: "value",

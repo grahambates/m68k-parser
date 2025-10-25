@@ -231,13 +231,15 @@ export interface FPUControlRegisterNode extends Node {
 // Register list (d0-d7/a0-a6, used in movem, etc.)
 export interface RegisterListNode extends Node {
   type: "register-list";
-  registers: string[]; // Array of register specs like ['d0-d7', 'a0-a6']
+  raw: string[]; // Original specs like ['d0-d7', 'a0-a6']
+  registers: (DataRegister | AddressRegister)[]; // Expanded list: ['d0', 'd1', ..., 'd7', 'a0', ...]
 }
 
 // FPU register list (fp0-fp7, used in fmovem)
 export interface FPURegisterListNode extends Node {
   type: "fpu-register-list";
-  registers: string[]; // Array of FPU register specs like ['fp0-fp7', 'fp1-3']
+  raw: string[]; // Original specs like ['fp0-fp7', 'fp1-fp3']
+  registers: FPUDataRegister[]; // Expanded list: ['fp0', 'fp1', ..., 'fp7']
 }
 
 // Macro parameter (\1, \@, \<name>, \a-\z, \?n, \., \+, \-, \@!, \@?, \@@)

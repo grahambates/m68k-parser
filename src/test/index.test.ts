@@ -656,7 +656,8 @@ describe("parse", () => {
         operands: [
           {
             type: "fpu-register-list",
-            registers: ["fp0-fp7"],
+            raw: ["fp0-fp7"],
+            registers: ["fp0", "fp1", "fp2", "fp3", "fp4", "fp5", "fp6", "fp7"],
           },
           {
             type: "address-register-indirect",
@@ -674,7 +675,8 @@ describe("parse", () => {
         operands: [
           {
             type: "fpu-register-list",
-            registers: ["fp0-fp3", "fp5-fp7"],
+            raw: ["fp0-fp3", "fp5-fp7"],
+            registers: ["fp0", "fp1", "fp2", "fp3", "fp5", "fp6", "fp7"],
           },
           {
             type: "address-register-indirect",

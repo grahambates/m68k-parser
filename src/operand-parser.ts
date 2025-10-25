@@ -1,6 +1,7 @@
 import {
   AddressRegister,
   DataRegister,
+  FPUDataRegister,
   OperandNode,
   ExpressionNode,
 } from "./types";
@@ -12,6 +13,63 @@ import {
   isFPUDataRegister,
   isFPUControlRegister,
 } from "./syntax";
+
+/**
+ * Expand a register range (e.g., "d0-d7") into individual registers
+ */
+function expandRegisterRange(
+  spec: string,
+): (DataRegister | AddressRegister)[] {
+  const rangeMatch = /^([ad])(\d+)-([ad])(\d+)$/i.exec(spec.toLowerCase());
+  if (rangeMatch) {
+    const prefix1 = rangeMatch[1];
+    const start = parseInt(rangeMatch[2]);
+    const prefix2 = rangeMatch[3];
+    const end = parseInt(rangeMatch[4]);
+
+    // Both must be same type (d or a)
+    if (prefix1 !== prefix2) return [];
+
+    const registers: (DataRegister | AddressRegister)[] = [];
+    for (let i = start; i <= end && i <= 7; i++) {
+      registers.push((prefix1 + i) as DataRegister | AddressRegister);
+    }
+    return registers;
+  }
+
+  // Not a range, just return single register if valid
+  const lower = spec.toLowerCase();
+  if (isDataRegister(lower) || isAddressRegister(lower)) {
+    return [lower as DataRegister | AddressRegister];
+  }
+
+  return [];
+}
+
+/**
+ * Expand an FPU register range (e.g., "fp0-fp7") into individual registers
+ */
+function expandFPURegisterRange(spec: string): FPUDataRegister[] {
+  const rangeMatch = /^fp(\d+)-fp(\d+)$/i.exec(spec.toLowerCase());
+  if (rangeMatch) {
+    const start = parseInt(rangeMatch[1]);
+    const end = parseInt(rangeMatch[2]);
+
+    const registers: FPUDataRegister[] = [];
+    for (let i = start; i <= end && i <= 7; i++) {
+      registers.push(("fp" + i) as FPUDataRegister);
+    }
+    return registers;
+  }
+
+  // Not a range, just return single register if valid
+  const lower = spec.toLowerCase();
+  if (isFPUDataRegister(lower)) {
+    return [lower as FPUDataRegister];
+  }
+
+  return [];
+}
 
 /**
  * Parse an operand string and determine its type (addressing mode)
@@ -186,11 +244,19 @@ export function parseOperand(
     /^([ad][0-7](-[ad][0-7])?)(\/([ad][0-7](-[ad][0-7])?))*$/i.exec(trimmed);
   if (registerListMatch) {
     // Split by / to get individual register specs
-    const registers = trimmed.split("/").map((r) => r.trim().toLowerCase());
+    const raw = trimmed.split("/").map((r) => r.trim().toLowerCase());
+
+    // Expand all ranges into individual registers
+    const registers: (DataRegister | AddressRegister)[] = [];
+    for (const spec of raw) {
+      registers.push(...expandRegisterRange(spec));
+    }
+
     return {
       type: "register-list",
       start,
       end,
+      raw,
       registers,
     };
   }
@@ -200,11 +266,19 @@ export function parseOperand(
     /^fp[0-7](-fp[0-7])?(\/fp[0-7](-fp[0-7])?)*$/i.exec(trimmed);
   if (fpuRegisterListMatch) {
     // Split by / to get individual FPU register specs
-    const registers = trimmed.split("/").map((r) => r.trim().toLowerCase());
+    const raw = trimmed.split("/").map((r) => r.trim().toLowerCase());
+
+    // Expand all ranges into individual FPU registers
+    const registers: FPUDataRegister[] = [];
+    for (const spec of raw) {
+      registers.push(...expandFPURegisterRange(spec));
+    }
+
     return {
       type: "fpu-register-list",
       start,
       end,
+      raw,
       registers,
     };
   }
