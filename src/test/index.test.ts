@@ -818,6 +818,29 @@ describe("parse", () => {
       });
     });
 
+    it("returns unknown for invalid scale factor *3", () => {
+      const line = parseLine(" move.w .label(a0,d0*3),d1");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "unknown", // Invalid scale factor should result in unknown
+          },
+          {
+            type: "data-register",
+            register: "d1",
+          },
+        ],
+      });
+    });
+
+    it("reports errors for invalid scale factor", () => {
+      const line = parseLine(" move.w label(a0,d0*3),d1");
+      expect(line.operands?.[0].type).toBe("unknown");
+      expect(line.errors).toBeDefined();
+      expect(line.errors).toHaveLength(1);
+      expect(line.errors?.[0].code).toBe("MALFORMED_MEMORY_INDIRECT");
+    });
+
     it("parses bitfield with offset and width", () => {
       const line = parseLine(" bfchg {0:5},d0");
       expect(line).toMatchObject({
@@ -950,6 +973,30 @@ describe("parse", () => {
           { type: "data-register", register: "d0" },
         ],
       });
+    });
+
+    it("collects multiple errors when operands have issues", () => {
+      const line = parseLine(" move.w label(a0,d0*3),label2(a1,d1*9)");
+      expect(line.operands?.[0].type).toBe("unknown");
+      expect(line.operands?.[1].type).toBe("unknown");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.length).toBe(2);
+      expect(line.errors?.[0].code).toBe("MALFORMED_MEMORY_INDIRECT");
+      expect(line.errors?.[1].code).toBe("MALFORMED_MEMORY_INDIRECT");
+    });
+
+    it("reports error for unclosed parenthesis", () => {
+      const line = parseLine(" move.w .label(a1");
+      expect(line.operands?.[0].type).toBe("unknown");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("UNCLOSED_PAREN");
+    });
+
+    it("reports error for unclosed bracket", () => {
+      const line = parseLine(" move.l ([a0,d0.l");
+      expect(line.operands?.[0].type).toBe("unknown");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("UNCLOSED_BRACKET");
     });
 
     it("parses packed decimal size qualifier .p", () => {

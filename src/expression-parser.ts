@@ -1,5 +1,5 @@
-import { ExpressionNode, Token } from "./types";
-import { tokenizeExpression } from "./tokenizer";
+import { ExpressionNode } from "./types";
+import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
 import { isBuiltinSymbol } from "./syntax";
 
 /**
@@ -28,7 +28,7 @@ export function parseExpression(
   const tokens = tokenizeExpression(trimmed);
   let pos = 0;
 
-  function current(): Token {
+  function current(): ExpressionToken {
     return tokens[pos];
   }
 

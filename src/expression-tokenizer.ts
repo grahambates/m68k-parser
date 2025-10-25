@@ -1,10 +1,26 @@
-import { Token } from "./types";
+import { NumberFormat } from "./types";
+
+// Expression tokenizer types
+export type ExpressionToken =
+  | {
+      type: "number";
+      value: string;
+      format: NumberFormat;
+      position: number;
+    }
+  | { type: "symbol"; value: string; position: number }
+  | { type: "operator"; value: string; position: number }
+  | { type: "lparen"; position: number }
+  | { type: "rparen"; position: number }
+  | { type: "current-address"; position: number }
+  | { type: "macro-parameter"; value: string; position: number }
+  | { type: "eof"; position: number };
 
 /**
  * Tokenize an expression string
  */
-export function tokenizeExpression(expr: string): Token[] {
-  const tokens: Token[] = [];
+export function tokenizeExpression(expr: string): ExpressionToken[] {
+  const tokens: ExpressionToken[] = [];
   let i = 0;
 
   while (i < expr.length) {
@@ -31,12 +47,13 @@ export function tokenizeExpression(expr: string): Token[] {
       /[0-9a-f]/i.test(expr[i + 1])
     ) {
       // Hex number
+      const position = i;
       let value = "$";
       i++;
       while (i < expr.length && /[0-9a-f]/i.test(expr[i])) {
         value += expr[i++];
       }
-      tokens.push({ type: "number", value, format: "hex" });
+      tokens.push({ type: "number", value, format: "hex", position });
       continue;
     }
 
@@ -47,12 +64,13 @@ export function tokenizeExpression(expr: string): Token[] {
       /[01]/.test(expr[i + 1])
     ) {
       // Binary number
+      const position = i;
       let value = "%";
       i++;
       while (i < expr.length && /[01]/.test(expr[i])) {
         value += expr[i++];
       }
-      tokens.push({ type: "number", value, format: "binary" });
+      tokens.push({ type: "number", value, format: "binary", position });
       continue;
     }
 
@@ -63,22 +81,24 @@ export function tokenizeExpression(expr: string): Token[] {
       /[0-7]/.test(expr[i + 1])
     ) {
       // Octal number
+      const position = i;
       let value = "@";
       i++;
       while (i < expr.length && /[0-7]/.test(expr[i])) {
         value += expr[i++];
       }
-      tokens.push({ type: "number", value, format: "octal" });
+      tokens.push({ type: "number", value, format: "octal", position });
       continue;
     }
 
     if (/\d/.test(char)) {
       // Decimal number
+      const position = i;
       let value = "";
       while (i < expr.length && /\d/.test(expr[i])) {
         value += expr[i++];
       }
-      tokens.push({ type: "number", value, format: "decimal" });
+      tokens.push({ type: "number", value, format: "decimal", position });
       continue;
     }
 
@@ -91,7 +111,7 @@ export function tokenizeExpression(expr: string): Token[] {
         (prevToken.type === "operator" || prevToken.type === "lparen");
 
       if (isAtStart || afterOperator) {
-        tokens.push({ type: "current-address" });
+        tokens.push({ type: "current-address", position: i });
         i++;
         continue;
       }
@@ -99,12 +119,12 @@ export function tokenizeExpression(expr: string): Token[] {
 
     // Parentheses
     if (char === "(") {
-      tokens.push({ type: "lparen" });
+      tokens.push({ type: "lparen", position: i });
       i++;
       continue;
     }
     if (char === ")") {
-      tokens.push({ type: "rparen" });
+      tokens.push({ type: "rparen", position: i });
       i++;
       continue;
     }
@@ -117,7 +137,7 @@ export function tokenizeExpression(expr: string): Token[] {
           twoChar,
         )
       ) {
-        tokens.push({ type: "operator", value: twoChar });
+        tokens.push({ type: "operator", value: twoChar, position: i });
         i += 2;
         continue;
       }
@@ -141,18 +161,19 @@ export function tokenizeExpression(expr: string): Token[] {
         "=",
       ].includes(char)
     ) {
-      tokens.push({ type: "operator", value: char });
+      tokens.push({ type: "operator", value: char, position: i });
       i++;
       continue;
     }
 
     // Macro parameters: \1, \@, \<name>
     if (char === "\\") {
+      const position = i;
       i++; // Skip the backslash
       if (i < expr.length) {
         // Check for \@
         if (expr[i] === "@") {
-          tokens.push({ type: "macro-parameter", value: "@" });
+          tokens.push({ type: "macro-parameter", value: "@", position });
           i++;
           continue;
         }
@@ -166,7 +187,7 @@ export function tokenizeExpression(expr: string): Token[] {
           if (i < expr.length && expr[i] === ">") {
             value += expr[i++];
           }
-          tokens.push({ type: "macro-parameter", value });
+          tokens.push({ type: "macro-parameter", value, position });
           continue;
         }
         // Check for \number
@@ -175,7 +196,7 @@ export function tokenizeExpression(expr: string): Token[] {
           while (i < expr.length && /\d/.test(expr[i])) {
             value += expr[i++];
           }
-          tokens.push({ type: "macro-parameter", value });
+          tokens.push({ type: "macro-parameter", value, position });
           continue;
         }
       }
@@ -185,11 +206,12 @@ export function tokenizeExpression(expr: string): Token[] {
 
     // Symbols/identifiers: start with letter/underscore/dot, contain alphanumeric/underscore/dot/dollar
     if (/[a-z_.]/i.test(char)) {
+      const position = i;
       let value = "";
       while (i < expr.length && /[\w.$]/i.test(expr[i])) {
         value += expr[i++];
       }
-      tokens.push({ type: "symbol", value });
+      tokens.push({ type: "symbol", value, position });
       continue;
     }
 
@@ -197,6 +219,6 @@ export function tokenizeExpression(expr: string): Token[] {
     i++;
   }
 
-  tokens.push({ type: "eof" });
+  tokens.push({ type: "eof", position: i });
   return tokens;
 }

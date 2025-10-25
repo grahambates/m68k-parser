@@ -11,6 +11,7 @@ import type {
   Directive,
   Size,
 } from "./syntax";
+import type { OperandParseError } from "./parse-error";
 
 export type {
   DataRegister,
@@ -24,6 +25,11 @@ export type {
   Directive,
   Size,
 };
+
+// Parse result type - used for operand parsing with detailed errors
+export type ParseResult<T> =
+  | { success: true; value: T }
+  | { success: false; error: OperandParseError };
 
 export type MnemonicNode =
   | InstructionNode
@@ -39,6 +45,7 @@ export interface ParsedLine {
   mnemonic?: MnemonicNode;
   qualifier?: QualifierNode;
   operands?: OperandNode[];
+  errors?: OperandParseError[]; // Parse errors from operand parsing
   comment?: CommentNode;
 }
 
@@ -347,18 +354,3 @@ export interface BitfieldNode extends Node {
 export interface UnknownNode extends Node {
   type: "unknown";
 }
-
-// Expression tokenizer types
-export type Token =
-  | {
-      type: "number";
-      value: string;
-      format: NumberFormat;
-    }
-  | { type: "symbol"; value: string }
-  | { type: "operator"; value: string }
-  | { type: "lparen" }
-  | { type: "rparen" }
-  | { type: "current-address" }
-  | { type: "macro-parameter"; value: string }
-  | { type: "eof" };

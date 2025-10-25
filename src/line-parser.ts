@@ -4,6 +4,7 @@ import {
   DirectiveNode,
   MacroParameterNode,
 } from "./types";
+import { OperandParseError } from "./parse-error";
 import { parseOperand } from "./operand-parser";
 import { parseExpression } from "./expression-parser";
 import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
@@ -321,6 +322,7 @@ export function parseLine(text: string): ParsedLine {
       const operandTexts = groups.operands.split(/,\s*(?![^()<>]*[)>])/);
 
       const operands: OperandNode[] = [];
+      const errors: OperandParseError[] = [];
       for (const opText of operandTexts) {
         const start = opText
           ? end + text.substring(end).indexOf(opText)
@@ -336,11 +338,17 @@ export function parseLine(text: string): ParsedLine {
               : line.mnemonic?.type === "macro"
                 ? "macro"
                 : undefined;
-        const operand = parseOperand(opText, start, end, category);
+        const { operand, error } = parseOperand(opText, start, end, category);
         operands.push(operand);
+        if (error) {
+          errors.push(error);
+        }
       }
 
       line.operands = operands;
+      if (errors.length > 0) {
+        line.errors = errors;
+      }
     }
 
     // Only set comment if not already handled by iif

@@ -5,6 +5,8 @@ import {
   OperandNode,
   ExpressionNode,
   AddressSize,
+  ParseResult,
+  MemoryIndirectNode,
 } from "./types";
 import { parseExpression } from "./expression-parser";
 import {
@@ -14,6 +16,555 @@ import {
   isFPUDataRegister,
   isFPUControlRegister,
 } from "./syntax";
+import {
+  tokenizeOperand,
+  OperandToken,
+  OperandTokenType,
+} from "./operand-tokenizer";
+import {
+  expectedToken,
+  unclosedBracket,
+  unclosedParen,
+  malformedMemoryIndirect,
+  invalidScaleFactor,
+  malformedBitfield,
+  unclosedBrace,
+  OperandParseError,
+} from "./parse-error";
+
+/**
+ * OperandToken-based parser for memory indirect addressing: ([bd,An,Rn.s*scale],od)
+ * Returns ParseResult with detailed error information
+ */
+function parseMemoryIndirectWithTokens(
+  text: string,
+  start: number,
+  end: number,
+): ParseResult<MemoryIndirectNode> {
+  const tokens = tokenizeOperand(text);
+  let pos = 0;
+
+  function current(): OperandToken {
+    return tokens[pos] || tokens[tokens.length - 1];
+  }
+
+  function consume(expected?: OperandTokenType): OperandToken {
+    const token = current();
+    if (expected && token.type !== expected) {
+      return token; // Let caller handle the error
+    }
+    pos++;
+    return token;
+  }
+
+  // Parse expressions from tokens (collect until comma/bracket/paren/EOF)
+  function parseExpressionFromTokens(stopAt: OperandTokenType[]): string {
+    let expr = "";
+    while (current().type !== "eof" && !stopAt.includes(current().type)) {
+      const token = consume();
+      expr += token.value;
+    }
+    return expr.trim();
+  }
+
+  // Memory indirect must start with ( followed by [
+  if (current().type !== "lparen") {
+    return {
+      success: false,
+      error: expectedToken(["("], start, text[0]),
+    };
+  }
+  const openParen = consume();
+
+  if (current().type !== "lbracket") {
+    return {
+      success: false,
+      error: expectedToken(["["], start + current().position, current().value),
+    };
+  }
+  const openBracket = consume();
+
+  // Parse inner content: can be bd, An, Rn.s*scale in various combinations
+  let baseDisplacement: ExpressionNode | undefined;
+  let baseRegister: AddressRegister | undefined;
+  let indexRegister: DataRegister | AddressRegister | undefined;
+  let indexSize: AddressSize | undefined;
+  let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+
+  const innerParts: string[] = [];
+  let currentPart = "";
+
+  // Collect parts separated by commas
+  while (current().type !== "rbracket" && current().type !== "eof") {
+    if (current().type === "comma") {
+      if (currentPart.trim()) {
+        innerParts.push(currentPart.trim());
+      }
+      currentPart = "";
+      consume("comma");
+    } else {
+      currentPart += current().value;
+      consume();
+    }
+  }
+  if (currentPart.trim()) {
+    innerParts.push(currentPart.trim());
+  }
+
+  if (current().type !== "rbracket") {
+    return {
+      success: false,
+      error: unclosedBracket(start + openBracket.position),
+    };
+  }
+  consume("rbracket");
+
+  // Parse the inner parts
+  if (innerParts.length === 1) {
+    // [An] or [bd]
+    const part = innerParts[0];
+    if (isAddressRegister(part.toLowerCase())) {
+      baseRegister = part.toLowerCase() as AddressRegister;
+    } else {
+      baseDisplacement = parseExpression(part, start, end);
+    }
+  } else if (innerParts.length === 2) {
+    // [bd,An] or [An,Rn.s*scale]
+    const first = innerParts[0];
+    const second = innerParts[1];
+
+    const firstIsBaseReg = isAddressRegister(first.toLowerCase());
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(second);
+
+    if (firstIsBaseReg && indexMatch) {
+      // [An,Rn.s*scale]
+      baseRegister = first.toLowerCase() as AddressRegister;
+      indexRegister = indexMatch[1].toLowerCase() as
+        | DataRegister
+        | AddressRegister;
+      indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
+      if (indexMatch[3]) {
+        const scale = parseInt(indexMatch[3]);
+        if (![1, 2, 4, 8].includes(scale)) {
+          return {
+            success: false,
+            error: invalidScaleFactor(indexMatch[3], start),
+          };
+        }
+        scaleFactor = scale as 1 | 2 | 4 | 8;
+      }
+    } else {
+      // [bd,An]
+      baseDisplacement = parseExpression(first, start, end);
+      if (isAddressRegister(second.toLowerCase())) {
+        baseRegister = second.toLowerCase() as AddressRegister;
+      }
+    }
+  } else if (innerParts.length === 3) {
+    // [bd,An,Rn.s*scale]
+    const bd = innerParts[0];
+    const an = innerParts[1];
+    const idx = innerParts[2];
+
+    baseDisplacement = parseExpression(bd, start, end);
+    if (isAddressRegister(an.toLowerCase())) {
+      baseRegister = an.toLowerCase() as AddressRegister;
+    }
+
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(idx);
+    if (indexMatch) {
+      indexRegister = indexMatch[1].toLowerCase() as
+        | DataRegister
+        | AddressRegister;
+      indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
+      if (indexMatch[3]) {
+        const scale = parseInt(indexMatch[3]);
+        if (![1, 2, 4, 8].includes(scale)) {
+          return {
+            success: false,
+            error: invalidScaleFactor(indexMatch[3], start),
+          };
+        }
+        scaleFactor = scale as 1 | 2 | 4 | 8;
+      }
+    }
+  }
+
+  // Parse outer displacement if present: ],od)
+  let outerDisplacement: ExpressionNode | undefined;
+  if (current().type === "comma") {
+    consume("comma");
+    const outerPart = parseExpressionFromTokens(["rparen", "eof"]);
+    if (outerPart) {
+      outerDisplacement = parseExpression(outerPart, start, end);
+    }
+  }
+
+  // Must end with )
+  if (current().type !== "rparen") {
+    return {
+      success: false,
+      error: unclosedParen(start + openParen.position),
+    };
+  }
+  consume("rparen");
+
+  return {
+    success: true,
+    value: {
+      type: "memory-indirect",
+      start,
+      end,
+      baseDisplacement,
+      baseRegister,
+      indexRegister,
+      indexSize,
+      scaleFactor,
+      outerDisplacement,
+    },
+  };
+}
+
+/**
+ * OperandToken-based parser for indexed addressing: disp(base,index.size*scale)
+ * Handles both address register and PC relative with index
+ */
+function parseIndexedAddressingWithTokens(
+  text: string,
+  start: number,
+  end: number,
+): ParseResult<OperandNode> {
+  const tokens = tokenizeOperand(text);
+  let pos = 0;
+
+  function current(): OperandToken {
+    return tokens[pos] || tokens[tokens.length - 1];
+  }
+
+  function consume(): OperandToken {
+    const token = current();
+    pos++;
+    return token;
+  }
+
+  // Collect displacement before opening paren (if any)
+  let displacement = "";
+  while (current().type !== "lparen" && current().type !== "eof") {
+    displacement += current().value;
+    consume();
+  }
+  displacement = displacement.trim();
+
+  if (current().type !== "lparen") {
+    return {
+      success: false,
+      error: expectedToken(["("], start + current().position, current().value),
+    };
+  }
+  const openParen = consume();
+
+  // Collect parts separated by commas inside parens
+  const parts: string[] = [];
+  let currentPart = "";
+
+  while (current().type !== "rparen" && current().type !== "eof") {
+    if (current().type === "comma") {
+      if (currentPart.trim()) {
+        parts.push(currentPart.trim());
+      }
+      currentPart = "";
+      consume();
+    } else {
+      currentPart += current().value;
+      consume();
+    }
+  }
+  if (currentPart.trim()) {
+    parts.push(currentPart.trim());
+  }
+
+  if (current().type !== "rparen") {
+    return {
+      success: false,
+      error: unclosedParen(start + openParen.position),
+    };
+  }
+  consume();
+
+  // Parse based on number of parts
+  if (parts.length === 2) {
+    // (base,index.size*scale) or disp(base,index.size*scale)
+    const baseReg = parts[0].toLowerCase();
+    const indexPart = parts[1];
+
+    // Parse index: d1.w*2, a2.l*4, etc.
+    // Allow both dot and optional separator: d1.w or d1w or d1,w
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(
+      indexPart,
+    );
+    if (!indexMatch) {
+      return {
+        success: false,
+        error: malformedMemoryIndirect(
+          `Invalid index register format '${indexPart}'`,
+          start,
+        ),
+      };
+    }
+
+    const indexRegister = indexMatch[1].toLowerCase() as
+      | DataRegister
+      | AddressRegister;
+    const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
+    let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+
+    if (indexMatch[3]) {
+      const scale = parseInt(indexMatch[3]);
+      if (![1, 2, 4, 8].includes(scale)) {
+        return {
+          success: false,
+          error: invalidScaleFactor(indexMatch[3], start),
+        };
+      }
+      scaleFactor = scale as 1 | 2 | 4 | 8;
+    }
+
+    // Check if PC relative or address register
+    if (baseReg === "pc") {
+      return {
+        success: true,
+        value: {
+          type: "pc-relative-index",
+          start,
+          end,
+          displacement: parseExpression(displacement || "0", start, end),
+          indexRegister,
+          indexSize,
+          scaleFactor,
+        },
+      };
+    } else if (isAddressRegister(baseReg)) {
+      return {
+        success: true,
+        value: {
+          type: "address-register-indirect-index",
+          start,
+          end,
+          displacement: displacement
+            ? parseExpression(displacement, start, end)
+            : undefined,
+          baseRegister: baseReg as AddressRegister,
+          indexRegister,
+          indexSize,
+          scaleFactor,
+        },
+      };
+    }
+  } else if (parts.length === 3) {
+    // (base,index,size) or (disp,base,index.size*scale)
+    // Need to disambiguate based on whether third part is just a size letter
+    const part0 = parts[0];
+    const part1 = parts[1].toLowerCase();
+    const part2 = parts[2].toLowerCase();
+
+    // Check if part2 is just a size letter (w or l)
+    if (/^[wl]$/i.test(part2)) {
+      // Format: (base,index,size) or disp(base,index,size) - comma-separated size
+      const baseReg = part0.toLowerCase();
+      const indexRegister = part1 as DataRegister | AddressRegister;
+      const indexSize = part2 as AddressSize;
+
+      if (baseReg === "pc") {
+        return {
+          success: true,
+          value: {
+            type: "pc-relative-index",
+            start,
+            end,
+            displacement: parseExpression(displacement || "0", start, end),
+            indexRegister,
+            indexSize,
+            scaleFactor: undefined,
+          },
+        };
+      } else if (isAddressRegister(baseReg)) {
+        return {
+          success: true,
+          value: {
+            type: "address-register-indirect-index",
+            start,
+            end,
+            displacement: displacement
+              ? parseExpression(displacement, start, end)
+              : undefined,
+            baseRegister: baseReg as AddressRegister,
+            indexRegister,
+            indexSize,
+            scaleFactor: undefined,
+          },
+        };
+      }
+    }
+
+    // Otherwise, format: (disp,base,index.size*scale)
+    const disp = part0;
+    const baseReg = part1;
+    const indexPart = part2;
+
+    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(
+      indexPart,
+    );
+    if (!indexMatch) {
+      return {
+        success: false,
+        error: malformedMemoryIndirect(
+          `Invalid index register format '${indexPart}'`,
+          start,
+        ),
+      };
+    }
+
+    const indexRegister = indexMatch[1].toLowerCase() as
+      | DataRegister
+      | AddressRegister;
+    const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
+    let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+
+    if (indexMatch[3]) {
+      const scale = parseInt(indexMatch[3]);
+      if (![1, 2, 4, 8].includes(scale)) {
+        return {
+          success: false,
+          error: invalidScaleFactor(indexMatch[3], start),
+        };
+      }
+      scaleFactor = scale as 1 | 2 | 4 | 8;
+    }
+
+    if (baseReg === "pc") {
+      return {
+        success: true,
+        value: {
+          type: "pc-relative-index",
+          start,
+          end,
+          displacement: parseExpression(disp, start, end),
+          indexRegister,
+          indexSize,
+          scaleFactor,
+        },
+      };
+    } else if (isAddressRegister(baseReg)) {
+      return {
+        success: true,
+        value: {
+          type: "address-register-indirect-index",
+          start,
+          end,
+          displacement: parseExpression(disp, start, end),
+          baseRegister: baseReg as AddressRegister,
+          indexRegister,
+          indexSize,
+          scaleFactor,
+        },
+      };
+    }
+  }
+
+  return {
+    success: false,
+    error: malformedMemoryIndirect(`Invalid indexed addressing format`, start),
+  };
+}
+
+/**
+ * OperandToken-based parser for bitfield specifications: {offset:width}
+ */
+function parseBitfieldWithTokens(
+  text: string,
+  start: number,
+  end: number,
+): ParseResult<OperandNode> {
+  const tokens = tokenizeOperand(text);
+  let pos = 0;
+
+  function current(): OperandToken {
+    return tokens[pos] || tokens[tokens.length - 1];
+  }
+
+  function consume(): OperandToken {
+    const token = current();
+    pos++;
+    return token;
+  }
+
+  // Must start with {
+  if (current().type !== "lbrace") {
+    return {
+      success: false,
+      error: expectedToken(["{"], start, current().value),
+    };
+  }
+  const openBrace = consume();
+
+  // Collect offset part (until : or })
+  let offsetPart = "";
+  while (
+    current().type !== "colon" &&
+    current().type !== "rbrace" &&
+    current().type !== "eof"
+  ) {
+    offsetPart += current().value;
+    consume();
+  }
+  offsetPart = offsetPart.trim();
+
+  if (!offsetPart) {
+    return {
+      success: false,
+      error: malformedBitfield("Bitfield offset cannot be empty", start),
+    };
+  }
+
+  const offset = parseExpression(offsetPart, start, end);
+  let width: ExpressionNode | undefined;
+
+  // Check for width (after colon)
+  if (current().type === "colon") {
+    consume(); // eat the :
+
+    let widthPart = "";
+    while (current().type !== "rbrace" && current().type !== "eof") {
+      widthPart += current().value;
+      consume();
+    }
+    widthPart = widthPart.trim();
+
+    if (widthPart) {
+      width = parseExpression(widthPart, start, end);
+    }
+  }
+
+  // Must end with }
+  if (current().type !== "rbrace") {
+    return {
+      success: false,
+      error: unclosedBrace(start + openBrace.position),
+    };
+  }
+  consume();
+
+  return {
+    success: true,
+    value: {
+      type: "bitfield",
+      start,
+      end,
+      offset,
+      width,
+    },
+  };
+}
 
 /**
  * Expand a register range (e.g., "d0-d7") into individual registers
@@ -76,21 +627,24 @@ function expandFPURegisterRange(spec: string): FPUDataRegister[] {
  * @param start - Start position in the original line
  * @param end - End position in the original line
  * @param mnemonicCategory - Optional category of the mnemonic (instruction vs directive)
+ * @returns Object with operand node and optional error
  */
 export function parseOperand(
   text: string,
   start: number,
   end: number,
   mnemonicCategory?: "instruction" | "directive" | "macro",
-): OperandNode {
+): { operand: OperandNode; error?: OperandParseError } {
   const trimmed = text.trim();
 
   // If it's empty or only whitespace, mark as unknown
   if (!trimmed) {
     return {
-      type: "unknown",
-      start,
-      end,
+      operand: {
+        type: "unknown",
+        start,
+        end,
+      },
     };
   }
 
@@ -111,11 +665,13 @@ export function parseOperand(
       : trimmed.slice(quoteStartLength);
 
     return {
-      type: "string-literal",
-      start,
-      end,
-      quote,
-      content,
+      operand: {
+        type: "string-literal",
+        start,
+        end,
+        quote,
+        content,
+      },
     };
   }
 
@@ -134,41 +690,31 @@ export function parseOperand(
     }
 
     return {
-      type: "macro-parameter",
-      start,
-      end,
-      paramType,
-      param,
+      operand: {
+        type: "macro-parameter",
+        start,
+        end,
+        paramType,
+        param,
+      },
     };
   }
 
   // Bitfield specification (68020+): {offset:width} or {offset}
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    const bitfieldContent = trimmed.slice(1, -1).trim();
-    const parts = bitfieldContent.split(":");
-
-    if (parts.length === 1 || parts.length === 2) {
-      const offsetText = parts[0].trim();
-      const offsetStart = start + text.indexOf(offsetText);
-      const offsetEnd = offsetStart + offsetText.length;
-      const offset = parseExpression(offsetText, offsetStart, offsetEnd);
-
-      let width: ExpressionNode | undefined;
-      if (parts.length === 2) {
-        const widthText = parts[1].trim();
-        const widthStart = start + text.indexOf(widthText);
-        const widthEnd = widthStart + widthText.length;
-        width = parseExpression(widthText, widthStart, widthEnd);
-      }
-
-      return {
-        type: "bitfield",
+    const result = parseBitfieldWithTokens(trimmed, start, end);
+    if (result.success) {
+      return { operand: result.value };
+    }
+    // If token-based parser failed, return unknown with error
+    return {
+      operand: {
+        type: "unknown",
         start,
         end,
-        offset,
-        width,
-      };
-    }
+      },
+      error: result.error,
+    };
   }
 
   // Addressing modes:
@@ -178,10 +724,12 @@ export function parseOperand(
     const exprText = trimmed.slice(1);
     const exprStart = start + text.indexOf(exprText);
     return {
-      type: "immediate",
-      start,
-      end,
-      value: parseExpression(exprText, exprStart, end),
+      operand: {
+        type: "immediate",
+        start,
+        end,
+        value: parseExpression(exprText, exprStart, end),
+      },
     };
   }
 
@@ -191,50 +739,60 @@ export function parseOperand(
   // FPU data registers: fp0-fp7
   if (isFPUDataRegister(register)) {
     return {
-      type: "fpu-data-register",
-      start,
-      end,
-      register,
+      operand: {
+        type: "fpu-data-register",
+        start,
+        end,
+        register,
+      },
     };
   }
 
   // FPU control registers: fpcr, fpsr, fpiar
   if (isFPUControlRegister(register)) {
     return {
-      type: "fpu-control-register",
-      start,
-      end,
-      register,
+      operand: {
+        type: "fpu-control-register",
+        start,
+        end,
+        register,
+      },
     };
   }
 
   // Data Register Direct: Dn
   if (isDataRegister(register)) {
     return {
-      type: "data-register",
-      start,
-      end,
-      register,
+      operand: {
+        type: "data-register",
+        start,
+        end,
+        register,
+      },
     };
   }
 
   // Address register direct: An
   if (isAddressRegister(register)) {
     return {
-      type: "address-register",
-      start,
-      end,
-      register,
+      operand: {
+        type: "address-register",
+        start,
+        end,
+        register,
+      },
     };
   }
 
   // Special/system registers: sr, ccr, usp, ssp, pc, vbr, sfc, dfc, cacr, caar
   if (isSpecialRegister(register)) {
     return {
-      type: "special-register",
-      start,
-      end,
-      register,
+      operand: {
+        type: "special-register",
+        start,
+        end,
+        register,
+      },
     };
   }
 
@@ -252,11 +810,13 @@ export function parseOperand(
     }
 
     return {
-      type: "register-list",
-      start,
-      end,
-      raw,
-      registers,
+      operand: {
+        type: "register-list",
+        start,
+        end,
+        raw,
+        registers,
+      },
     };
   }
 
@@ -274,105 +834,31 @@ export function parseOperand(
     }
 
     return {
-      type: "fpu-register-list",
-      start,
-      end,
-      raw,
-      registers,
+      operand: {
+        type: "fpu-register-list",
+        start,
+        end,
+        raw,
+        registers,
+      },
     };
   }
 
   // Memory indirect addressing (68020+): ([bd,An,Rn.s*scale],od) or ([bd,An],od) or ([An],od)
   // Check for opening parenthesis followed by square bracket
-  const memIndirectMatch = /^\(\[([^\]]*)\](?:,\s*([^)]+))?\)$/i.exec(trimmed);
-  if (memIndirectMatch) {
-    const innerContent = memIndirectMatch[1]; // Content inside square brackets
-    const outerDisp = memIndirectMatch[2]?.trim(); // Outer displacement after ]
-
-    // Parse the inner content: can be bd,An,Rn.s*scale or An,Rn.s*scale or An or bd,An
-    const innerParts = innerContent.split(",").map((p) => p.trim());
-
-    let baseDisplacement: ExpressionNode | undefined;
-    let baseRegister: AddressRegister | undefined;
-    let indexRegister: DataRegister | AddressRegister | undefined;
-    let indexSize: AddressSize | undefined;
-    let scaleFactor: 1 | 2 | 4 | 8 | undefined;
-
-    // Parse based on number of parts
-    if (innerParts.length === 1) {
-      // Just [An] or [bd]
-      const part = innerParts[0];
-      if (isAddressRegister(part.toLowerCase())) {
-        baseRegister = part.toLowerCase() as AddressRegister;
-      } else {
-        // It's a displacement
-        baseDisplacement = parseExpression(part, start, end);
-      }
-    } else if (innerParts.length === 2) {
-      // [bd,An] or [An,Rn.s*scale]
-      const first = innerParts[0];
-      const second = innerParts[1];
-
-      // Check if first is a base register to disambiguate
-      const firstIsBaseReg = isAddressRegister(first.toLowerCase());
-
-      // Check if second is a register with optional size/scale (index)
-      const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(second);
-
-      // If first is base register AND second matches index pattern -> [An,Rn.s*scale]
-      // Otherwise -> [bd,An]
-      if (firstIsBaseReg && indexMatch) {
-        // Format: [An,Rn.s*scale]
-        baseRegister = first.toLowerCase() as AddressRegister;
-        indexRegister = indexMatch[1].toLowerCase() as
-          | DataRegister
-          | AddressRegister;
-        indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-        scaleFactor = indexMatch[3]
-          ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
-          : undefined;
-      } else {
-        // Format: [bd,An]
-        baseDisplacement = parseExpression(first, start, end);
-        if (isAddressRegister(second.toLowerCase())) {
-          baseRegister = second.toLowerCase() as AddressRegister;
-        }
-      }
-    } else if (innerParts.length === 3) {
-      // [bd,An,Rn.s*scale]
-      const bd = innerParts[0];
-      const an = innerParts[1];
-      const idx = innerParts[2];
-
-      baseDisplacement = parseExpression(bd, start, end);
-      if (isAddressRegister(an.toLowerCase())) {
-        baseRegister = an.toLowerCase() as AddressRegister;
-      }
-
-      const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(idx);
-      if (indexMatch) {
-        indexRegister = indexMatch[1].toLowerCase() as
-          | DataRegister
-          | AddressRegister;
-        indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-        scaleFactor = indexMatch[3]
-          ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
-          : undefined;
-      }
+  if (trimmed.startsWith("([")) {
+    const result = parseMemoryIndirectWithTokens(trimmed, start, end);
+    if (result.success) {
+      return { operand: result.value };
     }
-
+    // If token-based parser failed, return unknown with error
     return {
-      type: "memory-indirect",
-      start,
-      end,
-      baseDisplacement,
-      baseRegister,
-      indexRegister,
-      indexSize,
-      scaleFactor,
-      outerDisplacement: outerDisp
-        ? parseExpression(outerDisp, start, end)
-        : undefined,
+      operand: {
+        type: "unknown",
+        start,
+        end,
+      },
+      error: result.error,
     };
   }
 
@@ -380,11 +866,13 @@ export function parseOperand(
   const preDecMatch = /^-\(([^)]+)\)$/i.exec(trimmed);
   if (preDecMatch) {
     return {
-      type: "address-register-indirect",
-      mode: "pre-decrement",
-      start,
-      end,
-      register: preDecMatch[1].toLowerCase(),
+      operand: {
+        type: "address-register-indirect",
+        mode: "pre-decrement",
+        start,
+        end,
+        register: preDecMatch[1].toLowerCase(),
+      },
     };
   }
 
@@ -392,11 +880,13 @@ export function parseOperand(
   const postIncMatch = /^\(([^)]+)\)\+$/i.exec(trimmed);
   if (postIncMatch) {
     return {
-      type: "address-register-indirect",
-      mode: "post-increment",
-      start,
-      end,
-      register: postIncMatch[1].toLowerCase(),
+      operand: {
+        type: "address-register-indirect",
+        mode: "post-increment",
+        start,
+        end,
+        register: postIncMatch[1].toLowerCase(),
+      },
     };
   }
 
@@ -413,125 +903,49 @@ export function parseOperand(
     // PC relative without index: (disp,pc)
     if (register === "pc") {
       return {
-        type: "pc-relative",
-        start,
-        end,
-        displacement: parseExpression(displacement, start, end),
+        operand: {
+          type: "pc-relative",
+          start,
+          end,
+          displacement: parseExpression(displacement, start, end),
+        },
       };
     }
 
     // Address register indirect with displacement: (disp,an)
     return {
-      type: "address-register-indirect-displacement",
-      start,
-      end,
-      displacement: parseExpression(displacement, start, end),
-      register: register as AddressRegister,
-    };
-  }
-
-  // Address register indirect with index (displacement inside parens): (d8,an,rn.size) or (d8,pc,rn.size)
-  // Check for 3 comma-separated parts inside parentheses
-  const indexedInParensMatch = /^\(([^,)]+),\s*([^,)]+),\s*(.+)\)$/i.exec(
-    trimmed,
-  );
-  if (indexedInParensMatch) {
-    const displacement = indexedInParensMatch[1].trim();
-    const baseReg = indexedInParensMatch[2].trim().toLowerCase() as
-      | AddressRegister
-      | "pc";
-    const indexPart = indexedInParensMatch[3].trim();
-
-    // Parse index register, size, and scale: d1.w*2, a2.l*4, d1*2, a2, etc.
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(
-      indexPart,
-    );
-    if (indexMatch) {
-      const indexRegister = indexMatch[1].toLowerCase() as
-        | DataRegister
-        | AddressRegister;
-      const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-      const scaleFactor = indexMatch[3]
-        ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
-        : undefined;
-
-      // PC relative with index
-      if (baseReg === "pc") {
-        return {
-          type: "pc-relative-index",
-          start,
-          end,
-          displacement: parseExpression(displacement, start, end),
-          indexRegister,
-          indexSize,
-          scaleFactor,
-        };
-      }
-
-      // Address register indirect with index
-      return {
-        type: "address-register-indirect-index",
+      operand: {
+        type: "address-register-indirect-displacement",
         start,
         end,
         displacement: parseExpression(displacement, start, end),
-        baseRegister: baseReg,
-        indexRegister,
-        indexSize,
-        scaleFactor,
-      };
-    }
+        register: register as AddressRegister,
+      },
+    };
   }
 
-  // Address register indirect with index: disp(an,rn.size) or (an,rn.size)
-  // Also handles PC relative: disp(pc,rn.size) or (pc,rn.size)
-  // Format can be: disp(base,index.size) where index can have multiple parts separated by commas
-  const indexedMatch = /^([^(]*)\(([^,)]+),(.+)\)$/i.exec(trimmed);
-  if (indexedMatch) {
-    const displacement = indexedMatch[1].trim();
-    const baseReg = indexedMatch[2].trim().toLowerCase() as
-      | AddressRegister
-      | "pc";
-    const indexPart = indexedMatch[3].trim();
+  // Address register indirect with index: disp(base,index.size*scale) or (base,index.size*scale)
+  // Also handles PC relative with index: disp(pc,index.size*scale) or (pc,index.size*scale)
+  // Check for indexed addressing pattern (has comma-separated parts with at least one being a register)
+  const hasIndexedPattern =
+    /^([^(]*)\(([^,)]+),(.+)\)$/i.test(trimmed) ||
+    /^\(([^,)]+),\s*([^,)]+),\s*(.+)\)$/i.test(trimmed);
 
-    // Parse index register, size, and scale: d1.w*2, a2.l*4, etc.
-    // The index part might be "d1.w*2" or "d1,w" (alternate syntax)
-    const indexMatch = /^([ad][0-7]|sp).?([wl])?\*?([1248])?$/i.exec(indexPart);
-    if (indexMatch) {
-      const indexRegister = indexMatch[1].toLowerCase() as
-        | DataRegister
-        | AddressRegister;
-      const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-      const scaleFactor = indexMatch[3]
-        ? (parseInt(indexMatch[3]) as 1 | 2 | 4 | 8)
-        : undefined;
-
-      // PC relative with index
-      if (baseReg === "pc") {
-        return {
-          type: "pc-relative-index",
-          start,
-          end,
-          displacement: parseExpression(displacement || "0", start, end),
-          indexRegister,
-          indexSize,
-          scaleFactor,
-        };
-      }
-
-      // Address register indirect with index
-      return {
-        type: "address-register-indirect-index",
+  if (hasIndexedPattern) {
+    const result = parseIndexedAddressingWithTokens(trimmed, start, end);
+    if (result.success) {
+      return { operand: result.value };
+    }
+    // Pattern matched indexed addressing, but parsing failed with an error
+    // Return unknown node with error
+    return {
+      operand: {
+        type: "unknown",
         start,
         end,
-        displacement: displacement
-          ? parseExpression(displacement, start, end)
-          : undefined,
-        baseRegister: baseReg,
-        indexRegister,
-        indexSize,
-        scaleFactor,
-      };
-    }
+      },
+      error: result.error,
+    };
   }
 
   // Address register indirect with displacement: disp(an) or PC relative: disp(pc)
@@ -543,31 +957,37 @@ export function parseOperand(
     // PC relative without index
     if (register === "pc") {
       return {
-        type: "pc-relative",
-        start,
-        end,
-        displacement: parseExpression(displacement || "0", start, end),
+        operand: {
+          type: "pc-relative",
+          start,
+          end,
+          displacement: parseExpression(displacement || "0", start, end),
+        },
       };
     }
 
     // Simple address register indirect: (an) with no displacement
     if (!displacement) {
       return {
-        type: "address-register-indirect",
-        start,
-        end,
-        register,
-        mode: "simple",
+        operand: {
+          type: "address-register-indirect",
+          start,
+          end,
+          register,
+          mode: "simple",
+        },
       };
     }
 
     // Address register indirect with displacement
     return {
-      type: "address-register-indirect-displacement",
-      start,
-      end,
-      displacement: parseExpression(displacement, start, end),
-      register: register as AddressRegister,
+      operand: {
+        type: "address-register-indirect-displacement",
+        start,
+        end,
+        displacement: parseExpression(displacement, start, end),
+        register: register as AddressRegister,
+      },
     };
   }
 
@@ -575,11 +995,13 @@ export function parseOperand(
   const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/i.exec(trimmed);
   if (absoluteSizedMatch) {
     return {
-      type: "absolute-address",
-      start,
-      end,
-      address: parseExpression(absoluteSizedMatch[1], start, end),
-      addressSize: absoluteSizedMatch[2].toLowerCase() as AddressSize,
+      operand: {
+        type: "absolute-address",
+        start,
+        end,
+        address: parseExpression(absoluteSizedMatch[1], start, end),
+        addressSize: absoluteSizedMatch[2].toLowerCase() as AddressSize,
+      },
     };
   }
 
@@ -587,11 +1009,43 @@ export function parseOperand(
   const absoluteWithSizeMatch = /^(.+)\.(w|l)$/i.exec(trimmed);
   if (absoluteWithSizeMatch) {
     return {
-      type: "absolute-address",
-      start,
-      end,
-      address: parseExpression(absoluteWithSizeMatch[1], start, end),
-      addressSize: absoluteWithSizeMatch[2].toLowerCase() as AddressSize,
+      operand: {
+        type: "absolute-address",
+        start,
+        end,
+        address: parseExpression(absoluteWithSizeMatch[1], start, end),
+        addressSize: absoluteWithSizeMatch[2].toLowerCase() as AddressSize,
+      },
+    };
+  }
+
+  // Check for unclosed parentheses/brackets/braces
+  const openParens = (trimmed.match(/\(/g) || []).length;
+  const closeParens = (trimmed.match(/\)/g) || []).length;
+  const openBrackets = (trimmed.match(/\[/g) || []).length;
+  const closeBrackets = (trimmed.match(/\]/g) || []).length;
+
+  if (openParens > closeParens) {
+    const parenPos = trimmed.indexOf("(");
+    return {
+      operand: {
+        type: "unknown",
+        start,
+        end,
+      },
+      error: unclosedParen(start + parenPos),
+    };
+  }
+
+  if (openBrackets > closeBrackets) {
+    const bracketPos = trimmed.indexOf("[");
+    return {
+      operand: {
+        type: "unknown",
+        start,
+        end,
+      },
+      error: unclosedBracket(start + bracketPos),
     };
   }
 
@@ -602,18 +1056,22 @@ export function parseOperand(
   if (mnemonicCategory === "instruction") {
     // For instructions, all expressions are absolute addresses
     return {
-      type: "absolute-address",
-      start,
-      end,
-      address: expr,
+      operand: {
+        type: "absolute-address",
+        start,
+        end,
+        address: expr,
+      },
     };
   } else {
     // For directives and macros, use value type
     return {
-      type: "value",
-      start,
-      end,
-      value: expr,
+      operand: {
+        type: "value",
+        start,
+        end,
+        value: expr,
+      },
     };
   }
 }
