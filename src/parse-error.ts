@@ -207,7 +207,21 @@ export function malformedMemoryIndirect(
     message,
     position,
     {
-      hint: "Memory indirect format: ([bd,An,Rn.s*scale],od)",
+      hint: "Memory indirect format: ([bd,An,Rn.s*scale],od) - 68020+ only",
+    }
+  );
+}
+
+export function malformedIndexedAddressing(
+  message: string,
+  position: number
+): OperandParseError {
+  return createError(
+    "MALFORMED_INDEXED_ADDRESSING",
+    message,
+    position,
+    {
+      hint: "Indexed addressing format: disp(An,Rn.size) or (An,Rn.size)",
     }
   );
 }

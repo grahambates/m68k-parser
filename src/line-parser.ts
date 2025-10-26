@@ -1,95 +1,217 @@
+/**
+ * Recursive Descent Line Parser for M68k Assembly
+ *
+ * This parser uses a character-by-character approach with proper error recovery
+ * and detailed error messages. Suitable for IDE/language server use.
+ */
+
 import {
   ParsedLine,
+  LabelNode,
+  MnemonicNode,
+  QualifierNode,
   OperandNode,
+  CommentNode,
+  InstructionNode,
   DirectiveNode,
   MacroParameterNode,
+  Size,
+  Instruction,
+  Directive,
 } from "./types";
 import { OperandParseError } from "./parse-error";
 import { parseOperand } from "./operand-parser";
 import { parseExpression } from "./expression-parser";
 import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
 
-// Helper to strip comments and normalize whitespace from regex strings
-function rx(template: string): string {
-  return template
-    .replace(/\s*#.*$/gm, "") // Remove comments (# to end of line)
-    .replace(/\s+/g, ""); // Remove all whitespace
+/**
+ * Parser state - tracks position and accumulated errors
+ */
+interface ParserState {
+  text: string;
+  pos: number;
+  errors: OperandParseError[];
 }
 
-// Helper to split operands by comma while respecting parentheses and bracket depth
-function splitOperands(text: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let angleDepth = 0;
-  let inString = false;
-  let stringChar: string | null = null;
+/**
+ * Helper to check if at end of input
+ */
+function isEOF(state: ParserState): boolean {
+  return state.pos >= state.text.length;
+}
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
+/**
+ * Helper to peek at current character without consuming
+ */
+function peek(state: ParserState, offset: number = 0): string {
+  return state.text[state.pos + offset] || "";
+}
 
-    // Handle string literals
-    if ((ch === '"' || ch === "'") && !inString) {
-      inString = true;
-      stringChar = ch;
-      current += ch;
-      continue;
-    } else if (inString && ch === stringChar) {
-      inString = false;
-      stringChar = null;
-      current += ch;
-      continue;
+/**
+ * Helper to peek ahead multiple characters
+ */
+function peekString(state: ParserState, length: number): string {
+  return state.text.substring(state.pos, state.pos + length);
+}
+
+/**
+ * Helper to consume current character and advance
+ */
+function advance(state: ParserState): string {
+  const ch = peek(state);
+  state.pos++;
+  return ch;
+}
+
+
+/**
+ * Skip whitespace (spaces and tabs only, not newlines)
+ */
+function skipWhitespace(state: ParserState): void {
+  while (!isEOF(state) && /[ \t]/.test(peek(state))) {
+    advance(state);
+  }
+}
+
+/**
+ * Check if current position could be a label
+ * Labels can start with:
+ * - Letter, underscore, dot, or backslash (for macro params)
+ * - Must be at start of line OR have leading whitespace with a colon
+ */
+function isLabelStart(state: ParserState, hasLeadingWhitespace: boolean): boolean {
+  const ch = peek(state);
+  if (!ch || ch === ";" || ch === "*") return false;
+
+  // If we have leading whitespace, we need a colon somewhere to be a label
+  if (hasLeadingWhitespace) {
+    // Look ahead for a colon (don't stop at whitespace, only at mnemonic-like structures)
+    // Must track depth to avoid false positives from colons in bitfields {offset:width}
+    let i = 0;
+    let depth = 0;
+    while (state.pos + i < state.text.length) {
+      const ahead = peek(state, i);
+
+      // Track brace/bracket depth
+      if (ahead === "{" || ahead === "[" || ahead === "(") {
+        depth++;
+      } else if (ahead === "}" || ahead === "]" || ahead === ")") {
+        depth--;
+      }
+
+      // Only check for colon at depth 0
+      if (ahead === ":" && depth === 0) return true;
+      if (ahead === ";" || ahead === "*" || ahead === "=") return false;
+      // Stop if we hit a potential size qualifier (.w, .l, etc.)
+      if (ahead === "." && depth === 0 && /[wlbsqpx]/i.test(peek(state, i + 1))) {
+        return false;
+      }
+      i++;
+    }
+    return false;
+  }
+
+  // At start of line, anything that's not whitespace/comment can be a label
+  return true;
+}
+
+/**
+ * Parse a label
+ * Format: identifier[:][:] or .identifier[:] or identifier$[:]
+ * Scope: :: = external, . prefix or $ suffix = local, otherwise global
+ */
+function parseLabel(state: ParserState, hasLeadingWhitespace: boolean): LabelNode | null {
+  if (!isLabelStart(state, hasLeadingWhitespace)) {
+    return null;
+  }
+
+  // Skip leading whitespace if present
+  if (hasLeadingWhitespace) {
+    skipWhitespace(state);
+  }
+
+  const start = state.pos;
+  let label = "";
+
+  // Consume label characters (alphanumeric, underscore, dot, backslash, dollar)
+  // Stop at: whitespace, colon, semicolon, star, equals, or dot followed by letter (size qualifier)
+  while (!isEOF(state)) {
+    const ch = peek(state);
+
+    // Stop conditions
+    if (ch === " " || ch === "\t" || ch === ";" || ch === "*" || ch === "=") {
+      break;
     }
 
-    // If in string, just add character
-    if (inString) {
-      current += ch;
-      continue;
+    // Colon marks end of label
+    if (ch === ":") {
+      break;
     }
 
-    // Track depth
-    if (ch === "(") {
-      parenDepth++;
-      current += ch;
-    } else if (ch === ")") {
-      parenDepth--;
-      current += ch;
-    } else if (ch === "[") {
-      bracketDepth++;
-      current += ch;
-    } else if (ch === "]") {
-      bracketDepth--;
-      current += ch;
-    } else if (ch === "<") {
-      angleDepth++;
-      current += ch;
-    } else if (ch === ">") {
-      angleDepth--;
-      current += ch;
-    } else if (ch === "," && parenDepth === 0 && bracketDepth === 0 && angleDepth === 0) {
-      // Split here - preserve empty operands for incomplete lists
-      result.push(current.trim());
-      current = "";
+    // Check for size qualifier: .w, .l, etc (but .label is a label)
+    if (ch === "." && label.length > 0) {
+      const next = peek(state, 1);
+      if (next && /[wlbsqpx]/i.test(next) && !/[a-z0-9_$]/i.test(peek(state, 2) || "")) {
+        // This looks like a size qualifier, not part of the label
+        break;
+      }
+    }
+
+    // Valid label character
+    if (/[a-z0-9_.$\\<>@!?+-]|/i.test(ch)) {
+      label += ch;
+      advance(state);
     } else {
-      current += ch;
+      break;
     }
   }
 
-  // Add last operand (including empty string for trailing comma)
-  result.push(current.trim());
+  if (!label) {
+    return null;
+  }
 
-  return result;
+  // Check for trailing colons
+  let hasDoubleColon = false;
+  let colonCount = 0;
+
+  while (peek(state) === ":") {
+    colonCount++;
+    advance(state);
+  }
+
+  hasDoubleColon = colonCount >= 2;
+
+  // Determine scope
+  let scope: "global" | "local" | "external";
+  if (hasDoubleColon) {
+    scope = "external";
+  } else if (label.startsWith(".") || label.endsWith("$")) {
+    scope = "local";
+  } else {
+    scope = "global";
+  }
+
+  const end = start + label.length;
+
+  return {
+    type: "label",
+    start,
+    end,
+    label,
+    scope,
+  };
 }
 
-// Helper to parse macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
+/**
+ * Parse a macro parameter node
+ * Formats: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
+ */
 function parseMacroParameter(
   text: string,
   start: number,
-  end: number,
+  end: number
 ): MacroParameterNode | null {
-  // Match various macro parameter formats including extended \@! \@? \@@
-  // Note: @\? needs escaping to match literal "?" character, not the quantifier
+  // Match various macro parameter formats
   const match =
     /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
   if (!match) return null;
@@ -108,41 +230,32 @@ function parseMacroParameter(
   let paramValue: string;
 
   if (/^\d+$/.test(param)) {
-    // \1-\9
     paramType = "numeric";
     paramValue = param;
   } else if (/^[a-z]$/.test(param)) {
-    // \a-\z (args 10-35)
     paramType = "letter";
     paramValue = param;
   } else if (param === "@!") {
-    // \@! - push unique ID and insert
     paramType = "unique-push";
     paramValue = "@!";
   } else if (param === "@?") {
-    // \@? - push unique ID below top and insert
     paramType = "unique-push-below";
     paramValue = "@?";
   } else if (param === "@@") {
-    // \@@ - pull from stack and insert
     paramType = "unique-pull";
     paramValue = "@@";
   } else if (param === "@") {
-    // \@
     paramType = "special";
     paramValue = "@";
   } else if (param.startsWith("?")) {
-    // \?n or \?a (query length)
     paramType = "query";
-    paramValue = match[3]; // captured group after ?
+    paramValue = match[3];
   } else if (param === "." || param === "+" || param === "-") {
-    // \., \+, \-
     paramType = "carg";
     paramValue = param;
   } else {
-    // \<name>
     paramType = "named";
-    paramValue = match[2]; // captured group inside <>
+    paramValue = match[2];
   }
 
   return {
@@ -154,293 +267,604 @@ function parseMacroParameter(
   };
 }
 
-// Assembly line parsing regex - built from documented components
-const labelGroup = rx(String.raw`
-  (?<label>
-    ([^:\s;*=]+:?:?)           # anything at start of line - optional colon
-    |                          # or...
-    (\s+[^:\s;*=]+::?)         # can have leading whitespace with colon present
-  )?
-`);
+/**
+ * Parse a mnemonic (instruction, directive, or macro)
+ * Format: identifier or \macro-param
+ */
+function parseMnemonic(state: ParserState): MnemonicNode | null {
+  const start = state.pos;
 
-const noOperandMnemonics = rx(String.raw`
-  (?<mnemonic1>\.?(${noOperand.join("|")}))
-  (?<size1>\.[a-z0-9_.]*)?     # Size qualifier
-`);
+  // Check for special = directive
+  if (peek(state) === "=") {
+    advance(state);
+    return {
+      type: "directive",
+      start,
+      end: state.pos,
+      directive: "=",
+    };
+  }
 
-const operandPattern = rx(String.raw`
-  "([^"]*)"?|                  # double quoted
-  '([^']*)'?|                  # single quoted
-  <([^>]*)>?|                  # chevron quoted
-  [^\s;,]+                     # anything else
-`);
+  // Check for macro parameter as mnemonic
+  if (peek(state) === "\\") {
+    const macroStart = state.pos;
+    let macroText = "";
 
-const operandPatternForSecond = rx(String.raw`
-  "([^"]*)"?|                  # double quoted
-  '([^']*)'?|                  # single quoted
-  <([^>]*)>?|                  # chevron quoted
-  [^\s;,]*                     # anything else (can be empty)
-`);
+    // Consume macro parameter
+    macroText += advance(state); // consume \
 
-const regularMnemonic = rx(String.raw`
-  (?<mnemonic>(\\@[!?@]|\\[.+-]|[^\s.,;*=]+|=)) # Mnemonic (including \@!, \@?, \@@, \., \+, \-)
-  (?<size>\.[^\s.,;*]*)?       # Size qualifier
-  (\s*(?<operands>             # Operand list:
-    (?<op1>${operandPattern})  # First operand
-    (?<op2>,\s*(${operandPatternForSecond}))* # Additional comma separated operands
-  ))?
-`);
+    // Extended forms: \@!, \@?, \@@
+    if (peek(state) === "@") {
+      macroText += advance(state); // consume @
+      if (peek(state) === "!" || peek(state) === "?" || peek(state) === "@") {
+        macroText += advance(state);
+      }
+    }
+    // Query form: \?n or \?a
+    else if (peek(state) === "?") {
+      macroText += advance(state); // consume ?
+      if (/[a-z0-9]/i.test(peek(state))) {
+        macroText += advance(state);
+      }
+    }
+    // Named form: \<name>
+    else if (peek(state) === "<") {
+      macroText += advance(state); // consume <
+      while (!isEOF(state) && peek(state) !== ">") {
+        macroText += advance(state);
+      }
+      if (peek(state) === ">") {
+        macroText += advance(state);
+      }
+    }
+    // CARG forms: \., \+, \-
+    else if (peek(state) === "." || peek(state) === "+" || peek(state) === "-") {
+      macroText += advance(state);
+    }
+    // Single char forms: \1-\9, \a-\z
+    else if (/[a-z0-9]/i.test(peek(state))) {
+      macroText += advance(state);
+    }
 
-const instructionGroup = rx(String.raw`
-  (\s*                         # Instruction or directive:
-    (
-      (${noOperandMnemonics})  # No-operand mnemonics
-      |
-      (${regularMnemonic})     # Any other mnemonic
-    )
-  )?
-`);
+    const macroEnd = state.pos;
+    const macroParam = parseMacroParameter(macroText, macroStart, macroEnd);
+    if (macroParam) {
+      return macroParam;
+    }
+  }
 
-const commentGroup = rx(String.raw`
-  (\s*(?<comment>.+))?         # Comment (any trailing text)
-`);
+  // Regular mnemonic (can contain macro parameters like "b\1")
+  let mnemonic = "";
+  while (!isEOF(state)) {
+    const ch = peek(state);
 
-const pattern = new RegExp(
-  `^${labelGroup}${instructionGroup}${commentGroup}$`,
-  "i",
-);
+    // Stop at whitespace, dot (size qualifier), semicolon, star
+    if (ch === " " || ch === "\t" || ch === "." || ch === ";" || ch === "*") {
+      break;
+    }
+
+    // Handle macro parameter embedded in mnemonic (e.g., "b\1")
+    if (ch === "\\") {
+      // Include the backslash and following macro parameter
+      mnemonic += advance(state);
+
+      // Extended forms: \@!, \@?, \@@
+      if (peek(state) === "@") {
+        mnemonic += advance(state);
+        if (peek(state) === "!" || peek(state) === "?" || peek(state) === "@") {
+          mnemonic += advance(state);
+        }
+      }
+      // Named form: \<name>
+      else if (peek(state) === "<") {
+        mnemonic += advance(state);
+        while (!isEOF(state) && peek(state) !== ">") {
+          mnemonic += advance(state);
+        }
+        if (peek(state) === ">") {
+          mnemonic += advance(state);
+        }
+      }
+      // Query form: \?n
+      else if (peek(state) === "?") {
+        mnemonic += advance(state);
+        if (/[a-z0-9]/i.test(peek(state))) {
+          mnemonic += advance(state);
+        }
+      }
+      // Single char forms: \1-\9, \a-\z, \., \+, \-
+      else if (/[a-z0-9.+-]/i.test(peek(state))) {
+        mnemonic += advance(state);
+      }
+      continue;
+    }
+
+    if (/[a-z0-9_]/i.test(ch)) {
+      mnemonic += ch;
+      advance(state);
+    } else {
+      break;
+    }
+  }
+
+  if (!mnemonic) {
+    return null;
+  }
+
+  const end = state.pos;
+  const lcMnemonic = mnemonic.toLowerCase();
+
+  // Determine mnemonic type
+  if (isInstruction(lcMnemonic)) {
+    return {
+      type: "instruction",
+      start,
+      end,
+      instruction: lcMnemonic,
+    };
+  } else if (isDirective(lcMnemonic)) {
+    return {
+      type: "directive",
+      start,
+      end,
+      directive: lcMnemonic,
+    };
+  } else {
+    return {
+      type: "macro",
+      start,
+      end,
+      macro: mnemonic,
+    };
+  }
+}
 
 /**
- * Parse a single line of source code into positional components
- *
- * This is much simpler than the syntax tree returned by Tree Sitter but is
- * also less strict and useful for parsing incomplete lines as you type.
+ * Parse a size qualifier
+ * Format: .size or .\macro-param
+ */
+function parseQualifier(state: ParserState): QualifierNode | null {
+  if (peek(state) !== ".") {
+    return null;
+  }
+
+  const start = state.pos;
+  advance(state); // consume .
+
+  // Check for macro parameter
+  if (peek(state) === "\\") {
+    const macroStart = state.pos;
+    let macroText = "\\";
+    advance(state);
+
+    // Similar logic to mnemonic macro params
+    if (peek(state) === "@") {
+      macroText += advance(state);
+      if (peek(state) === "!" || peek(state) === "?" || peek(state) === "@") {
+        macroText += advance(state);
+      }
+    } else if (peek(state) === "<") {
+      macroText += advance(state);
+      while (!isEOF(state) && peek(state) !== ">") {
+        macroText += advance(state);
+      }
+      if (peek(state) === ">") {
+        macroText += advance(state);
+      }
+    } else if (/[a-z0-9]/i.test(peek(state))) {
+      macroText += advance(state);
+    }
+
+    const macroEnd = state.pos;
+    const macroParam = parseMacroParameter(macroText, macroStart, macroEnd);
+    if (macroParam) {
+      return macroParam;
+    }
+  }
+
+  // Regular size
+  let size = "";
+  while (!isEOF(state) && /[a-z0-9]/i.test(peek(state))) {
+    size += advance(state);
+  }
+
+  if (!size) {
+    // Incomplete size qualifier (just a dot)
+    return null;
+  }
+
+  const end = state.pos;
+  const lcSize = size.toLowerCase();
+
+  if (isSize(lcSize)) {
+    return {
+      type: "size",
+      start: start + 1, // start after the dot
+      end,
+      size: lcSize as Size,
+    };
+  }
+
+  // Invalid size, but still consumed - could add warning here
+  return null;
+}
+
+/**
+ * Parse operand list
+ * Format: operand[,operand...]
+ * Stops at: comment marker (;, *), or when encountering text that can't be part of an operand
+ */
+function parseOperandList(
+  state: ParserState,
+  mnemonicCategory?: "instruction" | "directive" | "macro"
+): { operands: OperandNode[]; errors: OperandParseError[] } {
+  const operands: OperandNode[] = [];
+  const errors: OperandParseError[] = [];
+
+  while (true) {
+    skipWhitespace(state);
+
+    // Check for comment marker
+    // Semicolon always starts a comment
+    // Asterisk only starts a comment if followed by space or is at EOL (not part of expression like *+10)
+    if (peek(state) === ";") {
+      break;
+    }
+    if (peek(state) === "*") {
+      const next = peek(state, 1);
+      // If * is followed by space/tab/EOL, it's a comment
+      // If followed by operator or alphanumeric, it's part of expression (current address or mult)
+      if (!next || next === " " || next === "\t") {
+        break;
+      }
+    }
+
+    // Collect one operand (until comma, comment, or EOL)
+    // Note: We allow EOF here to handle trailing commas
+    const opStart = state.pos;
+    let operandText = "";
+    let depth = 0;
+    let inString = false;
+    let stringChar: string | null = null;
+    let lastCharWasWhitespace = false; // Track if previous char was whitespace
+
+    while (!isEOF(state)) {
+      const ch = peek(state);
+
+      // Handle strings
+      if ((ch === '"' || ch === "'") && !inString) {
+        inString = true;
+        stringChar = ch;
+        operandText += ch;
+        advance(state);
+        lastCharWasWhitespace = false;
+        continue;
+      } else if (inString && ch === stringChar) {
+        inString = false;
+        stringChar = null;
+        operandText += ch;
+        advance(state);
+        lastCharWasWhitespace = false;
+        continue;
+      }
+
+      if (inString) {
+        operandText += ch;
+        advance(state);
+        lastCharWasWhitespace = false;
+        continue;
+      }
+
+      // Track depth
+      if (ch === "(" || ch === "[" || ch === "{" || ch === "<") {
+        depth++;
+        operandText += ch;
+        advance(state);
+        lastCharWasWhitespace = false;
+      } else if (ch === ")" || ch === "]" || ch === "}" || ch === ">") {
+        depth--;
+        operandText += ch;
+        advance(state);
+        lastCharWasWhitespace = false;
+      } else if (depth === 0 && ch === ",") {
+        // End of this operand (comma separator)
+        break;
+      } else if (depth === 0 && ch === ";") {
+        // Semicolon always starts a comment
+        break;
+      } else if (depth === 0 && ch === "*" && lastCharWasWhitespace) {
+        // Asterisk after whitespace starts a comment
+        break;
+      } else if (depth === 0 && (ch === " " || ch === "\t")) {
+        lastCharWasWhitespace = true;
+        // Whitespace at depth 0 - could be end of operand or separator within
+        // Peek ahead to see if there's a comma, comment, or EOL
+        const saved = state.pos;
+        advance(state); // consume whitespace
+        skipWhitespace(state);
+
+        if (isEOF(state) || peek(state) === "," || peek(state) === ";" || peek(state) === "*") {
+          // End of operand
+          state.pos = saved; // restore position
+          break;
+        }
+
+        // Check if next content looks like it could be part of an operand
+        // Operands typically start with: #, $, %, @, (, [, <, -, +, *, digits, or registers
+        const nextCh = peek(state);
+        const next2 = peekString(state, 2);
+
+        // Strong operand indicators
+        if (/[#$%@()[\]<>]/.test(nextCh)) {
+          // Definitely part of operand
+          state.pos = saved;
+          operandText += advance(state);
+        }
+        // Check for operators at start (unlikely but possible: "+ symbol" as expression)
+        else if (/[+\-*/&|^~!=]/.test(nextCh) && operandText.length > 0) {
+          // Operator after existing content - likely part of expression
+          state.pos = saved;
+          operandText += advance(state);
+        }
+        // Check for register pattern (letter followed by digit: d0, a7, fp0)
+        else if (/[a-z][0-9]/i.test(next2)) {
+          // Looks like a register
+          state.pos = saved;
+          operandText += advance(state);
+        }
+        // Check for backslash (macro parameter)
+        else if (nextCh === "\\") {
+          // Macro parameter
+          state.pos = saved;
+          operandText += advance(state);
+        }
+        // Digit or underscore (could be part of identifier/expression)
+        else if (/[0-9_]/.test(nextCh) && operandText.length > 0) {
+          // Part of ongoing expression
+          state.pos = saved;
+          operandText += advance(state);
+        }
+        // Plain letter after complete structure - likely a comment
+        else if (/[a-z]/i.test(nextCh) && operandText.length > 0) {
+          // Check if operand looks complete (ends with ), ], }, or alphanumeric)
+          const lastChar = operandText.trim().slice(-1);
+          if (lastChar === ")" || lastChar === "]" || lastChar === "}" || /[a-z0-9]/i.test(lastChar)) {
+            // Operand looks complete, this is likely a comment
+            state.pos = saved;
+            break;
+          }
+          // Otherwise include it
+          state.pos = saved;
+          operandText += advance(state);
+        }
+        else {
+          // Doesn't look like operand content, stop here
+          state.pos = saved;
+          break;
+        }
+      } else {
+        operandText += ch;
+        advance(state);
+        lastCharWasWhitespace = false;
+      }
+    }
+
+    operandText = operandText.trim();
+
+    // If we have no text and we're at EOF or no comma follows, we're done
+    if (!operandText && isEOF(state)) {
+      // Don't create empty operand if we haven't seen any commas yet
+      if (operands.length > 0) {
+        // This is after a comma - create empty unknown operand
+        operands.push({
+          type: "unknown",
+          start: opStart,
+          end: opStart,
+        });
+      }
+      break;
+    }
+
+    // Parse the operand
+    const opEnd = opStart + operandText.length;
+    if (operandText) {
+      const { operand, error } = parseOperand(operandText, opStart, opEnd, mnemonicCategory);
+      operands.push(operand);
+      if (error) {
+        errors.push(error);
+      }
+    } else {
+      // Empty operand (e.g., after comma but before next operand)
+      operands.push({
+        type: "unknown",
+        start: opStart,
+        end: opStart,
+      });
+    }
+
+    // Check for comma (another operand follows)
+    skipWhitespace(state);
+    if (peek(state) === ",") {
+      advance(state); // consume comma
+      continue;
+    }
+
+    // No comma, we're done with operands
+    break;
+  }
+
+  return { operands, errors };
+}
+
+/**
+ * Parse a comment
+ * Format: [;|*]text or just text (positional comment)
+ */
+function parseComment(state: ParserState): CommentNode | null {
+  if (isEOF(state)) {
+    return null;
+  }
+
+  const start = state.pos;
+  skipWhitespace(state);
+
+  const hasPrefix = peek(state) === ";" || peek(state) === "*";
+  if (hasPrefix) {
+    advance(state); // consume ; or *
+  }
+
+  // Skip whitespace after prefix
+  while (!isEOF(state) && (peek(state) === " " || peek(state) === "\t")) {
+    advance(state);
+  }
+
+  const contentStart = state.pos;
+
+  // Consume rest of line
+  while (!isEOF(state)) {
+    advance(state);
+  }
+
+  const end = state.pos;
+  const content = state.text.substring(contentStart, end).trim();
+
+  if (!hasPrefix && !content) {
+    return null;
+  }
+
+  return {
+    type: "comment",
+    start,
+    end,
+    hasPrefix,
+    content,
+  };
+}
+
+/**
+ * Main entry point: parse a line of assembly
  */
 export function parseLine(text: string): ParsedLine {
+  const state: ParserState = {
+    text,
+    pos: 0,
+    errors: [],
+  };
+
   const line: ParsedLine = {};
-  const groups = pattern.exec(text)?.groups;
-  if (groups) {
-    let end = 0;
 
-    if (groups.label) {
-      const originalLabel = groups.label.trim();
-      let labelText = originalLabel;
+  // Track whether we have leading whitespace (affects label parsing)
+  const hasLeadingWhitespace = /^[ \t]/.test(text);
 
-      // Check for double colon (external label) before stripping
-      const hasDoubleColon = labelText.includes("::");
+  // Parse label (if at start of line or has colon)
+  const label = parseLabel(state, hasLeadingWhitespace);
+  if (label) line.label = label;
 
-      // Strip colons from the end
-      while (labelText.endsWith(":")) {
-        labelText = labelText.substring(0, labelText.length - 1);
-      }
-      const start = text.indexOf(labelText);
-      end = start + labelText.length;
+  // Skip whitespace
+  skipWhitespace(state);
 
-      // Determine label scope
-      let scope: "global" | "local" | "external";
-      if (hasDoubleColon) {
-        scope = "external";
-      } else if (labelText.startsWith(".") || labelText.endsWith("$")) {
-        scope = "local";
-      } else {
-        scope = "global";
-      }
+  // Parse mnemonic
+  const mnemonic = parseMnemonic(state);
+  if (mnemonic) line.mnemonic = mnemonic;
 
-      line.label = {
-        type: "label",
-        start,
-        end,
-        label: labelText,
-        scope,
-      };
+  // Parse size qualifier
+  if (line.mnemonic) {
+    const qualifier = parseQualifier(state);
+    if (qualifier) {
+      line.qualifier = qualifier;
+    }
+  }
+
+  // Skip whitespace before operands
+  skipWhitespace(state);
+
+  // Special handling for iif directive
+  if (
+    line.mnemonic?.type === "directive" &&
+    (line.mnemonic as DirectiveNode).directive === "iif"
+  ) {
+    // Parse iif: <condition> <statement>
+    // Collect everything until comment or EOL
+    const condStart = state.pos;
+    let fullText = "";
+
+    while (!isEOF(state) && peek(state) !== ";" && peek(state) !== "*") {
+      fullText += advance(state);
     }
 
-    if (groups.mnemonic || groups.mnemonic1) {
-      const mnemonicText = groups.mnemonic || groups.mnemonic1;
-      const start = end + text.substring(end).indexOf(mnemonicText);
-      end = start + mnemonicText.length;
+    // Split into condition and statement
+    const match = /^(\S+)\s+(.*)$/.exec(fullText);
+    if (match) {
+      const conditionText = match[1];
+      const statementText = match[2];
 
-      // Check if it's a macro parameter first
-      const macroParam = parseMacroParameter(mnemonicText, start, end);
-      if (macroParam) {
-        line.mnemonic = macroParam;
-      } else {
-        // Determine mnemonic type
-        const lcMnemonic = mnemonicText.toLowerCase();
-
-        if (isInstruction(lcMnemonic)) {
-          line.mnemonic = {
-            type: "instruction",
-            start,
-            end,
-            instruction: lcMnemonic,
-          };
-        } else if (isDirective(lcMnemonic)) {
-          line.mnemonic = {
-            type: "directive",
-            start,
-            end,
-            directive: lcMnemonic,
-          };
-        } else {
-          line.mnemonic = {
-            type: "macro",
-            start,
-            end,
-            macro: mnemonicText,
-          };
-        }
+      // Parse condition as expression
+      const condEnd = condStart + conditionText.length;
+      const { expression: condExpr, error: condError } = parseExpression(
+        conditionText,
+        condStart,
+        condEnd
+      );
+      line.inlineCondition = condExpr;
+      if (condError) {
+        state.errors.push(condError);
       }
-    }
 
-    if (groups.size || groups.size1) {
-      let sizeText = groups.size || groups.size1;
-      const start = end + text.substring(end).indexOf(sizeText) + 1;
-      sizeText = sizeText.substring(1);
-      end = start + sizeText.length;
-
-      // Check if it's a macro parameter first
-      const macroParam = parseMacroParameter(sizeText, start, end);
-      if (macroParam) {
-        line.qualifier = macroParam;
-      } else {
-        const lcSize = sizeText.toLowerCase();
-        if (isSize(lcSize)) {
-          line.qualifier = {
-            type: "size",
-            start,
-            end,
-            size: lcSize,
-          };
-        }
-      }
-    }
-
-    // Special handling for iif directive - it needs operands AND comment merged
-    const isIif =
-      line.mnemonic?.type === "directive" &&
-      (line.mnemonic as DirectiveNode).directive === "iif";
-
-    if (isIif && (groups.operands || groups.comment)) {
-      // For iif, merge operands and comment, then split at real comment marker
-      const fullText = groups.operands
-        ? groups.comment
-          ? groups.operands + " " + groups.comment
-          : groups.operands
-        : groups.comment || "";
-
-      // Find real comment (starts with ; or *)
-      const commentMatch = /^(.*?)\s*([;*].*)$/.exec(fullText);
-      const fullOperands = commentMatch ? commentMatch[1] : fullText;
-      const actualComment = commentMatch ? commentMatch[2] : null;
-
-      // Parse iif: <expression> <statement>
-      const match = /^(\S+)\s+(.*)$/.exec(fullOperands);
-      if (match) {
-        const conditionText = match[1];
-        const statementText = match[2];
-
-        // Parse condition as expression
-        const condStart = end + text.substring(end).indexOf(conditionText);
-        const condEnd = condStart + conditionText.length;
-
-        const { expression: condExpr, error: condError } = parseExpression(
-          conditionText,
-          condStart,
-          condEnd
-        );
-        line.inlineCondition = condExpr;
-        if (condError) {
-          line.errors = line.errors || [];
-          line.errors.push(condError);
-        }
-
-        // Parse the statement as a separate line to extract its operands
-        // Add leading whitespace to ensure proper parsing (avoids label detection)
-        const paddedStatement = "  " + statementText;
-        const statementLine = parseLine(paddedStatement);
-
-        // Adjust positions based on actual position in original text
+      // Parse statement recursively
+      const statementLine = parseLine("  " + statementText);
+      if (statementLine.operands) {
         const statementStart = text.indexOf(statementText);
-
-        if (statementLine.operands) {
-          // Adjust operand positions to be relative to the original text
-          // Account for the 2-char padding we added
-          line.operands = statementLine.operands.map((op) => ({
-            ...op,
-            start: statementStart + op.start - 2,
-            end: statementStart + op.end - 2,
-          }));
-        }
-
-        end = text.length; // Move to end of line
+        line.operands = statementLine.operands.map((op) => ({
+          ...op,
+          start: statementStart + op.start - 2,
+          end: statementStart + op.end - 2,
+        }));
       }
-
-      // Handle actual comment if present
-      if (actualComment) {
-        const start = text.indexOf(actualComment);
-        const commentText = actualComment;
-        line.comment = {
-          type: "comment",
-          start,
-          end: start + commentText.length,
-          content: commentText.replace(/^[;*]\s*/, "").trim(),
-          hasPrefix: true,
-        };
+      if (statementLine.errors) {
+        state.errors.push(...statementLine.errors);
       }
-    } else if (groups.operands) {
-      // Standard operand parsing
-      const operandTexts = splitOperands(groups.operands);
+    }
+  } else if (line.mnemonic) {
+    // Check if this is a no-operand mnemonic
+    const mnemonicText =
+      line.mnemonic.type === "instruction"
+        ? (line.mnemonic as InstructionNode).instruction
+        : line.mnemonic.type === "directive"
+          ? (line.mnemonic as DirectiveNode).directive
+          : null;
 
-      const operands: OperandNode[] = [];
-      const errors: OperandParseError[] = [];
-      for (const opText of operandTexts) {
-        const start = opText
-          ? end + text.substring(end).indexOf(opText)
-          : end + 1;
-        end = start + opText.length;
+    const isNoOperand = mnemonicText && noOperand.includes(mnemonicText as Instruction | Directive);
 
-        // Parse operand to determine its type, passing mnemonic category for context
-        const category =
-          line.mnemonic?.type === "instruction"
-            ? "instruction"
-            : line.mnemonic?.type === "directive"
-              ? "directive"
-              : line.mnemonic?.type === "macro"
-                ? "macro"
-                : undefined;
-        const { operand, error } = parseOperand(opText, start, end, category);
-        operands.push(operand);
-        if (error) {
-          errors.push(error);
-        }
+    if (!isNoOperand) {
+      // Regular operand parsing
+      const category =
+        line.mnemonic.type === "instruction"
+          ? "instruction"
+          : line.mnemonic.type === "directive"
+            ? "directive"
+            : line.mnemonic.type === "macro"
+              ? "macro"
+              : undefined;
+
+      const { operands, errors } = parseOperandList(state, category);
+      if (operands.length > 0) {
+        line.operands = operands;
       }
-
-      line.operands = operands;
       if (errors.length > 0) {
-        line.errors = errors;
+        state.errors.push(...errors);
       }
     }
+    // If it's a no-operand instruction, skip operand parsing
+    // Remaining text will be treated as a positional comment by parseComment()
+  }
 
-    // Only set comment if not already handled by iif
-    if (groups.comment && groups.comment.trim() && !isIif) {
-      const commentText = groups.comment;
-      const start = end + text.substring(end).indexOf(commentText);
-      end = start + commentText.length;
+  // Parse comment
+  const comment = parseComment(state);
+  if (comment) line.comment = comment;
 
-      // Check if comment has a prefix (; or *)
-      const trimmed = commentText.trim();
-      const hasPrefix = trimmed.startsWith(";") || trimmed.startsWith("*");
-
-      line.comment = {
-        type: "comment",
-        start,
-        end,
-        content: commentText.replace(/^(\s*[;*]\s*)/, "").trim(),
-        hasPrefix,
-      };
-    }
-    // For iif, comment is already handled in the iif-specific code above
+  // Add errors to result if any
+  if (state.errors.length > 0) {
+    line.errors = state.errors;
   }
 
   return line;

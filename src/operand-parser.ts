@@ -35,6 +35,7 @@ import {
   unclosedBracket,
   unclosedParen,
   malformedMemoryIndirect,
+  malformedIndexedAddressing,
   invalidScaleFactor,
   malformedBitfield,
   unclosedBrace,
@@ -626,7 +627,7 @@ function parseIndexedAddressingWithTokens(
     if (!indexSpec) {
       return {
         success: false,
-        error: malformedMemoryIndirect(
+        error: malformedIndexedAddressing(
           `Invalid index register format '${indexPart}'`,
           start,
         ),
@@ -742,7 +743,7 @@ function parseIndexedAddressingWithTokens(
     if (!indexSpec) {
       return {
         success: false,
-        error: malformedMemoryIndirect(
+        error: malformedIndexedAddressing(
           `Invalid index register format '${indexPart}'`,
           start,
         ),
@@ -795,7 +796,7 @@ function parseIndexedAddressingWithTokens(
 
   return {
     success: false,
-    error: malformedMemoryIndirect(`Invalid indexed addressing format`, start),
+    error: malformedIndexedAddressing(`Invalid indexed addressing format`, start),
   };
 }
 
@@ -1261,7 +1262,8 @@ export function parseOperand(
   }
 
   // Address register indirect with displacement: disp(an) or PC relative: disp(pc)
-  const dispMatch = /^([^(]*)\(([^)]+)\)$/i.exec(trimmed);
+  // Note: This should NOT match if there's a comma inside parens (that's indexed addressing)
+  const dispMatch = /^([^(]*)\(([^),]+)\)$/i.exec(trimmed);
   if (dispMatch) {
     const displacement = dispMatch[1].trim();
     const register = dispMatch[2].trim().toLowerCase();
@@ -1356,6 +1358,21 @@ export function parseOperand(
         ),
       },
       error: addrError,
+    };
+  }
+
+  // Check for malformed indexed addressing with trailing comma: label(a1,) or (a1,)
+  if (/\([^)]*,\s*\)/.test(trimmed)) {
+    return {
+      operand: {
+        type: "unknown",
+        start,
+        end,
+      },
+      error: malformedIndexedAddressing(
+        "Missing index register after comma in indexed addressing",
+        start,
+      ),
     };
   }
 
