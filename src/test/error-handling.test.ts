@@ -392,4 +392,63 @@ describe("Error Handling and Edge Cases", () => {
       expect(val?.left?.operator).toBe("<<");
     });
   });
+
+  describe("Comparison operators in operand splitting", () => {
+    it("handles shift left operator without breaking operand split", () => {
+      const line = parseLine(" move.w (a<<2),d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+      expect(line.operands?.[0].type).toBe("address-register-indirect");
+      expect(line.operands?.[1].type).toBe("data-register");
+    });
+
+    it("handles shift right operator without breaking operand split", () => {
+      const line = parseLine(" move.w (a>>2),d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+
+    it("handles less-than operator without breaking operand split", () => {
+      const line = parseLine(" move.w a<b,d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+
+    it("handles greater-than operator without breaking operand split", () => {
+      const line = parseLine(" move.w a>b,d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+
+    it("handles less-or-equal operator without breaking operand split", () => {
+      const line = parseLine(" move.w a<=b,d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+
+    it("handles greater-or-equal operator without breaking operand split", () => {
+      const line = parseLine(" move.w a>=b,d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+
+    it("handles not-equal operator without breaking operand split", () => {
+      const line = parseLine(" move.w a<>b,d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+
+    it("still handles angle bracket strings correctly", () => {
+      const line = parseLine(" dc.b <text>");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(1);
+      expect(line.operands?.[0].type).toBe("string-literal");
+    });
+
+    it("handles shift operator without parentheses", () => {
+      const line = parseLine(" move.w 1<<8,d0");
+      expect(line.errors).toBeUndefined();
+      expect(line.operands?.length).toBe(2);
+    });
+  });
 });

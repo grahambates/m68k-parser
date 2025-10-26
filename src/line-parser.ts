@@ -584,13 +584,35 @@ function parseOperandList(
         continue;
       }
 
-      // Track depth
-      if (ch === "(" || ch === "[" || ch === "{" || ch === "<") {
+      // Handle angle bracket strings <text> specially
+      // These are string literals, not operators, so handle them like quoted strings
+      if (ch === "<" && !inString) {
+        // Peek ahead to see if this looks like a string literal
+        let lookahead = state.pos + 1;
+        while (lookahead < state.text.length && state.text[lookahead] !== ">") {
+          lookahead++;
+        }
+        if (lookahead < state.text.length && state.text[lookahead] === ">") {
+          // This is a string literal <text>, consume it all
+          while (peek(state) !== ">" && !isEOF(state)) {
+            operandText += advance(state);
+          }
+          if (peek(state) === ">") {
+            operandText += advance(state);
+          }
+          lastCharWasWhitespace = false;
+          continue;
+        }
+        // Otherwise, it's just a < operator, fall through to regular handling
+      }
+
+      // Track depth (parentheses, brackets, braces only - NOT angle brackets)
+      if (ch === "(" || ch === "[" || ch === "{") {
         depth++;
         operandText += ch;
         advance(state);
         lastCharWasWhitespace = false;
-      } else if (ch === ")" || ch === "]" || ch === "}" || ch === ">") {
+      } else if (ch === ")" || ch === "]" || ch === "}") {
         depth--;
         operandText += ch;
         advance(state);
