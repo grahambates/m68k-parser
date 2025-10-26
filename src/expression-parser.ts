@@ -1,4 +1,4 @@
-import { ExpressionNode } from "./types";
+import { BinaryOp, ExpressionNode } from "./types";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
 import { isBuiltinSymbol } from "./syntax";
 import {
@@ -143,7 +143,7 @@ export function parseExpression(
     if (!parseError && token) {
       parseError = invalidExpression(
         `Unexpected token '${token.type}'`,
-        start + (token.position || 0)
+        start + (token.position || 0),
       );
     }
     return {
@@ -178,20 +178,30 @@ export function parseExpression(
     return parsePrimary();
   }
 
-  function parseShift(): ExpressionNode {
-    let left = parseUnary();
+  /**
+   * Helper to parse binary operators with given precedence
+   * Eliminates duplication across parseShift, parseBitwiseAnd, etc.
+   */
+  function parseBinaryOp(
+    parseHigher: () => ExpressionNode,
+    operators: string[],
+    transformOp?: (op: string) => string,
+  ): ExpressionNode {
+    let left = parseHigher();
+    const start = left.start;
+    const end = left.end;
 
     let token = current();
-    while (
-      token.type === "operator" &&
-      (token.value === "<<" || token.value === ">>")
-    ) {
-      const operator = token.value as "<<" | ">>";
+    while (token.type === "operator" && operators.includes(token.value)) {
+      let operator = token.value;
+      if (transformOp) {
+        operator = transformOp(operator);
+      }
       advance();
-      const right = parseUnary();
+      const right = parseHigher();
       left = {
         type: "binary-op",
-        operator,
+        operator: operator as BinaryOp, // Type will be validated by caller
         left,
         right,
         start,
@@ -201,225 +211,54 @@ export function parseExpression(
     }
 
     return left;
+  }
+
+  function parseShift(): ExpressionNode {
+    return parseBinaryOp(parseUnary, ["<<", ">>"]);
   }
 
   function parseBitwiseAnd(): ExpressionNode {
-    let left = parseShift();
-
-    let token = current();
-    while (token.type === "operator" && token.value === "&") {
-      advance();
-      const right = parseShift();
-      left = {
-        type: "binary-op",
-        operator: "&",
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseShift, ["&"]);
   }
 
   function parseBitwiseXor(): ExpressionNode {
-    let left = parseBitwiseAnd();
-
-    let token = current();
-    while (
-      token.type === "operator" &&
-      (token.value === "^" || token.value === "~")
-    ) {
-      advance();
-      const right = parseBitwiseAnd();
-      left = {
-        type: "binary-op",
-        operator: "^",
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseBitwiseAnd, ["^", "~"], (op) =>
+      op === "~" ? "^" : op,
+    );
   }
 
   function parseBitwiseOr(): ExpressionNode {
-    let left = parseBitwiseXor();
-
-    let token = current();
-    while (
-      token.type === "operator" &&
-      (token.value === "|" || token.value === "!")
-    ) {
-      const operator = "|" as const;
-      advance();
-      const right = parseBitwiseXor();
-      left = {
-        type: "binary-op",
-        operator,
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseBitwiseXor, ["|", "!"], (op) =>
+      op === "!" ? "|" : op,
+    );
   }
 
   function parseMultiplicative(): ExpressionNode {
-    let left = parseBitwiseOr();
-
-    let token = current();
-    while (
-      token.type === "operator" &&
-      (token.value === "*" ||
-        token.value === "/" ||
-        token.value === "%" ||
-        token.value === "//")
-    ) {
-      const op = token.value;
-      const operator = (op === "//" ? "%" : op) as "*" | "/" | "%";
-      advance();
-      const right = parseBitwiseOr();
-      left = {
-        type: "binary-op",
-        operator,
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseBitwiseOr, ["*", "/", "%", "//"], (op) =>
+      op === "//" ? "%" : op,
+    );
   }
 
   function parseAdditive(): ExpressionNode {
-    let left = parseMultiplicative();
-
-    let token = current();
-    while (
-      token.type === "operator" &&
-      (token.value === "+" || token.value === "-")
-    ) {
-      const operator = token.value as "+" | "-";
-      advance();
-      const right = parseMultiplicative();
-      left = {
-        type: "binary-op",
-        operator,
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseMultiplicative, ["+", "-"]);
   }
 
   function parseComparison(): ExpressionNode {
-    let left = parseAdditive();
-
-    let token = current();
-    while (
-      token.type === "operator" &&
-      ["<", ">", "<=", ">="].includes(token.value)
-    ) {
-      const operator = token.value as "<" | ">" | "<=" | ">=";
-      advance();
-      const right = parseAdditive();
-      left = {
-        type: "binary-op",
-        operator,
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseAdditive, ["<", ">", "<=", ">="]);
   }
 
   function parseEquality(): ExpressionNode {
-    let left = parseComparison();
-
-    let token = current();
-    while (
-      token.type === "operator" &&
-      ["==", "=", "!=", "<>"].includes(token.value)
-    ) {
-      const op = token.value;
-      const operator = (op === "==" ? "=" : op === "!=" ? "<>" : op) as
-        | "="
-        | "<>";
-      advance();
-      const right = parseComparison();
-      left = {
-        type: "binary-op",
-        operator,
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseComparison, ["==", "=", "!=", "<>"], (op) =>
+      op === "==" ? "=" : op === "!=" ? "<>" : op,
+    );
   }
 
   function parseLogicalAnd(): ExpressionNode {
-    let left = parseEquality();
-
-    let token = current();
-    while (token.type === "operator" && token.value === "&&") {
-      advance();
-      const right = parseEquality();
-      left = {
-        type: "binary-op",
-        operator: "&&",
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseEquality, ["&&"]);
   }
 
   function parseLogicalOr(): ExpressionNode {
-    let left = parseLogicalAnd();
-
-    let token = current();
-    while (token.type === "operator" && token.value === "||") {
-      advance();
-      const right = parseLogicalAnd();
-      left = {
-        type: "binary-op",
-        operator: "||",
-        left,
-        right,
-        start,
-        end,
-      };
-      token = current();
-    }
-
-    return left;
+    return parseBinaryOp(parseLogicalAnd, ["||"]);
   }
 
   const expression = parseLogicalOr();

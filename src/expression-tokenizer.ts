@@ -1,4 +1,11 @@
 import { NumberFormat } from "./types";
+import {
+  isDigit,
+  isHexDigit,
+  isBinaryDigit,
+  isOctalDigit,
+  isWhitespace,
+} from "./tokenizer-utils";
 
 // Expression tokenizer types
 export type ExpressionToken =
@@ -27,7 +34,7 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
     const char = expr[i];
 
     // Skip whitespace
-    if (/\s/.test(char)) {
+    if (isWhitespace(char)) {
       i++;
       continue;
     }
@@ -44,13 +51,13 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
       char === "$" &&
       canBeNumberPrefix &&
       i + 1 < expr.length &&
-      /[0-9a-f]/i.test(expr[i + 1])
+      isHexDigit(expr[i + 1])
     ) {
       // Hex number
       const position = i;
       let value = "$";
       i++;
-      while (i < expr.length && /[0-9a-f]/i.test(expr[i])) {
+      while (i < expr.length && isHexDigit(expr[i])) {
         value += expr[i++];
       }
       tokens.push({ type: "number", value, format: "hex", position });
@@ -61,13 +68,13 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
       char === "%" &&
       canBeNumberPrefix &&
       i + 1 < expr.length &&
-      /[01]/.test(expr[i + 1])
+      isBinaryDigit(expr[i + 1])
     ) {
       // Binary number
       const position = i;
       let value = "%";
       i++;
-      while (i < expr.length && /[01]/.test(expr[i])) {
+      while (i < expr.length && isBinaryDigit(expr[i])) {
         value += expr[i++];
       }
       tokens.push({ type: "number", value, format: "binary", position });
@@ -78,24 +85,24 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
       char === "@" &&
       canBeNumberPrefix &&
       i + 1 < expr.length &&
-      /[0-7]/.test(expr[i + 1])
+      isOctalDigit(expr[i + 1])
     ) {
       // Octal number
       const position = i;
       let value = "@";
       i++;
-      while (i < expr.length && /[0-7]/.test(expr[i])) {
+      while (i < expr.length && isOctalDigit(expr[i])) {
         value += expr[i++];
       }
       tokens.push({ type: "number", value, format: "octal", position });
       continue;
     }
 
-    if (/\d/.test(char)) {
+    if (isDigit(char)) {
       // Decimal number
       const position = i;
       let value = "";
-      while (i < expr.length && /\d/.test(expr[i])) {
+      while (i < expr.length && isDigit(expr[i])) {
         value += expr[i++];
       }
       tokens.push({ type: "number", value, format: "decimal", position });
@@ -191,9 +198,9 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
           continue;
         }
         // Check for \number
-        if (/\d/.test(expr[i])) {
+        if (isDigit(expr[i])) {
           let value = "";
-          while (i < expr.length && /\d/.test(expr[i])) {
+          while (i < expr.length && isDigit(expr[i])) {
             value += expr[i++];
           }
           tokens.push({ type: "macro-parameter", value, position });

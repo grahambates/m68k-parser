@@ -10,6 +10,15 @@ import {
   isFPUDataRegister,
   isFPUControlRegister,
 } from "./syntax";
+import {
+  isIdentifierStart,
+  isIdentifierPart,
+  isDigit,
+  isHexDigit,
+  isBinaryDigit,
+  isOctalDigit,
+  isWhitespace,
+} from "./tokenizer-utils";
 
 export type OperandTokenType =
   | "lparen" // (
@@ -53,34 +62,6 @@ function isRegisterName(str: string): boolean {
 }
 
 /**
- * Check if a character is a valid start of an identifier
- */
-function isIdentifierStart(ch: string): boolean {
-  return /[a-zA-Z_]/.test(ch);
-}
-
-/**
- * Check if a character is a valid part of an identifier
- */
-function isIdentifierPart(ch: string): boolean {
-  return /[a-zA-Z0-9_$\\]/.test(ch);
-}
-
-/**
- * Check if a character is a digit
- */
-function isDigit(ch: string): boolean {
-  return /[0-9]/.test(ch);
-}
-
-/**
- * Check if a character is hex digit
- */
-function isHexDigit(ch: string): boolean {
-  return /[0-9a-fA-F]/.test(ch);
-}
-
-/**
  * Tokenize an operand string
  */
 export function tokenizeOperand(text: string): OperandToken[] {
@@ -96,7 +77,7 @@ export function tokenizeOperand(text: string): OperandToken[] {
   }
 
   function skipWhitespace(): void {
-    while (pos < text.length && /\s/.test(peek())) {
+    while (pos < text.length && isWhitespace(peek())) {
       pos++;
     }
   }
@@ -205,7 +186,7 @@ export function tokenizeOperand(text: string): OperandToken[] {
     if (ch === "%") {
       advance();
       let value = "%";
-      while (pos < text.length && /[01]/.test(peek())) {
+      while (pos < text.length && isBinaryDigit(peek())) {
         value += advance();
       }
       tokens.push({ type: "number", value, position: start });
@@ -215,7 +196,7 @@ export function tokenizeOperand(text: string): OperandToken[] {
     if (ch === "@" && isDigit(peek(1))) {
       advance();
       let value = "@";
-      while (pos < text.length && /[0-7]/.test(peek())) {
+      while (pos < text.length && isOctalDigit(peek())) {
         value += advance();
       }
       tokens.push({ type: "number", value, position: start });

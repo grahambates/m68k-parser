@@ -216,6 +216,83 @@ function parseLabel(
 }
 
 /**
+ * Check if a character is a strong indicator that we're still in an operand
+ */
+function isStrongOperandIndicator(ch: string): boolean {
+  return /[#$%@()[\]<>]/.test(ch);
+}
+
+/**
+ * Check if character could be an operator in an expression
+ */
+function isOperatorChar(ch: string): boolean {
+  return /[+\-*/&|^~!=]/.test(ch);
+}
+
+/**
+ * Check if the operand text looks complete (ends with closing bracket or alphanumeric)
+ */
+function operandLooksComplete(operandText: string): boolean {
+  const lastChar = operandText.trim().slice(-1);
+  return (
+    lastChar === ")" ||
+    lastChar === "]" ||
+    lastChar === "}" ||
+    /[a-z0-9]/i.test(lastChar)
+  );
+}
+
+/**
+ * Determine if we should continue parsing the operand after hitting whitespace
+ * Returns true if the next content looks like it's part of the operand
+ */
+function shouldContinueOperand(
+  state: ParserState,
+  operandText: string,
+): boolean {
+  const nextCh = peek(state);
+  const next2 = peekString(state, 2);
+
+  // Strong operand indicators (punctuation)
+  if (isStrongOperandIndicator(nextCh)) {
+    return true;
+  }
+
+  // Operators after existing content - likely part of expression
+  if (isOperatorChar(nextCh) && operandText.length > 0) {
+    return true;
+  }
+
+  // Register pattern (letter followed by digit: d0, a7, fp0)
+  if (/[a-z][0-9]/i.test(next2)) {
+    return true;
+  }
+
+  // Macro parameter
+  if (nextCh === "\\") {
+    return true;
+  }
+
+  // Digit or underscore after existing content - part of expression
+  if (/[0-9_]/.test(nextCh) && operandText.length > 0) {
+    return true;
+  }
+
+  // Plain letter after complete structure - likely a comment
+  if (/[a-z]/i.test(nextCh) && operandText.length > 0) {
+    // If operand looks complete, this is a comment
+    if (operandLooksComplete(operandText)) {
+      return false;
+    }
+    // Otherwise include it
+    return true;
+  }
+
+  // Doesn't look like operand content
+  return false;
+}
+
+/**
  * Parse a mnemonic (instruction, directive, or macro)
  * Format: identifier or \macro-param
  */
@@ -530,76 +607,26 @@ function parseOperandList(
       } else if (depth === 0 && (ch === " " || ch === "\t")) {
         lastCharWasWhitespace = true;
         // Whitespace at depth 0 - could be end of operand or separator within
-        // Peek ahead to see if there's a comma, comment, or EOL
         const saved = state.pos;
         advance(state); // consume whitespace
         skipWhitespace(state);
 
+        // Check for definite end-of-operand markers
         if (
           isEOF(state) ||
           peek(state) === "," ||
           peek(state) === ";" ||
           peek(state) === "*"
         ) {
-          // End of operand
-          state.pos = saved; // restore position
+          state.pos = saved;
           break;
         }
 
-        // Check if next content looks like it could be part of an operand
-        // Operands typically start with: #, $, %, @, (, [, <, -, +, *, digits, or registers
-        const nextCh = peek(state);
-        const next2 = peekString(state, 2);
-
-        // Strong operand indicators
-        if (/[#$%@()[\]<>]/.test(nextCh)) {
-          // Definitely part of operand
-          state.pos = saved;
-          operandText += advance(state);
-        }
-        // Check for operators at start (unlikely but possible: "+ symbol" as expression)
-        else if (/[+\-*/&|^~!=]/.test(nextCh) && operandText.length > 0) {
-          // Operator after existing content - likely part of expression
-          state.pos = saved;
-          operandText += advance(state);
-        }
-        // Check for register pattern (letter followed by digit: d0, a7, fp0)
-        else if (/[a-z][0-9]/i.test(next2)) {
-          // Looks like a register
-          state.pos = saved;
-          operandText += advance(state);
-        }
-        // Check for backslash (macro parameter)
-        else if (nextCh === "\\") {
-          // Macro parameter
-          state.pos = saved;
-          operandText += advance(state);
-        }
-        // Digit or underscore (could be part of identifier/expression)
-        else if (/[0-9_]/.test(nextCh) && operandText.length > 0) {
-          // Part of ongoing expression
-          state.pos = saved;
-          operandText += advance(state);
-        }
-        // Plain letter after complete structure - likely a comment
-        else if (/[a-z]/i.test(nextCh) && operandText.length > 0) {
-          // Check if operand looks complete (ends with ), ], }, or alphanumeric)
-          const lastChar = operandText.trim().slice(-1);
-          if (
-            lastChar === ")" ||
-            lastChar === "]" ||
-            lastChar === "}" ||
-            /[a-z0-9]/i.test(lastChar)
-          ) {
-            // Operand looks complete, this is likely a comment
-            state.pos = saved;
-            break;
-          }
-          // Otherwise include it
+        // Use helper to determine if we should continue
+        if (shouldContinueOperand(state, operandText)) {
           state.pos = saved;
           operandText += advance(state);
         } else {
-          // Doesn't look like operand content, stop here
           state.pos = saved;
           break;
         }
