@@ -16,6 +16,72 @@ function rx(template: string): string {
     .replace(/\s+/g, ""); // Remove all whitespace
 }
 
+// Helper to split operands by comma while respecting parentheses and bracket depth
+function splitOperands(text: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let angleDepth = 0;
+  let inString = false;
+  let stringChar: string | null = null;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    // Handle string literals
+    if ((ch === '"' || ch === "'") && !inString) {
+      inString = true;
+      stringChar = ch;
+      current += ch;
+      continue;
+    } else if (inString && ch === stringChar) {
+      inString = false;
+      stringChar = null;
+      current += ch;
+      continue;
+    }
+
+    // If in string, just add character
+    if (inString) {
+      current += ch;
+      continue;
+    }
+
+    // Track depth
+    if (ch === "(") {
+      parenDepth++;
+      current += ch;
+    } else if (ch === ")") {
+      parenDepth--;
+      current += ch;
+    } else if (ch === "[") {
+      bracketDepth++;
+      current += ch;
+    } else if (ch === "]") {
+      bracketDepth--;
+      current += ch;
+    } else if (ch === "<") {
+      angleDepth++;
+      current += ch;
+    } else if (ch === ">") {
+      angleDepth--;
+      current += ch;
+    } else if (ch === "," && parenDepth === 0 && bracketDepth === 0 && angleDepth === 0) {
+      // Split here - preserve empty operands for incomplete lists
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+
+  // Add last operand (including empty string for trailing comma)
+  result.push(current.trim());
+
+  return result;
+}
+
 // Helper to parse macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
 function parseMacroParameter(
   text: string,
@@ -324,7 +390,7 @@ export function parseLine(text: string): ParsedLine {
       }
     } else if (groups.operands) {
       // Standard operand parsing
-      const operandTexts = groups.operands.split(/,\s*(?![^()<>]*[)>])/);
+      const operandTexts = splitOperands(groups.operands);
 
       const operands: OperandNode[] = [];
       const errors: OperandParseError[] = [];

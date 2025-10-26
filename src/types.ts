@@ -207,31 +207,31 @@ export type OperandNode =
   | ValueNode
   | UnknownNode;
 
-// Data register (d0-d7)
+// Data register operand (d0-d7)
 export interface DataRegisterNode extends Node {
   type: "data-register";
   register: DataRegister;
 }
 
-// Address register (a0-a7, sp)
+// Address register operand (a0-a7, sp)
 export interface AddressRegisterNode extends Node {
   type: "address-register";
   register: AddressRegister;
 }
 
-// Special/system register (sr, ccr, usp, ssp, pc, etc.)
+// Special/system register operand (sr, ccr, usp, ssp, pc, etc.)
 export interface SpecialRegisterNode extends Node {
   type: "special-register";
   register: SpecialRegister;
 }
 
-// FPU data register (fp0-fp7)
+// FPU data register operand (fp0-fp7)
 export interface FPUDataRegisterNode extends Node {
   type: "fpu-data-register";
   register: FPUDataRegister;
 }
 
-// FPU control register (fpcr, fpsr, fpiar)
+// FPU control register operand (fpcr, fpsr, fpiar)
 export interface FPUControlRegisterNode extends Node {
   type: "fpu-control-register";
   register: FPUControlRegister;
@@ -276,7 +276,7 @@ export interface ImmediateNode extends Node {
 // Address register indirect: (a0), (a0)+, -(a0)
 export interface AddressRegisterIndirectNode extends Node {
   type: "address-register-indirect";
-  register: string; // a0-a7, sp
+  register: AddressRegisterNode | SymbolNode | MacroParameterNode;
   mode: "simple" | "post-increment" | "pre-decrement";
 }
 
@@ -284,24 +284,24 @@ export interface AddressRegisterIndirectNode extends Node {
 export interface AddressRegisterIndirectDisplacementNode extends Node {
   type: "address-register-indirect-displacement";
   displacement: ExpressionNode; // Parsed displacement expression
-  register: AddressRegister;
+  register: AddressRegisterNode | SymbolNode | MacroParameterNode;
 }
 
 // Address register indirect with index: 10(a0,d1.w) or 10(a0,d1.w*2)
 export interface AddressRegisterIndirectIndexNode extends Node {
   type: "address-register-indirect-index";
   displacement?: ExpressionNode; // Parsed displacement expression
-  baseRegister: AddressRegister;
-  indexRegister: DataRegister | AddressRegister;
-  indexSize?: AddressSize;
-  scaleFactor?: 1 | 2 | 4 | 8; // 68020+ scale factor
+  baseRegister: AddressRegisterNode | SymbolNode | MacroParameterNode;
+  indexRegister: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
+  indexSize?: SizeNode | SymbolNode | MacroParameterNode;
+  scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
 }
 
 // Absolute address: $1000, label, (addr).w, (addr).l
 export interface AbsoluteAddressNode extends Node {
   type: "absolute-address";
   address: ExpressionNode; // Parsed expression
-  addressSize?: AddressSize;
+  addressSize?: SizeNode | SymbolNode | MacroParameterNode;
 }
 
 // PC relative: offset(pc)
@@ -314,9 +314,9 @@ export interface PCRelativeNode extends Node {
 export interface PCRelativeIndexNode extends Node {
   type: "pc-relative-index";
   displacement: ExpressionNode; // Parsed displacement expression
-  indexRegister: DataRegister | AddressRegister;
-  indexSize?: AddressSize;
-  scaleFactor?: 1 | 2 | 4 | 8; // 68020+ scale factor
+  indexRegister: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
+  indexSize?: SizeNode | SymbolNode | MacroParameterNode;
+  scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
 }
 
 // String literal: "text", 'text', <text>
@@ -336,10 +336,10 @@ export interface ValueNode extends Node {
 export interface MemoryIndirectNode extends Node {
   type: "memory-indirect";
   baseDisplacement?: ExpressionNode; // [bd,...]
-  baseRegister?: AddressRegister; // [bd,An,...]
-  indexRegister?: DataRegister | AddressRegister; // [bd,An,Rn,...]
-  indexSize?: AddressSize;
-  scaleFactor?: 1 | 2 | 4 | 8;
+  baseRegister?: AddressRegisterNode | SymbolNode | MacroParameterNode; // [bd,An,...]
+  indexRegister?: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode; // [bd,An,Rn,...]
+  indexSize?: SizeNode | SymbolNode | MacroParameterNode;
+  scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
   outerDisplacement?: ExpressionNode; // [...],od
 }
 

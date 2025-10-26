@@ -155,21 +155,30 @@ describe("parse AST", () => {
         const simple = parseLine("  move (a0),d0");
         expect(simple.operands?.[0]).toMatchObject({
           type: "address-register-indirect",
-          register: "a0",
+          register: {
+            type: "address-register",
+            register: "a0",
+          },
           mode: "simple",
         });
 
         const postInc = parseLine("  move (a0)+,d0");
         expect(postInc.operands?.[0]).toMatchObject({
           type: "address-register-indirect",
-          register: "a0",
+          register: {
+            type: "address-register",
+            register: "a0",
+          },
           mode: "post-increment",
         });
 
         const preDec = parseLine("  move -(a0),d0");
         expect(preDec.operands?.[0]).toMatchObject({
           type: "address-register-indirect",
-          register: "a0",
+          register: {
+            type: "address-register",
+            register: "a0",
+          },
           mode: "pre-decrement",
         });
       });
@@ -182,7 +191,10 @@ describe("parse AST", () => {
             type: "numeric-literal",
             format: "decimal",
           },
-          register: "a0",
+          register: {
+            type: "address-register",
+            register: "a0",
+          },
         });
       });
 
@@ -194,9 +206,18 @@ describe("parse AST", () => {
             type: "numeric-literal",
             format: "decimal",
           },
-          baseRegister: "a0",
-          indexRegister: "d1",
-          indexSize: "w",
+          baseRegister: {
+            type: "address-register",
+            register: "a0",
+          },
+          indexRegister: {
+            type: "data-register",
+            register: "d1",
+          },
+          indexSize: {
+            type: "size",
+            size: "w",
+          },
         });
       });
 
@@ -208,9 +229,18 @@ describe("parse AST", () => {
             type: "numeric-literal",
             format: "decimal",
           },
-          baseRegister: "a0",
-          indexRegister: "d1",
-          indexSize: "w",
+          baseRegister: {
+            type: "address-register",
+            register: "a0",
+          },
+          indexRegister: {
+            type: "data-register",
+            register: "d1",
+          },
+          indexSize: {
+            type: "size",
+            size: "w",
+          },
         });
       });
 
@@ -231,8 +261,14 @@ describe("parse AST", () => {
             type: "symbol",
             name: "offset",
           },
-          indexRegister: "d0",
-          indexSize: "w",
+          indexRegister: {
+            type: "data-register",
+            register: "d0",
+          },
+          indexSize: {
+            type: "size",
+            size: "w",
+          },
         });
       });
 
@@ -278,7 +314,10 @@ describe("parse AST", () => {
             start: 7,
             end: 16,
           },
-          addressSize: "w",
+          addressSize: {
+            type: "size",
+            size: "w",
+          },
         });
 
         // Absolute short (hex with $)
@@ -329,7 +368,10 @@ describe("parse AST", () => {
             type: "numeric-literal",
             format: "hex",
           },
-          addressSize: "w",
+          addressSize: {
+            type: "size",
+            size: "w",
+          },
         });
 
         // Absolute with .l suffix (without parens)
@@ -340,7 +382,10 @@ describe("parse AST", () => {
             type: "numeric-literal",
             format: "hex",
           },
-          addressSize: "l",
+          addressSize: {
+            type: "size",
+            size: "l",
+          },
         });
       });
 
@@ -601,9 +646,18 @@ describe("parse AST", () => {
           type: "numeric-literal",
           format: "decimal",
         },
-        baseRegister: "a0",
-        indexRegister: "d1",
-        indexSize: "w",
+        baseRegister: {
+          type: "address-register",
+          register: "a0",
+        },
+        indexRegister: {
+          type: "data-register",
+          register: "d1",
+        },
+        indexSize: {
+          type: "size",
+          size: "w",
+        },
         start: 24,
         end: 35,
       });

@@ -732,7 +732,10 @@ describe("parse", () => {
           {
             type: "address-register-indirect",
             mode: "pre-decrement",
-            register: "sp",
+            register: {
+              type: "address-register",
+              register: "sp",
+            },
           },
         ],
       });
@@ -751,7 +754,10 @@ describe("parse", () => {
           {
             type: "address-register-indirect",
             mode: "simple",
-            register: "a0",
+            register: {
+              type: "address-register",
+              register: "a0",
+            },
           },
         ],
       });
@@ -763,10 +769,22 @@ describe("parse", () => {
         operands: [
           {
             type: "address-register-indirect-index",
-            baseRegister: "a0",
-            indexRegister: "d1",
-            indexSize: "w",
-            scaleFactor: 2,
+            baseRegister: {
+              type: "address-register",
+              register: "a0",
+            },
+            indexRegister: {
+              type: "data-register",
+              register: "d1",
+            },
+            indexSize: {
+              type: "size",
+              size: "w",
+            },
+            scaleFactor: {
+              type: "numeric-literal",
+              value: 2,
+            },
           },
           { type: "data-register", register: "d0" },
         ],
@@ -779,10 +797,22 @@ describe("parse", () => {
         operands: [
           {
             type: "address-register-indirect-index",
-            baseRegister: "a0",
-            indexRegister: "d1",
-            indexSize: "l",
-            scaleFactor: 4,
+            baseRegister: {
+              type: "address-register",
+              register: "a0",
+            },
+            indexRegister: {
+              type: "data-register",
+              register: "d1",
+            },
+            indexSize: {
+              type: "size",
+              size: "l",
+            },
+            scaleFactor: {
+              type: "numeric-literal",
+              value: 4,
+            },
             displacement: {
               type: "numeric-literal",
               value: 10,
@@ -802,12 +832,98 @@ describe("parse", () => {
         operands: [
           {
             type: "pc-relative-index",
-            indexRegister: "d0",
-            indexSize: "w",
-            scaleFactor: 2,
+            indexRegister: {
+              type: "data-register",
+              register: "d0",
+            },
+            indexSize: {
+              type: "size",
+              size: "w",
+            },
+            scaleFactor: {
+              type: "numeric-literal",
+              value: 2,
+            },
             displacement: {
               type: "symbol",
               name: "table",
+            },
+          },
+          {
+            type: "data-register",
+            register: "d1",
+          },
+        ],
+      });
+    });
+
+    it("parses indexed addressing with macro parameter as base register", () => {
+      const line = parseLine(" move.w #1,label(\\1,a2.w)");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "immediate",
+          },
+          {
+            type: "address-register-indirect-index",
+            displacement: {
+              type: "symbol",
+              name: "label",
+            },
+            baseRegister: {
+              type: "macro-parameter",
+              paramType: "numeric",
+              param: "1",
+            },
+            indexRegister: {
+              type: "address-register",
+              register: "a2",
+            },
+            indexSize: {
+              type: "size",
+              size: "w",
+            },
+          },
+        ],
+      });
+    });
+
+    it("parses indexed addressing with expression scale factor", () => {
+      const line = parseLine(" move.l 38(a0,d0.w*(foo+1)),d1");
+      expect(line).toMatchObject({
+        operands: [
+          {
+            type: "address-register-indirect-index",
+            displacement: {
+              type: "numeric-literal",
+              value: 38,
+            },
+            baseRegister: {
+              type: "address-register",
+              register: "a0",
+            },
+            indexRegister: {
+              type: "data-register",
+              register: "d0",
+            },
+            indexSize: {
+              type: "size",
+              size: "w",
+            },
+            scaleFactor: {
+              type: "group",
+              expression: {
+                type: "binary-op",
+                operator: "+",
+                left: {
+                  type: "symbol",
+                  name: "foo",
+                },
+                right: {
+                  type: "numeric-literal",
+                  value: 1,
+                },
+              },
             },
           },
           {
@@ -838,7 +954,7 @@ describe("parse", () => {
       expect(line.operands?.[0].type).toBe("unknown");
       expect(line.errors).toBeDefined();
       expect(line.errors).toHaveLength(1);
-      expect(line.errors?.[0].code).toBe("MALFORMED_MEMORY_INDIRECT");
+      expect(line.errors?.[0].code).toBe("INVALID_SCALE_FACTOR");
     });
 
     it("parses bitfield with offset and width", () => {
@@ -896,7 +1012,10 @@ describe("parse", () => {
           {
             type: "address-register-indirect",
             mode: "simple",
-            register: "a0",
+            register: {
+              type: "address-register",
+              register: "a0",
+            },
           },
         ],
       });
@@ -908,7 +1027,10 @@ describe("parse", () => {
         operands: [
           {
             type: "memory-indirect",
-            baseRegister: "a0",
+            baseRegister: {
+              type: "address-register",
+              register: "a0",
+            },
             outerDisplacement: {
               type: "numeric-literal",
               value: 4,
@@ -929,7 +1051,10 @@ describe("parse", () => {
               type: "numeric-literal",
               value: 8,
             },
-            baseRegister: "a1",
+            baseRegister: {
+              type: "address-register",
+              register: "a1",
+            },
           },
           { type: "data-register", register: "d0" },
         ],
@@ -942,9 +1067,18 @@ describe("parse", () => {
         operands: [
           {
             type: "memory-indirect",
-            baseRegister: "a0",
-            indexRegister: "d1",
-            indexSize: "w",
+            baseRegister: {
+              type: "address-register",
+              register: "a0",
+            },
+            indexRegister: {
+              type: "data-register",
+              register: "d1",
+            },
+            indexSize: {
+              type: "size",
+              size: "w",
+            },
           },
           { type: "data-register", register: "d0" },
         ],
@@ -961,10 +1095,22 @@ describe("parse", () => {
               type: "numeric-literal",
               value: 16,
             },
-            baseRegister: "a2",
-            indexRegister: "d3",
-            indexSize: "l",
-            scaleFactor: 4,
+            baseRegister: {
+              type: "address-register",
+              register: "a2",
+            },
+            indexRegister: {
+              type: "data-register",
+              register: "d3",
+            },
+            indexSize: {
+              type: "size",
+              size: "l",
+            },
+            scaleFactor: {
+              type: "numeric-literal",
+              value: 4,
+            },
             outerDisplacement: {
               type: "numeric-literal",
               value: 32,
@@ -981,8 +1127,8 @@ describe("parse", () => {
       expect(line.operands?.[1].type).toBe("unknown");
       expect(line.errors).toBeDefined();
       expect(line.errors?.length).toBe(2);
-      expect(line.errors?.[0].code).toBe("MALFORMED_MEMORY_INDIRECT");
-      expect(line.errors?.[1].code).toBe("MALFORMED_MEMORY_INDIRECT");
+      expect(line.errors?.[0].code).toBe("INVALID_SCALE_FACTOR");
+      expect(line.errors?.[1].code).toBe("INVALID_SCALE_FACTOR");
     });
 
     it("reports error for unclosed parenthesis", () => {

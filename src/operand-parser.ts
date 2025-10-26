@@ -2,11 +2,20 @@ import {
   AddressRegister,
   DataRegister,
   FPUDataRegister,
+  FPUControlRegister,
+  SpecialRegister,
   OperandNode,
   ExpressionNode,
-  AddressSize,
   ParseResult,
   MemoryIndirectNode,
+  DataRegisterNode,
+  AddressRegisterNode,
+  SpecialRegisterNode,
+  FPUDataRegisterNode,
+  FPUControlRegisterNode,
+  SymbolNode,
+  MacroParameterNode,
+  SizeNode,
 } from "./types";
 import { parseExpression } from "./expression-parser";
 import {
@@ -31,6 +40,313 @@ import {
   unclosedBrace,
   OperandParseError,
 } from "./parse-error";
+
+/**
+ * Helper to create a register node from a register name
+ */
+function createRegisterNode(
+  name: string,
+  start: number,
+  end: number,
+):
+  | DataRegisterNode
+  | AddressRegisterNode
+  | SpecialRegisterNode
+  | FPUDataRegisterNode
+  | FPUControlRegisterNode {
+  const lower = name.toLowerCase();
+
+  if (isDataRegister(lower)) {
+    return {
+      type: "data-register",
+      register: lower as DataRegister,
+      start,
+      end,
+    };
+  } else if (isAddressRegister(lower)) {
+    return {
+      type: "address-register",
+      register: lower as AddressRegister,
+      start,
+      end,
+    };
+  } else if (isSpecialRegister(lower)) {
+    return {
+      type: "special-register",
+      register: lower as SpecialRegister,
+      start,
+      end,
+    };
+  } else if (isFPUDataRegister(lower)) {
+    return {
+      type: "fpu-data-register",
+      register: lower as FPUDataRegister,
+      start,
+      end,
+    };
+  } else if (isFPUControlRegister(lower)) {
+    return {
+      type: "fpu-control-register",
+      register: lower as FPUControlRegister,
+      start,
+      end,
+    };
+  }
+
+  // Default to address register for unknown
+  return {
+    type: "address-register",
+    register: lower as AddressRegister,
+    start,
+    end,
+  };
+}
+
+/**
+ * Helper to create an address register, symbol, or macro parameter node
+ * Used for addressing modes where the register can be dynamic
+ */
+function createAddressRegisterOrSymbolNode(
+  name: string,
+  start: number,
+  end: number,
+): AddressRegisterNode | SymbolNode | MacroParameterNode {
+  // Check if it's a macro parameter
+  // Macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
+  const macroMatch =
+    /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(name);
+  if (macroMatch) {
+    const param = macroMatch[1];
+    let paramType:
+      | "numeric"
+      | "letter"
+      | "special"
+      | "named"
+      | "query"
+      | "carg"
+      | "unique-push"
+      | "unique-push-below"
+      | "unique-pull";
+    let paramValue: string;
+
+    if (/^\d+$/.test(param)) {
+      paramType = "numeric";
+      paramValue = param;
+    } else if (/^[a-z]$/.test(param)) {
+      paramType = "letter";
+      paramValue = param;
+    } else if (param === "@!") {
+      paramType = "unique-push";
+      paramValue = "@!";
+    } else if (param === "@?") {
+      paramType = "unique-push-below";
+      paramValue = "@?";
+    } else if (param === "@@") {
+      paramType = "unique-pull";
+      paramValue = "@@";
+    } else if (param === "@") {
+      paramType = "special";
+      paramValue = "@";
+    } else if (param.startsWith("?")) {
+      paramType = "query";
+      paramValue = macroMatch[3]; // captured group after ?
+    } else if (param === "." || param === "+" || param === "-") {
+      paramType = "carg";
+      paramValue = param;
+    } else {
+      paramType = "named";
+      paramValue = macroMatch[2]; // captured group inside <>
+    }
+
+    return {
+      type: "macro-parameter",
+      start,
+      end,
+      paramType,
+      param: paramValue,
+    };
+  }
+
+  const lower = name.toLowerCase();
+
+  // Check if it's a valid address register
+  if (isAddressRegister(lower)) {
+    return {
+      type: "address-register",
+      register: lower as AddressRegister,
+      start,
+      end,
+    };
+  }
+
+  // Treat as symbol
+  return {
+    type: "symbol",
+    name: name,
+    start,
+    end,
+  };
+}
+
+/**
+ * Helper to parse index register with optional size and scale factor
+ * Format: Rn or Rn.size or Rn.size*scale or Rn*scale
+ * Returns the register, size, and scale factor (as expression)
+ */
+function parseIndexSpec(
+  text: string,
+  start: number,
+  end: number,
+): {
+  register: DataRegisterNode | AddressRegisterNode;
+  size?: SizeNode | SymbolNode | MacroParameterNode;
+  scaleFactor?: ExpressionNode;
+} | null {
+  // Match: register name (required)
+  const regMatch = /^([ad][0-7]|sp)/i.exec(text);
+  if (!regMatch) return null;
+
+  const registerName = regMatch[1];
+  let pos = registerName.length;
+
+  const register = createRegisterNode(registerName, start, end) as
+    | DataRegisterNode
+    | AddressRegisterNode;
+
+  let size: SizeNode | SymbolNode | MacroParameterNode | undefined;
+  let scaleFactor: ExpressionNode | undefined;
+
+  // Check for size after dot
+  if (text[pos] === ".") {
+    pos++; // skip dot
+    // Find the size part (up to * or end)
+    const sizeMatch = /^([wl]|\\\S+|\w+)/i.exec(text.substring(pos));
+    if (sizeMatch) {
+      size = createSizeOrSymbolNode(sizeMatch[1], start, end);
+      pos += sizeMatch[1].length;
+    }
+  }
+
+  // Check for scale factor after *
+  if (text[pos] === "*") {
+    pos++; // skip *
+    const scaleExpr = text.substring(pos).trim();
+    if (scaleExpr) {
+      const { expression: scaleNode } = parseExpression(scaleExpr, start, end);
+      scaleFactor = scaleNode;
+    }
+  }
+
+  return { register, size, scaleFactor };
+}
+
+/**
+ * Validate scale factor if it's a numeric literal
+ * Returns error if it's a literal but not 1, 2, 4, or 8
+ */
+function validateScaleFactor(
+  scaleFactor: ExpressionNode | undefined,
+  position: number,
+): OperandParseError | undefined {
+  if (!scaleFactor) return undefined;
+
+  // Only validate if it's a numeric literal
+  if (scaleFactor.type === "numeric-literal") {
+    const value = scaleFactor.value;
+    if (![1, 2, 4, 8].includes(value)) {
+      return invalidScaleFactor(value.toString(), position);
+    }
+  }
+
+  // Non-literal expressions are allowed (will be validated at runtime)
+  return undefined;
+}
+
+/**
+ * Helper to create a size node, symbol, or macro parameter node
+ * Used for index sizes and address sizes that can be dynamic
+ */
+function createSizeOrSymbolNode(
+  name: string,
+  start: number,
+  end: number,
+): SizeNode | SymbolNode | MacroParameterNode {
+  // Check if it's a macro parameter
+  // Macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
+  const macroMatch =
+    /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(name);
+  if (macroMatch) {
+    const param = macroMatch[1];
+    let paramType:
+      | "numeric"
+      | "letter"
+      | "special"
+      | "named"
+      | "query"
+      | "carg"
+      | "unique-push"
+      | "unique-push-below"
+      | "unique-pull";
+    let paramValue: string;
+
+    if (/^\d+$/.test(param)) {
+      paramType = "numeric";
+      paramValue = param;
+    } else if (/^[a-z]$/.test(param)) {
+      paramType = "letter";
+      paramValue = param;
+    } else if (param === "@!") {
+      paramType = "unique-push";
+      paramValue = "@!";
+    } else if (param === "@?") {
+      paramType = "unique-push-below";
+      paramValue = "@?";
+    } else if (param === "@@") {
+      paramType = "unique-pull";
+      paramValue = "@@";
+    } else if (param === "@") {
+      paramType = "special";
+      paramValue = "@";
+    } else if (param.startsWith("?")) {
+      paramType = "query";
+      paramValue = macroMatch[3]; // captured group after ?
+    } else if (param === "." || param === "+" || param === "-") {
+      paramType = "carg";
+      paramValue = param;
+    } else {
+      paramType = "named";
+      paramValue = macroMatch[2]; // captured group inside <>
+    }
+
+    return {
+      type: "macro-parameter",
+      start,
+      end,
+      paramType,
+      param: paramValue,
+    };
+  }
+
+  const lower = name.toLowerCase();
+
+  // Check if it's a valid size
+  if (lower === "w" || lower === "l") {
+    return {
+      type: "size",
+      size: lower as "w" | "l",
+      start,
+      end,
+    };
+  }
+
+  // Treat as symbol
+  return {
+    type: "symbol",
+    name: name,
+    start,
+    end,
+  };
+}
 
 /**
  * OperandToken-based parser for memory indirect addressing: ([bd,An,Rn.s*scale],od)
@@ -86,10 +402,10 @@ function parseMemoryIndirectWithTokens(
 
   // Parse inner content: can be bd, An, Rn.s*scale in various combinations
   let baseDisplacement: ExpressionNode | undefined;
-  let baseRegister: AddressRegister | undefined;
-  let indexRegister: DataRegister | AddressRegister | undefined;
-  let indexSize: AddressSize | undefined;
-  let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+  let baseRegister: AddressRegisterNode | undefined;
+  let indexRegister: DataRegisterNode | AddressRegisterNode | undefined;
+  let indexSize: SizeNode | SymbolNode | MacroParameterNode | undefined;
+  let scaleFactor: ExpressionNode | undefined;
 
   const innerParts: string[] = [];
   let currentPart = "";
@@ -124,7 +440,11 @@ function parseMemoryIndirectWithTokens(
     // [An] or [bd]
     const part = innerParts[0];
     if (isAddressRegister(part.toLowerCase())) {
-      baseRegister = part.toLowerCase() as AddressRegister;
+      baseRegister = createRegisterNode(
+        part,
+        start,
+        end,
+      ) as AddressRegisterNode;
     } else {
       baseDisplacement = parseExpression(part, start, end).expression;
     }
@@ -134,30 +454,36 @@ function parseMemoryIndirectWithTokens(
     const second = innerParts[1];
 
     const firstIsBaseReg = isAddressRegister(first.toLowerCase());
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(second);
+    const indexSpec = parseIndexSpec(second, start, end);
 
-    if (firstIsBaseReg && indexMatch) {
+    if (firstIsBaseReg && indexSpec) {
       // [An,Rn.s*scale]
-      baseRegister = first.toLowerCase() as AddressRegister;
-      indexRegister = indexMatch[1].toLowerCase() as
-        | DataRegister
-        | AddressRegister;
-      indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-      if (indexMatch[3]) {
-        const scale = parseInt(indexMatch[3]);
-        if (![1, 2, 4, 8].includes(scale)) {
-          return {
-            success: false,
-            error: invalidScaleFactor(indexMatch[3], start),
-          };
-        }
-        scaleFactor = scale as 1 | 2 | 4 | 8;
+      baseRegister = createRegisterNode(
+        first,
+        start,
+        end,
+      ) as AddressRegisterNode;
+      indexRegister = indexSpec.register;
+      indexSize = indexSpec.size;
+      scaleFactor = indexSpec.scaleFactor;
+
+      // Validate scale factor if it's a literal
+      const scaleError = validateScaleFactor(scaleFactor, start);
+      if (scaleError) {
+        return {
+          success: false,
+          error: scaleError,
+        };
       }
     } else {
       // [bd,An]
       baseDisplacement = parseExpression(first, start, end).expression;
       if (isAddressRegister(second.toLowerCase())) {
-        baseRegister = second.toLowerCase() as AddressRegister;
+        baseRegister = createRegisterNode(
+          second,
+          start,
+          end,
+        ) as AddressRegisterNode;
       }
     }
   } else if (innerParts.length === 3) {
@@ -168,24 +494,22 @@ function parseMemoryIndirectWithTokens(
 
     baseDisplacement = parseExpression(bd, start, end).expression;
     if (isAddressRegister(an.toLowerCase())) {
-      baseRegister = an.toLowerCase() as AddressRegister;
+      baseRegister = createRegisterNode(an, start, end) as AddressRegisterNode;
     }
 
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(idx);
-    if (indexMatch) {
-      indexRegister = indexMatch[1].toLowerCase() as
-        | DataRegister
-        | AddressRegister;
-      indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-      if (indexMatch[3]) {
-        const scale = parseInt(indexMatch[3]);
-        if (![1, 2, 4, 8].includes(scale)) {
-          return {
-            success: false,
-            error: invalidScaleFactor(indexMatch[3], start),
-          };
-        }
-        scaleFactor = scale as 1 | 2 | 4 | 8;
+    const indexSpec = parseIndexSpec(idx, start, end);
+    if (indexSpec) {
+      indexRegister = indexSpec.register;
+      indexSize = indexSpec.size;
+      scaleFactor = indexSpec.scaleFactor;
+
+      // Validate scale factor if it's a literal
+      const scaleError = validateScaleFactor(scaleFactor, start);
+      if (scaleError) {
+        return {
+          success: false,
+          error: scaleError,
+        };
       }
     }
   }
@@ -297,12 +621,9 @@ function parseIndexedAddressingWithTokens(
     const baseReg = parts[0].toLowerCase();
     const indexPart = parts[1];
 
-    // Parse index: d1.w*2, a2.l*4, etc.
-    // Allow both dot and optional separator: d1.w or d1w or d1,w
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(
-      indexPart,
-    );
-    if (!indexMatch) {
+    // Parse index: d1.w*2, a2.l*4, d1*(foo+1), etc.
+    const indexSpec = parseIndexSpec(indexPart, start, end);
+    if (!indexSpec) {
       return {
         success: false,
         error: malformedMemoryIndirect(
@@ -312,21 +633,17 @@ function parseIndexedAddressingWithTokens(
       };
     }
 
-    const indexRegister = indexMatch[1].toLowerCase() as
-      | DataRegister
-      | AddressRegister;
-    const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-    let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+    const indexRegister = indexSpec.register;
+    const indexSize = indexSpec.size;
+    const scaleFactor = indexSpec.scaleFactor;
 
-    if (indexMatch[3]) {
-      const scale = parseInt(indexMatch[3]);
-      if (![1, 2, 4, 8].includes(scale)) {
-        return {
-          success: false,
-          error: invalidScaleFactor(indexMatch[3], start),
-        };
-      }
-      scaleFactor = scale as 1 | 2 | 4 | 8;
+    // Validate scale factor if it's a literal
+    const scaleError = validateScaleFactor(scaleFactor, start);
+    if (scaleError) {
+      return {
+        success: false,
+        error: scaleError,
+      };
     }
 
     // Check if PC relative or address register
@@ -344,7 +661,8 @@ function parseIndexedAddressingWithTokens(
           scaleFactor,
         },
       };
-    } else if (isAddressRegister(baseReg)) {
+    } else {
+      // Accept any base register, including macro parameters and symbols
       return {
         success: true,
         value: {
@@ -354,7 +672,7 @@ function parseIndexedAddressingWithTokens(
           displacement: displacement
             ? parseExpression(displacement, start, end).expression
             : undefined,
-          baseRegister: baseReg as AddressRegister,
+          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end),
           indexRegister,
           indexSize,
           scaleFactor,
@@ -372,8 +690,10 @@ function parseIndexedAddressingWithTokens(
     if (/^[wl]$/i.test(part2)) {
       // Format: (base,index,size) or disp(base,index,size) - comma-separated size
       const baseReg = part0.toLowerCase();
-      const indexRegister = part1 as DataRegister | AddressRegister;
-      const indexSize = part2 as AddressSize;
+      const indexRegister = createRegisterNode(part1, start, end) as
+        | DataRegisterNode
+        | AddressRegisterNode;
+      const indexSize = createSizeOrSymbolNode(part2, start, end);
 
       if (baseReg === "pc") {
         return {
@@ -389,7 +709,8 @@ function parseIndexedAddressingWithTokens(
             scaleFactor: undefined,
           },
         };
-      } else if (isAddressRegister(baseReg)) {
+      } else {
+        // Accept any base register, including macro parameters and symbols
         return {
           success: true,
           value: {
@@ -399,7 +720,11 @@ function parseIndexedAddressingWithTokens(
             displacement: displacement
               ? parseExpression(displacement, start, end).expression
               : undefined,
-            baseRegister: baseReg as AddressRegister,
+            baseRegister: createAddressRegisterOrSymbolNode(
+              baseReg,
+              start,
+              end,
+            ),
             indexRegister,
             indexSize,
             scaleFactor: undefined,
@@ -413,10 +738,8 @@ function parseIndexedAddressingWithTokens(
     const baseReg = part1;
     const indexPart = part2;
 
-    const indexMatch = /^([ad][0-7]|sp)\.?([wl])?\*?([1248])?$/i.exec(
-      indexPart,
-    );
-    if (!indexMatch) {
+    const indexSpec = parseIndexSpec(indexPart, start, end);
+    if (!indexSpec) {
       return {
         success: false,
         error: malformedMemoryIndirect(
@@ -426,21 +749,17 @@ function parseIndexedAddressingWithTokens(
       };
     }
 
-    const indexRegister = indexMatch[1].toLowerCase() as
-      | DataRegister
-      | AddressRegister;
-    const indexSize = indexMatch[2]?.toLowerCase() as AddressSize | undefined;
-    let scaleFactor: 1 | 2 | 4 | 8 | undefined;
+    const indexRegister = indexSpec.register;
+    const indexSize = indexSpec.size;
+    const scaleFactor = indexSpec.scaleFactor;
 
-    if (indexMatch[3]) {
-      const scale = parseInt(indexMatch[3]);
-      if (![1, 2, 4, 8].includes(scale)) {
-        return {
-          success: false,
-          error: invalidScaleFactor(indexMatch[3], start),
-        };
-      }
-      scaleFactor = scale as 1 | 2 | 4 | 8;
+    // Validate scale factor if it's a literal
+    const scaleError = validateScaleFactor(scaleFactor, start);
+    if (scaleError) {
+      return {
+        success: false,
+        error: scaleError,
+      };
     }
 
     if (baseReg === "pc") {
@@ -456,7 +775,8 @@ function parseIndexedAddressingWithTokens(
           scaleFactor,
         },
       };
-    } else if (isAddressRegister(baseReg)) {
+    } else {
+      // Accept any base register, including macro parameters and symbols
       return {
         success: true,
         value: {
@@ -464,7 +784,7 @@ function parseIndexedAddressingWithTokens(
           start,
           end,
           displacement: parseExpression(disp, start, end).expression,
-          baseRegister: baseReg as AddressRegister,
+          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end),
           indexRegister,
           indexSize,
           scaleFactor,
@@ -728,7 +1048,7 @@ export function parseOperand(
     const { expression: exprValue, error: exprError } = parseExpression(
       exprText,
       exprStart,
-      end
+      end,
     );
     return {
       operand: {
@@ -747,60 +1067,35 @@ export function parseOperand(
   // FPU data registers: fp0-fp7
   if (isFPUDataRegister(register)) {
     return {
-      operand: {
-        type: "fpu-data-register",
-        start,
-        end,
-        register,
-      },
+      operand: createRegisterNode(register, start, end),
     };
   }
 
   // FPU control registers: fpcr, fpsr, fpiar
   if (isFPUControlRegister(register)) {
     return {
-      operand: {
-        type: "fpu-control-register",
-        start,
-        end,
-        register,
-      },
+      operand: createRegisterNode(register, start, end),
     };
   }
 
   // Data Register Direct: Dn
   if (isDataRegister(register)) {
     return {
-      operand: {
-        type: "data-register",
-        start,
-        end,
-        register,
-      },
+      operand: createRegisterNode(register, start, end),
     };
   }
 
   // Address register direct: An
   if (isAddressRegister(register)) {
     return {
-      operand: {
-        type: "address-register",
-        start,
-        end,
-        register,
-      },
+      operand: createRegisterNode(register, start, end),
     };
   }
 
   // Special/system registers: sr, ccr, usp, ssp, pc, vbr, sfc, dfc, cacr, caar
   if (isSpecialRegister(register)) {
     return {
-      operand: {
-        type: "special-register",
-        start,
-        end,
-        register,
-      },
+      operand: createRegisterNode(register, start, end),
     };
   }
 
@@ -873,13 +1168,14 @@ export function parseOperand(
   // Address register indirect with pre-decrement: -(An)
   const preDecMatch = /^-\(([^)]+)\)$/i.exec(trimmed);
   if (preDecMatch) {
+    const registerName = preDecMatch[1].trim();
     return {
       operand: {
         type: "address-register-indirect",
         mode: "pre-decrement",
         start,
         end,
-        register: preDecMatch[1].toLowerCase(),
+        register: createAddressRegisterOrSymbolNode(registerName, start, end),
       },
     };
   }
@@ -887,13 +1183,14 @@ export function parseOperand(
   // Address register indirect with post-increment: (An)+
   const postIncMatch = /^\(([^)]+)\)\+$/i.exec(trimmed);
   if (postIncMatch) {
+    const registerName = postIncMatch[1].trim();
     return {
       operand: {
         type: "address-register-indirect",
         mode: "post-increment",
         start,
         end,
-        register: postIncMatch[1].toLowerCase(),
+        register: createAddressRegisterOrSymbolNode(registerName, start, end),
       },
     };
   }
@@ -910,7 +1207,7 @@ export function parseOperand(
     const { expression: dispExpr, error: dispError } = parseExpression(
       displacement,
       start,
-      end
+      end,
     );
 
     // PC relative without index: (disp,pc)
@@ -933,7 +1230,7 @@ export function parseOperand(
         start,
         end,
         displacement: dispExpr,
-        register: register as AddressRegister,
+        register: createAddressRegisterOrSymbolNode(register, start, end),
       },
       error: dispError,
     };
@@ -974,7 +1271,7 @@ export function parseOperand(
       const { expression: dispExpr, error: dispError } = parseExpression(
         displacement || "0",
         start,
-        end
+        end,
       );
       return {
         operand: {
@@ -994,7 +1291,7 @@ export function parseOperand(
           type: "address-register-indirect",
           start,
           end,
-          register,
+          register: createAddressRegisterOrSymbolNode(register, start, end),
           mode: "simple",
         },
       };
@@ -1004,7 +1301,7 @@ export function parseOperand(
     const { expression: dispExpr, error: dispError } = parseExpression(
       displacement,
       start,
-      end
+      end,
     );
     return {
       operand: {
@@ -1012,7 +1309,7 @@ export function parseOperand(
         start,
         end,
         displacement: dispExpr,
-        register: register as AddressRegister,
+        register: createAddressRegisterOrSymbolNode(register, start, end),
       },
       error: dispError,
     };
@@ -1024,7 +1321,7 @@ export function parseOperand(
     const { expression: addrExpr, error: addrError } = parseExpression(
       absoluteSizedMatch[1],
       start,
-      end
+      end,
     );
     return {
       operand: {
@@ -1032,7 +1329,7 @@ export function parseOperand(
         start,
         end,
         address: addrExpr,
-        addressSize: absoluteSizedMatch[2].toLowerCase() as AddressSize,
+        addressSize: createSizeOrSymbolNode(absoluteSizedMatch[2], start, end),
       },
       error: addrError,
     };
@@ -1044,7 +1341,7 @@ export function parseOperand(
     const { expression: addrExpr, error: addrError } = parseExpression(
       absoluteWithSizeMatch[1],
       start,
-      end
+      end,
     );
     return {
       operand: {
@@ -1052,7 +1349,11 @@ export function parseOperand(
         start,
         end,
         address: addrExpr,
-        addressSize: absoluteWithSizeMatch[2].toLowerCase() as AddressSize,
+        addressSize: createSizeOrSymbolNode(
+          absoluteWithSizeMatch[2],
+          start,
+          end,
+        ),
       },
       error: addrError,
     };
@@ -1093,7 +1394,7 @@ export function parseOperand(
   const { expression: expr, error: exprError } = parseExpression(
     trimmed,
     start,
-    end
+    end,
   );
 
   if (mnemonicCategory === "instruction") {

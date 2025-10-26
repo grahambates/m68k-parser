@@ -607,7 +607,10 @@ describe("Expression Parsing", () => {
           start: 9,
           end: 19,
         },
-        addressSize: "w",
+        addressSize: {
+          type: "size",
+          size: "w",
+        },
       });
     });
 
@@ -615,7 +618,10 @@ describe("Expression Parsing", () => {
       const line = parseLine("  move.l BASE+offset.w,d0");
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
-        addressSize: "w",
+        addressSize: {
+          type: "size",
+          size: "w",
+        },
         address: {
           type: "binary-op",
           operator: "+",
