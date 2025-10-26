@@ -33,7 +33,7 @@ export function parseExpression(
     };
   }
 
-  const tokens = tokenizeExpression(trimmed);
+  const { tokens, errors: tokenizerErrors } = tokenizeExpression(trimmed);
   let pos = 0;
   let parseError: OperandParseError | undefined;
 
@@ -262,5 +262,9 @@ export function parseExpression(
   }
 
   const expression = parseLogicalOr();
-  return { value: expression, error: parseError };
+
+  // Use parse error if present, otherwise use first tokenizer error
+  const finalError = parseError || (tokenizerErrors.length > 0 ? tokenizerErrors[0] : undefined);
+
+  return { value: expression, error: finalError };
 }

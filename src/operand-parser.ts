@@ -38,6 +38,7 @@ import {
   invalidScaleFactor,
   malformedBitfield,
   unclosedBrace,
+  missingScaleFactor,
   OperandParseError,
 } from "./parse-error";
 import { parseMacroParameter } from "./macro-utils";
@@ -142,7 +143,7 @@ function createAddressRegisterOrSymbolNode(
 /**
  * Helper to parse index register with optional size and scale factor
  * Format: Rn or Rn.size or Rn.size*scale or Rn*scale
- * Returns the register, size, and scale factor (as expression)
+ * Returns the register, size, and scale factor (as expression), or null if not a register
  */
 function parseIndexSpec(
   text: string,
@@ -152,6 +153,7 @@ function parseIndexSpec(
   register: DataRegisterNode | AddressRegisterNode;
   size?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode;
+  error?: OperandParseError;
 } | null {
   // Match: register name (required)
   const regMatch = /^([ad][0-7]|sp)/i.exec(text);
@@ -166,6 +168,7 @@ function parseIndexSpec(
 
   let size: SizeNode | SymbolNode | MacroParameterNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
+  let error: OperandParseError | undefined;
 
   // Check for size after dot
   if (text[pos] === ".") {
@@ -180,15 +183,19 @@ function parseIndexSpec(
 
   // Check for scale factor after *
   if (text[pos] === "*") {
+    const starPos = pos;
     pos++; // skip *
     const scaleExpr = text.substring(pos).trim();
     if (scaleExpr) {
       const { value: scaleNode } = parseExpression(scaleExpr, start, end);
       scaleFactor = scaleNode;
+    } else {
+      // Missing scale factor after *
+      error = missingScaleFactor(start + starPos);
     }
   }
 
-  return { register, size, scaleFactor };
+  return { register, size, scaleFactor, error };
 }
 
 /**
@@ -258,8 +265,16 @@ function parseMemoryIndirectWithTokens(
   start: number,
   end: number,
 ): ParseResult<MemoryIndirectNode> {
-  const tokens = tokenizeOperand(text);
+  const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
   let pos = 0;
+
+  // If tokenizer had errors, return first one
+  if (tokenizerErrors.length > 0) {
+    return {
+      success: false,
+      error: tokenizerErrors[0],
+    };
+  }
 
   function current(): OperandToken {
     return tokens[pos] || tokens[tokens.length - 1];
@@ -358,6 +373,14 @@ function parseMemoryIndirectWithTokens(
     const indexSpec = parseIndexSpec(second, start, end);
 
     if (firstIsBaseReg && indexSpec) {
+      // Check for parseIndexSpec error first
+      if (indexSpec.error) {
+        return {
+          success: false,
+          error: indexSpec.error,
+        };
+      }
+
       // [An,Rn.s*scale]
       baseRegister = createRegisterNode(
         first,
@@ -400,6 +423,14 @@ function parseMemoryIndirectWithTokens(
 
     const indexSpec = parseIndexSpec(idx, start, end);
     if (indexSpec) {
+      // Check for parseIndexSpec error first
+      if (indexSpec.error) {
+        return {
+          success: false,
+          error: indexSpec.error,
+        };
+      }
+
       indexRegister = indexSpec.register;
       indexSize = indexSpec.size;
       scaleFactor = indexSpec.scaleFactor;
@@ -459,8 +490,16 @@ function parseIndexedAddressingWithTokens(
   start: number,
   end: number,
 ): ParseResult<OperandNode> {
-  const tokens = tokenizeOperand(text);
+  const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
   let pos = 0;
+
+  // If tokenizer had errors, return first one
+  if (tokenizerErrors.length > 0) {
+    return {
+      success: false,
+      error: tokenizerErrors[0],
+    };
+  }
 
   function current(): OperandToken {
     return tokens[pos] || tokens[tokens.length - 1];
@@ -531,6 +570,14 @@ function parseIndexedAddressingWithTokens(
           `Invalid index register format '${indexPart}'`,
           start,
         ),
+      };
+    }
+
+    // Check for parseIndexSpec error
+    if (indexSpec.error) {
+      return {
+        success: false,
+        error: indexSpec.error,
       };
     }
 
@@ -650,6 +697,14 @@ function parseIndexedAddressingWithTokens(
       };
     }
 
+    // Check for parseIndexSpec error
+    if (indexSpec.error) {
+      return {
+        success: false,
+        error: indexSpec.error,
+      };
+    }
+
     const indexRegister = indexSpec.register;
     const indexSize = indexSpec.size;
     const scaleFactor = indexSpec.scaleFactor;
@@ -711,8 +766,16 @@ function parseBitfieldWithTokens(
   start: number,
   end: number,
 ): ParseResult<OperandNode> {
-  const tokens = tokenizeOperand(text);
+  const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
   let pos = 0;
+
+  // If tokenizer had errors, return first one
+  if (tokenizerErrors.length > 0) {
+    return {
+      success: false,
+      error: tokenizerErrors[0],
+    };
+  }
 
   function current(): OperandToken {
     return tokens[pos] || tokens[tokens.length - 1];

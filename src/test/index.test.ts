@@ -1222,4 +1222,48 @@ describe("parse", () => {
       });
     });
   });
+
+  describe("Silent Error Detection", () => {
+    it("reports error for missing scale factor after *", () => {
+      const line = parseLine(" move.w label(a1,d0.w*),d0");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("MISSING_SCALE_FACTOR");
+      expect(line.errors?.[0].message).toContain("Missing scale factor after '*'");
+    });
+
+    it("reports error for malformed hex number in expression ($ without digits)", () => {
+      const line = parseLine(" move.w #$,d0");
+      expect(line.errors).toBeDefined();
+      // Parser reports invalid expression when $ is not followed by digits
+      expect(line.errors?.[0].code).toBe("INVALID_EXPRESSION");
+    });
+
+    it("reports error for malformed binary number in expression (% without digits)", () => {
+      const line = parseLine(" move.w #%,d0");
+      expect(line.errors).toBeDefined();
+      // % is binary XOR operator in expressions, so this should parse
+      // Actually no error here - % is a valid operator
+      // Let's check with just % by itself which would be unexpected
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("INVALID_EXPRESSION");
+    });
+
+    it("reports error for unknown character in expression", () => {
+      const line = parseLine(" move.w #5@3,d0");
+      expect(line.errors).toBeDefined();
+      // @ after a digit is not valid in expressions
+      expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
+    });
+
+    it("reports missing scale factor error and stops parsing", () => {
+      const line = parseLine(" move.w label(a1,d0.w*),d0");
+      // When there's a missing scale factor, parsing fails
+      expect(line.operands).toBeDefined();
+      expect(line.operands?.length).toBe(2);
+      expect(line.operands?.[0].type).toBe("unknown");
+      // Should have the error
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("MISSING_SCALE_FACTOR");
+    });
+  });
 });

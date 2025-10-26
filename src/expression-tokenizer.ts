@@ -1,4 +1,5 @@
 import { NumberFormat } from "./types";
+import { OperandParseError, unknownCharacter } from "./parse-error";
 import {
   isDigit,
   isHexDigit,
@@ -23,11 +24,18 @@ export type ExpressionToken =
   | { type: "macro-parameter"; value: string; position: number }
   | { type: "eof"; position: number };
 
+export interface ExpressionTokenizeResult {
+  tokens: ExpressionToken[];
+  errors: OperandParseError[];
+}
+
 /**
  * Tokenize an expression string
+ * Returns tokens and any errors encountered during tokenization
  */
-export function tokenizeExpression(expr: string): ExpressionToken[] {
+export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
   const tokens: ExpressionToken[] = [];
+  const errors: OperandParseError[] = [];
   let i = 0;
 
   while (i < expr.length) {
@@ -207,7 +215,8 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
           continue;
         }
       }
-      // If we couldn't parse it as a macro parameter, treat backslash as unknown
+      // If we couldn't parse it as a macro parameter, report unknown character
+      errors.push(unknownCharacter("\\", i - 1));
       continue;
     }
 
@@ -222,10 +231,11 @@ export function tokenizeExpression(expr: string): ExpressionToken[] {
       continue;
     }
 
-    // Unknown character - skip it
+    // Unknown character - report error and skip it
+    errors.push(unknownCharacter(char, i));
     i++;
   }
 
   tokens.push({ type: "eof", position: i });
-  return tokens;
+  return { tokens, errors };
 }

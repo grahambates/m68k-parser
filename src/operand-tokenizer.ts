@@ -11,6 +11,11 @@ import {
   isFPUControlRegister,
 } from "./syntax";
 import {
+  OperandParseError,
+  unknownCharacter,
+  malformedNumber,
+} from "./parse-error";
+import {
   isIdentifierStart,
   isIdentifierPart,
   isDigit,
@@ -47,6 +52,11 @@ export interface OperandToken {
   position: number; // Character position in original string
 }
 
+export interface OperandTokenizeResult {
+  tokens: OperandToken[];
+  errors: OperandParseError[];
+}
+
 /**
  * Check if a string is a register name using existing helpers from syntax.ts
  */
@@ -63,9 +73,11 @@ function isRegisterName(str: string): boolean {
 
 /**
  * Tokenize an operand string
+ * Returns tokens and any errors encountered during tokenization
  */
-export function tokenizeOperand(text: string): OperandToken[] {
+export function tokenizeOperand(text: string): OperandTokenizeResult {
   const tokens: OperandToken[] = [];
+  const errors: OperandParseError[] = [];
   let pos = 0;
 
   function peek(offset = 0): string {
@@ -179,6 +191,10 @@ export function tokenizeOperand(text: string): OperandToken[] {
       while (pos < text.length && isHexDigit(peek())) {
         value += advance();
       }
+      if (value === "$") {
+        // No hex digits after $
+        errors.push(malformedNumber("$", start));
+      }
       tokens.push({ type: "number", value, position: start });
       continue;
     }
@@ -189,6 +205,10 @@ export function tokenizeOperand(text: string): OperandToken[] {
       while (pos < text.length && isBinaryDigit(peek())) {
         value += advance();
       }
+      if (value === "%") {
+        // No binary digits after %
+        errors.push(malformedNumber("%", start));
+      }
       tokens.push({ type: "number", value, position: start });
       continue;
     }
@@ -198,6 +218,10 @@ export function tokenizeOperand(text: string): OperandToken[] {
       let value = "@";
       while (pos < text.length && isOctalDigit(peek())) {
         value += advance();
+      }
+      if (value === "@") {
+        // No octal digits after @
+        errors.push(malformedNumber("@", start));
       }
       tokens.push({ type: "number", value, position: start });
       continue;
@@ -248,10 +272,11 @@ export function tokenizeOperand(text: string): OperandToken[] {
       continue;
     }
 
-    // Unknown character - skip it
+    // Unknown character - report error and skip it
+    errors.push(unknownCharacter(ch, pos));
     advance();
   }
 
   tokens.push({ type: "eof", value: "", position: pos });
-  return tokens;
+  return { tokens, errors };
 }

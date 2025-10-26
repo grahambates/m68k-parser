@@ -2,7 +2,7 @@ import { tokenizeOperand } from "../operand-tokenizer";
 
 describe("Operand Tokenizer", () => {
   it("should tokenize simple register", () => {
-    const tokens = tokenizeOperand("d0");
+    const { tokens } = tokenizeOperand("d0");
     expect(tokens.length).toBe(2); // d0 + EOF
     expect(tokens[0].type).toBe("register");
     expect(tokens[0].value).toBe("d0");
@@ -10,7 +10,7 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should tokenize immediate value with hex number", () => {
-    const tokens = tokenizeOperand("#$FF");
+    const { tokens } = tokenizeOperand("#$FF");
     expect(tokens.length).toBe(3); // # + $FF + EOF
     expect(tokens[0].type).toBe("hash");
     expect(tokens[1].type).toBe("number");
@@ -19,7 +19,7 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should tokenize memory indirect addressing", () => {
-    const tokens = tokenizeOperand("([8,a1,d0.w*2],4)");
+    const { tokens } = tokenizeOperand("([8,a1,d0.w*2],4)");
     expect(tokens[0].type).toBe("lparen");
     expect(tokens[1].type).toBe("lbracket");
     expect(tokens[2].type).toBe("number");
@@ -45,7 +45,7 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should tokenize indexed addressing", () => {
-    const tokens = tokenizeOperand("8(a0,d1.w*2)");
+    const { tokens } = tokenizeOperand("8(a0,d1.w*2)");
     expect(tokens[0].type).toBe("number");
     expect(tokens[0].value).toBe("8");
     expect(tokens[1].type).toBe("lparen");
@@ -65,7 +65,7 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should tokenize bitfield specification", () => {
-    const tokens = tokenizeOperand("{d0:8}");
+    const { tokens } = tokenizeOperand("{d0:8}");
     expect(tokens[0].type).toBe("lbrace");
     expect(tokens[1].type).toBe("register");
     expect(tokens[1].value).toBe("d0");
@@ -77,91 +77,91 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should tokenize string literals with double quotes", () => {
-    const tokens = tokenizeOperand('"Hello"');
+    const { tokens } = tokenizeOperand('"Hello"');
     expect(tokens[0].type).toBe("string");
     expect(tokens[0].value).toBe('"Hello"');
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize string literals with single quotes", () => {
-    const tokens = tokenizeOperand("'World'");
+    const { tokens } = tokenizeOperand("'World'");
     expect(tokens[0].type).toBe("string");
     expect(tokens[0].value).toBe("'World'");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize string literals with angle brackets", () => {
-    const tokens = tokenizeOperand("<text>");
+    const { tokens } = tokenizeOperand("<text>");
     expect(tokens[0].type).toBe("string");
     expect(tokens[0].value).toBe("<text>");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize binary numbers", () => {
-    const tokens = tokenizeOperand("%101010");
+    const { tokens } = tokenizeOperand("%101010");
     expect(tokens[0].type).toBe("number");
     expect(tokens[0].value).toBe("%101010");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize octal numbers", () => {
-    const tokens = tokenizeOperand("@77");
+    const { tokens } = tokenizeOperand("@77");
     expect(tokens[0].type).toBe("number");
     expect(tokens[0].value).toBe("@77");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize decimal numbers", () => {
-    const tokens = tokenizeOperand("123");
+    const { tokens } = tokenizeOperand("123");
     expect(tokens[0].type).toBe("number");
     expect(tokens[0].value).toBe("123");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize symbols", () => {
-    const tokens = tokenizeOperand("label");
+    const { tokens } = tokenizeOperand("label");
     expect(tokens[0].type).toBe("symbol");
     expect(tokens[0].value).toBe("label");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize macro parameters - numeric", () => {
-    const tokens = tokenizeOperand("\\1");
+    const { tokens } = tokenizeOperand("\\1");
     expect(tokens[0].type).toBe("symbol"); // Macro params are treated as symbols in tokenizer
     expect(tokens[0].value).toBe("\\1");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize macro parameters - special", () => {
-    const tokens = tokenizeOperand("\\@");
+    const { tokens } = tokenizeOperand("\\@");
     expect(tokens[0].type).toBe("symbol");
     expect(tokens[0].value).toBe("\\@");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize macro parameters - named", () => {
-    const tokens = tokenizeOperand("\\<param>");
+    const { tokens } = tokenizeOperand("\\<param>");
     expect(tokens[0].type).toBe("symbol");
     expect(tokens[0].value).toBe("\\<param>");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize macro parameters - unique push", () => {
-    const tokens = tokenizeOperand("\\@!");
+    const { tokens } = tokenizeOperand("\\@!");
     expect(tokens[0].type).toBe("symbol");
     expect(tokens[0].value).toBe("\\@!");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize macro parameters - unique pull", () => {
-    const tokens = tokenizeOperand("\\@@");
+    const { tokens } = tokenizeOperand("\\@@");
     expect(tokens[0].type).toBe("symbol");
     expect(tokens[0].value).toBe("\\@@");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should tokenize operators correctly", () => {
-    const tokens = tokenizeOperand("(a+b-c*d/e)");
+    const { tokens } = tokenizeOperand("(a+b-c*d/e)");
     expect(tokens[0].type).toBe("lparen");
     expect(tokens[1].type).toBe("symbol");
     expect(tokens[1].value).toBe("a");
@@ -182,7 +182,7 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should skip whitespace", () => {
-    const tokens = tokenizeOperand("  a0  ,  d1  ");
+    const { tokens } = tokenizeOperand("  a0  ,  d1  ");
     expect(tokens[0].type).toBe("register");
     expect(tokens[0].value).toBe("a0");
     expect(tokens[1].type).toBe("comma");
@@ -192,7 +192,7 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should track token positions", () => {
-    const tokens = tokenizeOperand("8(a0,d1)");
+    const { tokens } = tokenizeOperand("8(a0,d1)");
     expect(tokens[0].position).toBe(0); // 8
     expect(tokens[1].position).toBe(1); // (
     expect(tokens[2].position).toBe(2); // a0
@@ -202,14 +202,14 @@ describe("Operand Tokenizer", () => {
   });
 
   it("should recognize FPU registers", () => {
-    const tokens = tokenizeOperand("fp7");
+    const { tokens } = tokenizeOperand("fp7");
     expect(tokens[0].type).toBe("register");
     expect(tokens[0].value).toBe("fp7");
     expect(tokens[1].type).toBe("eof");
   });
 
   it("should recognize special registers", () => {
-    const tokens = tokenizeOperand("sr");
+    const { tokens } = tokenizeOperand("sr");
     expect(tokens[0].type).toBe("register");
     expect(tokens[0].value).toBe("sr");
     expect(tokens[1].type).toBe("eof");

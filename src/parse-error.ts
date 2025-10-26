@@ -23,7 +23,10 @@ export type OperandErrorCode =
   | "MISSING_INDEX_REGISTER"
   | "DUPLICATE_COMPONENT"
   | "MISSING_OPERAND"
-  | "INVALID_EXPRESSION";
+  | "INVALID_EXPRESSION"
+  | "UNKNOWN_CHARACTER"
+  | "MALFORMED_NUMBER"
+  | "MISSING_SCALE_FACTOR";
 
 export interface OperandParseError {
   code: OperandErrorCode;
@@ -254,4 +257,64 @@ export function invalidExpression(
   position: number
 ): OperandParseError {
   return createError("INVALID_EXPRESSION", message, position);
+}
+
+export function unknownCharacter(
+  char: string,
+  position: number
+): OperandParseError {
+  const displayChar = char === " " ? "space" : char === "\t" ? "tab" : char === "\n" ? "newline" : `'${char}'`;
+  return createError(
+    "UNKNOWN_CHARACTER",
+    `Unknown character ${displayChar}`,
+    position,
+    {
+      got: char,
+      length: 1,
+      hint: "Character is not valid in this context",
+    }
+  );
+}
+
+export function malformedNumber(
+  prefix: string,
+  position: number
+): OperandParseError {
+  let hint: string;
+  switch (prefix) {
+    case "$":
+      hint = "Hex number format: $1A2F (hexadecimal digits 0-9, A-F)";
+      break;
+    case "%":
+      hint = "Binary number format: %1010 (binary digits 0-1)";
+      break;
+    case "@":
+      hint = "Octal number format: @377 (octal digits 0-7)";
+      break;
+    default:
+      hint = "Number must have digits after prefix";
+  }
+
+  return createError(
+    "MALFORMED_NUMBER",
+    `Malformed number with prefix '${prefix}'`,
+    position,
+    {
+      got: prefix,
+      length: 1,
+      hint,
+    }
+  );
+}
+
+export function missingScaleFactor(position: number): OperandParseError {
+  return createError(
+    "MISSING_SCALE_FACTOR",
+    "Missing scale factor after '*'",
+    position,
+    {
+      expected: ["1", "2", "4", "8", "expression"],
+      hint: "Scale factor required after * (e.g., d0.w*2 or d0.w*scale)",
+    }
+  );
 }
