@@ -26,7 +26,8 @@ export type OperandErrorCode =
   | "INVALID_EXPRESSION"
   | "UNKNOWN_CHARACTER"
   | "MALFORMED_NUMBER"
-  | "MISSING_SCALE_FACTOR";
+  | "MISSING_SCALE_FACTOR"
+  | "INVALID_BASE_REGISTER";
 
 export interface OperandParseError {
   code: OperandErrorCode;
@@ -315,6 +316,22 @@ export function missingScaleFactor(position: number): OperandParseError {
     {
       expected: ["1", "2", "4", "8", "expression"],
       hint: "Scale factor required after * (e.g., d0.w*2 or d0.w*scale)",
+    }
+  );
+}
+
+export function invalidBaseRegister(
+  register: string,
+  position: number
+): OperandParseError {
+  return createError(
+    "INVALID_BASE_REGISTER",
+    `Invalid base register '${register}' - address register required`,
+    position,
+    {
+      expected: ["a0-a7", "sp", "macro parameter", "symbol"],
+      got: register,
+      hint: "Base register must be an address register (a0-a7, sp), not a data register (d0-d7)",
     }
   );
 }

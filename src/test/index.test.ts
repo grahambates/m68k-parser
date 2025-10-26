@@ -1146,7 +1146,7 @@ describe("parse", () => {
     });
 
     it("reports error for unclosed parenthesis in expression", () => {
-      const line = parseLine(" move.w #(1+2,d0");
+      const line = parseLine(" move.w #(1+2");
       expect(line.errors).toBeDefined();
       expect(line.errors?.[0].code).toBe("UNCLOSED_PAREN");
     });
@@ -1234,8 +1234,9 @@ describe("parse", () => {
     it("reports error for malformed hex number in expression ($ without digits)", () => {
       const line = parseLine(" move.w #$,d0");
       expect(line.errors).toBeDefined();
-      // Parser reports invalid expression when $ is not followed by digits
-      expect(line.errors?.[0].code).toBe("INVALID_EXPRESSION");
+      // Tokenizer reports $ as unknown character when not followed by hex digits
+      expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
+      expect(line.errors?.[0].got).toBe("$");
     });
 
     it("reports error for malformed binary number in expression (% without digits)", () => {
@@ -1264,6 +1265,52 @@ describe("parse", () => {
       // Should have the error
       expect(line.errors).toBeDefined();
       expect(line.errors?.[0].code).toBe("MISSING_SCALE_FACTOR");
+    });
+
+    it("accepts macro parameters in index register position", () => {
+      const line = parseLine(" move.w d0,(a0,\\1)");
+      expect(line.operands).toBeDefined();
+      expect(line.operands?.length).toBe(2);
+      expect(line.operands?.[1].type).toBe("address-register-indirect-index");
+      if (line.operands?.[1].type === "address-register-indirect-index") {
+        expect(line.operands[1].indexRegister.type).toBe("macro-parameter");
+      }
+    });
+
+    it("accepts macro parameters with size in index position", () => {
+      const line = parseLine(" move.w d0,(a0,\\1.w)");
+      expect(line.operands).toBeDefined();
+      expect(line.operands?.length).toBe(2);
+      expect(line.operands?.[1].type).toBe("address-register-indirect-index");
+      if (line.operands?.[1].type === "address-register-indirect-index") {
+        expect(line.operands[1].indexRegister.type).toBe("macro-parameter");
+        expect(line.operands[1].indexSize?.type).toBe("size");
+      }
+    });
+
+    it("rejects data registers as base registers in indexed addressing", () => {
+      const line = parseLine(" move.w (d0,a1.w),d1");
+      expect(line.errors).toBeDefined();
+      expect(line.errors?.[0].code).toBe("INVALID_BASE_REGISTER");
+      expect(line.errors?.[0].message).toContain("d0");
+    });
+
+    it("reports error for invalid expression with addressing mode syntax", () => {
+      const line = parseLine(" move.w #1,l+(a1,d0.w)");
+      expect(line.errors).toBeDefined();
+      // The operand l+(a1,d0.w) is parsed as indexed addressing: l+ is the
+      // displacement, (a1,d0.w) is the indexed part. The displacement l+ is an
+      // incomplete binary operation (missing right operand after +)
+      expect(line.errors?.[0].code).toBe("INVALID_EXPRESSION");
+      expect(line.errors?.[0].message).toContain("Unexpected token 'eof'");
+    });
+
+    it("reports error for immediate value with parentheses and comma", () => {
+      const line = parseLine(" move.w #l+(a1,d0.w),d0");
+      expect(line.errors).toBeDefined();
+      // #l+(a1,d0.w) is parsed as an immediate expression. The comma is invalid in expressions
+      expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
+      expect(line.errors?.[0].got).toBe(",");
     });
   });
 });

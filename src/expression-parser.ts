@@ -263,8 +263,9 @@ export function parseExpression(
 
   const expression = parseLogicalOr();
 
-  // Use parse error if present, otherwise use first tokenizer error
-  const finalError = parseError || (tokenizerErrors.length > 0 ? tokenizerErrors[0] : undefined);
+  // Prioritize tokenizer errors as they represent more fundamental issues
+  // If tokenizer can't recognize characters, that's the root cause
+  const finalError = (tokenizerErrors.length > 0 ? tokenizerErrors[0] : undefined) || parseError;
 
   return { value: expression, error: finalError };
 }

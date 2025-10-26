@@ -39,6 +39,7 @@ import {
   malformedBitfield,
   unclosedBrace,
   missingScaleFactor,
+  invalidBaseRegister,
   OperandParseError,
 } from "./parse-error";
 import { parseMacroParameter } from "./macro-utils";
@@ -107,64 +108,108 @@ function createRegisterNode(
 /**
  * Helper to create an address register, symbol, or macro parameter node
  * Used for addressing modes where the register can be dynamic
+ * Returns error if a data register is provided (not allowed as base register)
  */
 function createAddressRegisterOrSymbolNode(
   name: string,
   start: number,
   end: number,
-): AddressRegisterNode | SymbolNode | MacroParameterNode {
+): {
+  node: AddressRegisterNode | SymbolNode | MacroParameterNode;
+  error?: OperandParseError;
+} {
   // Check if it's a macro parameter
   const macroPar = parseMacroParameter(name, start, end);
   if (macroPar) {
-    return macroPar;
+    return { node: macroPar };
   }
 
   const lower = name.toLowerCase();
 
+  // Check if it's a data register - not allowed as base register
+  if (isDataRegister(lower)) {
+    return {
+      node: {
+        type: "symbol",
+        name: name,
+        start,
+        end,
+      },
+      error: invalidBaseRegister(name, start),
+    };
+  }
+
   // Check if it's a valid address register
   if (isAddressRegister(lower)) {
     return {
-      type: "address-register",
-      register: lower as AddressRegister,
-      start,
-      end,
+      node: {
+        type: "address-register",
+        register: lower as AddressRegister,
+        start,
+        end,
+      },
     };
   }
 
   // Treat as symbol
   return {
-    type: "symbol",
-    name: name,
-    start,
-    end,
+    node: {
+      type: "symbol",
+      name: name,
+      start,
+      end,
+    },
   };
 }
 
 /**
  * Helper to parse index register with optional size and scale factor
- * Format: Rn or Rn.size or Rn.size*scale or Rn*scale
- * Returns the register, size, and scale factor (as expression), or null if not a register
+ * Format: Rn or Rn.size or Rn.size*scale or Rn*scale or \1 or \<param>
+ * Returns the register, size, and scale factor (as expression), or null if not parseable
  */
 function parseIndexSpec(
   text: string,
   start: number,
   end: number,
 ): {
-  register: DataRegisterNode | AddressRegisterNode;
+  register: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
   size?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode;
   error?: OperandParseError;
 } | null {
-  // Match: register name (required)
-  const regMatch = /^([ad][0-7]|sp)/i.exec(text);
-  if (!regMatch) return null;
+  let pos = 0;
+  let registerNode: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
 
-  const registerName = regMatch[1];
-  let pos = registerName.length;
-
-  const register = createRegisterNode(registerName, start, end) as
-    | DataRegisterNode
-    | AddressRegisterNode;
+  // Try to match macro parameter first: \1, \@, \<name>, etc.
+  // Match: \ followed by: digit, letter, @-variants, <name>, ?n, or .-+ symbols
+  const macroMatch = /^(\\(?:\d+|[a-z]|@!|@\?|@@|@|<[^>]+>|\?(?:\d+|[a-z])|[.+-]))/.exec(text);
+  if (macroMatch) {
+    const macroParam = parseMacroParameter(macroMatch[1], start, end);
+    if (macroParam) {
+      registerNode = macroParam;
+      pos = macroMatch[1].length;
+    } else {
+      // Not a valid macro parameter, try register
+      const regMatch = /^([ad][0-7]|sp)/i.exec(text);
+      if (!regMatch) return null;
+      registerNode = createRegisterNode(regMatch[1], start, end) as
+        | DataRegisterNode
+        | AddressRegisterNode;
+      pos = regMatch[1].length;
+    }
+  } else {
+    // Try register name
+    const regMatch = /^([ad][0-7]|sp)/i.exec(text);
+    if (regMatch) {
+      registerNode = createRegisterNode(regMatch[1], start, end) as
+        | DataRegisterNode
+        | AddressRegisterNode;
+      pos = regMatch[1].length;
+    } else {
+      // Not a register or macro, return null
+      return null;
+    }
+  }
 
   let size: SizeNode | SymbolNode | MacroParameterNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
@@ -195,7 +240,7 @@ function parseIndexSpec(
     }
   }
 
-  return { register, size, scaleFactor, error };
+  return { register: registerNode, size, scaleFactor, error };
 }
 
 /**
@@ -319,7 +364,7 @@ function parseMemoryIndirectWithTokens(
   // Parse inner content: can be bd, An, Rn.s*scale in various combinations
   let baseDisplacement: ExpressionNode | undefined;
   let baseRegister: AddressRegisterNode | undefined;
-  let indexRegister: DataRegisterNode | AddressRegisterNode | undefined;
+  let indexRegister: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode | undefined;
   let indexSize: SizeNode | SymbolNode | MacroParameterNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
 
@@ -362,7 +407,14 @@ function parseMemoryIndirectWithTokens(
         end,
       ) as AddressRegisterNode;
     } else {
-      baseDisplacement = parseExpression(part, start, end).value;
+      const bdResult = parseExpression(part, start, end);
+      if (bdResult.error) {
+        return {
+          success: false,
+          error: bdResult.error,
+        };
+      }
+      baseDisplacement = bdResult.value;
     }
   } else if (innerParts.length === 2) {
     // [bd,An] or [An,Rn.s*scale]
@@ -401,7 +453,14 @@ function parseMemoryIndirectWithTokens(
       }
     } else {
       // [bd,An]
-      baseDisplacement = parseExpression(first, start, end).value;
+      const bdResult = parseExpression(first, start, end);
+      if (bdResult.error) {
+        return {
+          success: false,
+          error: bdResult.error,
+        };
+      }
+      baseDisplacement = bdResult.value;
       if (isAddressRegister(second.toLowerCase())) {
         baseRegister = createRegisterNode(
           second,
@@ -416,7 +475,14 @@ function parseMemoryIndirectWithTokens(
     const an = innerParts[1];
     const idx = innerParts[2];
 
-    baseDisplacement = parseExpression(bd, start, end).value;
+    const bdResult = parseExpression(bd, start, end);
+    if (bdResult.error) {
+      return {
+        success: false,
+        error: bdResult.error,
+      };
+    }
+    baseDisplacement = bdResult.value;
     if (isAddressRegister(an.toLowerCase())) {
       baseRegister = createRegisterNode(an, start, end) as AddressRegisterNode;
     }
@@ -452,7 +518,14 @@ function parseMemoryIndirectWithTokens(
     consume("comma");
     const outerPart = parseExpressionFromTokens(["rparen", "eof"]);
     if (outerPart) {
-      outerDisplacement = parseExpression(outerPart, start, end).value;
+      const odResult = parseExpression(outerPart, start, end);
+      if (odResult.error) {
+        return {
+          success: false,
+          error: odResult.error,
+        };
+      }
+      outerDisplacement = odResult.value;
     }
   }
 
@@ -594,6 +667,15 @@ function parseIndexedAddressingWithTokens(
       };
     }
 
+    // Parse displacement and check for errors
+    const dispResult = parseExpression(displacement || "0", start, end);
+    if (dispResult.error) {
+      return {
+        success: false,
+        error: dispResult.error,
+      };
+    }
+
     // Check if PC relative or address register
     if (baseReg === "pc") {
       return {
@@ -602,8 +684,7 @@ function parseIndexedAddressingWithTokens(
           type: "pc-relative-index",
           start,
           end,
-          displacement: parseExpression(displacement || "0", start, end)
-            .value,
+          displacement: dispResult.value,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -611,16 +692,22 @@ function parseIndexedAddressingWithTokens(
       };
     } else {
       // Accept any base register, including macro parameters and symbols
+      const baseRegResult = createAddressRegisterOrSymbolNode(baseReg, start, end);
+      if (baseRegResult.error) {
+        return {
+          success: false,
+          error: baseRegResult.error,
+        };
+      }
+
       return {
         success: true,
         value: {
           type: "address-register-indirect-index",
           start,
           end,
-          displacement: displacement
-            ? parseExpression(displacement, start, end).value
-            : undefined,
-          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end),
+          displacement: displacement ? dispResult.value : undefined,
+          baseRegister: baseRegResult.node,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -643,6 +730,15 @@ function parseIndexedAddressingWithTokens(
         | AddressRegisterNode;
       const indexSize = createSizeOrSymbolNode(part2, start, end);
 
+      // Parse displacement and check for errors
+      const dispResult = parseExpression(displacement || "0", start, end);
+      if (dispResult.error) {
+        return {
+          success: false,
+          error: dispResult.error,
+        };
+      }
+
       if (baseReg === "pc") {
         return {
           success: true,
@@ -650,8 +746,7 @@ function parseIndexedAddressingWithTokens(
             type: "pc-relative-index",
             start,
             end,
-            displacement: parseExpression(displacement || "0", start, end)
-              .value,
+            displacement: dispResult.value,
             indexRegister,
             indexSize,
             scaleFactor: undefined,
@@ -665,14 +760,12 @@ function parseIndexedAddressingWithTokens(
             type: "address-register-indirect-index",
             start,
             end,
-            displacement: displacement
-              ? parseExpression(displacement, start, end).value
-              : undefined,
+            displacement: displacement ? dispResult.value : undefined,
             baseRegister: createAddressRegisterOrSymbolNode(
               baseReg,
               start,
               end,
-            ),
+            ).node,
             indexRegister,
             indexSize,
             scaleFactor: undefined,
@@ -718,6 +811,15 @@ function parseIndexedAddressingWithTokens(
       };
     }
 
+    // Parse displacement and check for errors
+    const dispResult = parseExpression(disp, start, end);
+    if (dispResult.error) {
+      return {
+        success: false,
+        error: dispResult.error,
+      };
+    }
+
     if (baseReg === "pc") {
       return {
         success: true,
@@ -725,7 +827,7 @@ function parseIndexedAddressingWithTokens(
           type: "pc-relative-index",
           start,
           end,
-          displacement: parseExpression(disp, start, end).value,
+          displacement: dispResult.value,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -739,8 +841,8 @@ function parseIndexedAddressingWithTokens(
           type: "address-register-indirect-index",
           start,
           end,
-          displacement: parseExpression(disp, start, end).value,
-          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end),
+          displacement: dispResult.value,
+          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end).node,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -815,7 +917,14 @@ function parseBitfieldWithTokens(
     };
   }
 
-  const offset = parseExpression(offsetPart, start, end).value;
+  const offsetResult = parseExpression(offsetPart, start, end);
+  if (offsetResult.error) {
+    return {
+      success: false,
+      error: offsetResult.error,
+    };
+  }
+  const offset = offsetResult.value;
   let width: ExpressionNode | undefined;
 
   // Check for width (after colon)
@@ -830,7 +939,14 @@ function parseBitfieldWithTokens(
     widthPart = widthPart.trim();
 
     if (widthPart) {
-      width = parseExpression(widthPart, start, end).value;
+      const widthResult = parseExpression(widthPart, start, end);
+      if (widthResult.error) {
+        return {
+          success: false,
+          error: widthResult.error,
+        };
+      }
+      width = widthResult.value;
     }
   }
 
@@ -1096,7 +1212,7 @@ export function parseOperand(
         mode: "pre-decrement",
         start,
         end,
-        register: createAddressRegisterOrSymbolNode(registerName, start, end),
+        register: createAddressRegisterOrSymbolNode(registerName, start, end).node,
       },
     };
   }
@@ -1111,7 +1227,7 @@ export function parseOperand(
         mode: "post-increment",
         start,
         end,
-        register: createAddressRegisterOrSymbolNode(registerName, start, end),
+        register: createAddressRegisterOrSymbolNode(registerName, start, end).node,
       },
     };
   }
@@ -1145,15 +1261,16 @@ export function parseOperand(
     }
 
     // Address register indirect with displacement: (disp,an)
+    const regResult = createAddressRegisterOrSymbolNode(register, start, end);
     return {
       value: {
         type: "address-register-indirect-displacement",
         start,
         end,
         displacement: dispExpr,
-        register: createAddressRegisterOrSymbolNode(register, start, end),
+        register: regResult.node,
       },
-      error: dispError,
+      error: dispError || regResult.error,
     };
   }
 
@@ -1228,7 +1345,7 @@ export function parseOperand(
           type: "address-register-indirect",
           start,
           end,
-          register: createAddressRegisterOrSymbolNode(register, start, end),
+          register: createAddressRegisterOrSymbolNode(register, start, end).node,
           mode: "simple",
         },
       };
@@ -1240,15 +1357,16 @@ export function parseOperand(
       start,
       end,
     );
+    const regResult2 = createAddressRegisterOrSymbolNode(register, start, end);
     return {
       value: {
         type: "address-register-indirect-displacement",
         start,
         end,
         displacement: dispExpr,
-        register: createAddressRegisterOrSymbolNode(register, start, end),
+        register: regResult2.node,
       },
-      error: dispError,
+      error: dispError || regResult2.error,
     };
   }
 

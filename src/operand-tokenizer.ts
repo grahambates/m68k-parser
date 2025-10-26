@@ -40,6 +40,14 @@ export type OperandTokenType =
   | "star" // *
   | "slash" // /
   | "colon" // :
+  | "tilde" // ~
+  | "caret" // ^
+  | "exclamation" // !
+  | "pipe" // |
+  | "ampersand" // &
+  | "equals" // =
+  | "less" // <
+  | "greater" // >
   | "register" // d0-d7, a0-a7, sp, fp0-fp7, etc.
   | "number" // numeric literals
   | "symbol" // identifiers
@@ -158,6 +166,52 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
       case ":":
         advance();
         tokens.push({ type: "colon", value: ":", position: start });
+        continue;
+      case "~":
+        advance();
+        tokens.push({ type: "tilde", value: "~", position: start });
+        continue;
+      case "^":
+        advance();
+        tokens.push({ type: "caret", value: "^", position: start });
+        continue;
+      case "!":
+        advance();
+        tokens.push({ type: "exclamation", value: "!", position: start });
+        continue;
+      case "|":
+        advance();
+        tokens.push({ type: "pipe", value: "|", position: start });
+        continue;
+      case "&":
+        advance();
+        tokens.push({ type: "ampersand", value: "&", position: start });
+        continue;
+      case "=":
+        advance();
+        tokens.push({ type: "equals", value: "=", position: start });
+        continue;
+      case "<":
+        // Check if this is a string literal <text> or an operator
+        if (pos + 1 < text.length && !isWhitespace(peek(1)) && peek(1) !== '>') {
+          // Could be either < operator or <string>
+          // Peek ahead to see if there's a matching >
+          let lookahead = pos + 1;
+          let foundClose = false;
+          while (lookahead < text.length && text[lookahead] !== '>' && !isWhitespace(text[lookahead])) {
+            lookahead++;
+          }
+          if (lookahead < text.length && text[lookahead] === '>') {
+            // Looks like <string>, fall through to string literal handling below
+            break;
+          }
+        }
+        advance();
+        tokens.push({ type: "less", value: "<", position: start });
+        continue;
+      case ">":
+        advance();
+        tokens.push({ type: "greater", value: ">", position: start });
         continue;
     }
 

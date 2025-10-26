@@ -670,6 +670,27 @@ describe("Expression Parsing", () => {
       });
     });
 
+    it("parses bitwise operators in indexed addressing displacement", () => {
+      const line = parseLine("  move.w #1,l~2(a1,d0.w)");
+      expect(line.operands?.[1]).toMatchObject({
+        type: "address-register-indirect-index",
+        displacement: {
+          type: "binary-op",
+          operator: "^", // ~ is normalized to ^
+          left: { type: "symbol", name: "l" },
+          right: { type: "numeric-literal", format: "decimal", value: 2 },
+        },
+        baseRegister: {
+          type: "address-register",
+          register: "a1",
+        },
+        indexRegister: {
+          type: "data-register",
+          register: "d0",
+        },
+      });
+    });
+
     it("parses expression in PC-relative", () => {
       const line = parseLine("  bra table+index*4(pc)");
       expect(line.operands?.[0]).toMatchObject({
