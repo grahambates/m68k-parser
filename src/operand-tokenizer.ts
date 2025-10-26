@@ -193,15 +193,22 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
         continue;
       case "<":
         // Check if this is a string literal <text> or an operator
-        if (pos + 1 < text.length && !isWhitespace(peek(1)) && peek(1) !== '>') {
+        if (
+          pos + 1 < text.length &&
+          !isWhitespace(peek(1)) &&
+          peek(1) !== ">"
+        ) {
           // Could be either < operator or <string>
           // Peek ahead to see if there's a matching >
           let lookahead = pos + 1;
-          let foundClose = false;
-          while (lookahead < text.length && text[lookahead] !== '>' && !isWhitespace(text[lookahead])) {
+          while (
+            lookahead < text.length &&
+            text[lookahead] !== ">" &&
+            !isWhitespace(text[lookahead])
+          ) {
             lookahead++;
           }
-          if (lookahead < text.length && text[lookahead] === '>') {
+          if (lookahead < text.length && text[lookahead] === ">") {
             // Looks like <string>, fall through to string literal handling below
             break;
           }
@@ -223,7 +230,11 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
         value += advance();
       }
       if (peek() === quote) advance(); // consume closing quote
-      tokens.push({ type: "string", value: quote + value + quote, position: start });
+      tokens.push({
+        type: "string",
+        value: quote + value + quote,
+        position: start,
+      });
       continue;
     }
 
@@ -234,7 +245,11 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
         value += advance();
       }
       if (peek() === ">") advance(); // consume closing >
-      tokens.push({ type: "string", value: "<" + value + ">", position: start });
+      tokens.push({
+        type: "string",
+        value: "<" + value + ">",
+        position: start,
+      });
       continue;
     }
 
@@ -305,10 +320,19 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
           if (peek() === ">") value += advance(); // >
         } else {
           // \1, \@, etc. - just take next char(s)
-          while (pos < text.length && (isIdentifierPart(peek()) || peek() === "@" || peek() === "?" || peek() === "!")) {
+          while (
+            pos < text.length &&
+            (isIdentifierPart(peek()) ||
+              peek() === "@" ||
+              peek() === "?" ||
+              peek() === "!")
+          ) {
             value += advance();
             // Special handling for \@@, \@!, \@?
-            if (value.endsWith("@") && (peek() === "@" || peek() === "!" || peek() === "?")) {
+            if (
+              value.endsWith("@") &&
+              (peek() === "@" || peek() === "!" || peek() === "?")
+            ) {
               value += advance();
               break;
             }

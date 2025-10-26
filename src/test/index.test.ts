@@ -1228,7 +1228,9 @@ describe("parse", () => {
       const line = parseLine(" move.w label(a1,d0.w*),d0");
       expect(line.errors).toBeDefined();
       expect(line.errors?.[0].code).toBe("MISSING_SCALE_FACTOR");
-      expect(line.errors?.[0].message).toContain("Missing scale factor after '*'");
+      expect(line.errors?.[0].message).toContain(
+        "Missing scale factor after '*'",
+      );
     });
 
     it("reports error for malformed hex number in expression ($ without digits)", () => {

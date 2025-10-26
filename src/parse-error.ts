@@ -51,7 +51,7 @@ export function createError(
     expected?: string[];
     got?: string;
     hint?: string;
-  }
+  },
 ): OperandParseError {
   return {
     code,
@@ -69,7 +69,7 @@ export function createError(
  */
 export function formatError(
   error: OperandParseError,
-  operandText: string
+  operandText: string,
 ): string {
   const lines: string[] = [];
 
@@ -107,7 +107,7 @@ export function formatError(
 export function unexpectedToken(
   got: string,
   position: number,
-  expected?: string[]
+  expected?: string[],
 ): OperandParseError {
   return createError(
     "UNEXPECTED_TOKEN",
@@ -117,14 +117,14 @@ export function unexpectedToken(
       expected,
       got,
       length: got.length,
-    }
+    },
   );
 }
 
 export function expectedToken(
   expected: string[],
   position: number,
-  got?: string
+  got?: string,
 ): OperandParseError {
   return createError(
     "EXPECTED_TOKEN",
@@ -133,7 +133,7 @@ export function expectedToken(
     {
       expected,
       got,
-    }
+    },
   );
 }
 
@@ -144,7 +144,7 @@ export function unclosedBracket(position: number): OperandParseError {
     position,
     {
       hint: "Memory indirect addressing requires matching [ and ]",
-    }
+    },
   );
 }
 
@@ -155,7 +155,7 @@ export function unclosedParen(position: number): OperandParseError {
     position,
     {
       hint: "Indirect addressing requires matching ( and )",
-    }
+    },
   );
 }
 
@@ -166,13 +166,13 @@ export function unclosedBrace(position: number): OperandParseError {
     position,
     {
       hint: "Bitfield specification requires matching { and }",
-    }
+    },
   );
 }
 
 export function invalidScaleFactor(
   got: string,
-  position: number
+  position: number,
 ): OperandParseError {
   return createError(
     "INVALID_SCALE_FACTOR",
@@ -182,13 +182,13 @@ export function invalidScaleFactor(
       expected: ["1", "2", "4", "8"],
       got,
       hint: "Scale factor must be 1, 2, 4, or 8 (68020+ only)",
-    }
+    },
   );
 }
 
 export function invalidIndexSize(
   got: string,
-  position: number
+  position: number,
 ): OperandParseError {
   return createError(
     "INVALID_INDEX_SIZE",
@@ -198,41 +198,31 @@ export function invalidIndexSize(
       expected: ["w", "l"],
       got,
       hint: "Index size must be .w (word) or .l (long)",
-    }
+    },
   );
 }
 
 export function malformedMemoryIndirect(
   message: string,
-  position: number
+  position: number,
 ): OperandParseError {
-  return createError(
-    "MALFORMED_MEMORY_INDIRECT",
-    message,
-    position,
-    {
-      hint: "Memory indirect format: ([bd,An,Rn.s*scale],od) - 68020+ only",
-    }
-  );
+  return createError("MALFORMED_MEMORY_INDIRECT", message, position, {
+    hint: "Memory indirect format: ([bd,An,Rn.s*scale],od) - 68020+ only",
+  });
 }
 
 export function malformedIndexedAddressing(
   message: string,
-  position: number
+  position: number,
 ): OperandParseError {
-  return createError(
-    "MALFORMED_INDEXED_ADDRESSING",
-    message,
-    position,
-    {
-      hint: "Indexed addressing format: disp(An,Rn.size) or (An,Rn.size)",
-    }
-  );
+  return createError("MALFORMED_INDEXED_ADDRESSING", message, position, {
+    hint: "Indexed addressing format: disp(An,Rn.size) or (An,Rn.size)",
+  });
 }
 
 export function malformedBitfield(
   message: string,
-  position: number
+  position: number,
 ): OperandParseError {
   return createError("MALFORMED_BITFIELD", message, position, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",
@@ -241,7 +231,7 @@ export function malformedBitfield(
 
 export function missingOperand(
   operator: string,
-  position: number
+  position: number,
 ): OperandParseError {
   return createError(
     "MISSING_OPERAND",
@@ -249,22 +239,29 @@ export function missingOperand(
     position,
     {
       hint: "Binary operators require both left and right operands",
-    }
+    },
   );
 }
 
 export function invalidExpression(
   message: string,
-  position: number
+  position: number,
 ): OperandParseError {
   return createError("INVALID_EXPRESSION", message, position);
 }
 
 export function unknownCharacter(
   char: string,
-  position: number
+  position: number,
 ): OperandParseError {
-  const displayChar = char === " " ? "space" : char === "\t" ? "tab" : char === "\n" ? "newline" : `'${char}'`;
+  const displayChar =
+    char === " "
+      ? "space"
+      : char === "\t"
+        ? "tab"
+        : char === "\n"
+          ? "newline"
+          : `'${char}'`;
   return createError(
     "UNKNOWN_CHARACTER",
     `Unknown character ${displayChar}`,
@@ -273,13 +270,13 @@ export function unknownCharacter(
       got: char,
       length: 1,
       hint: "Character is not valid in this context",
-    }
+    },
   );
 }
 
 export function malformedNumber(
   prefix: string,
-  position: number
+  position: number,
 ): OperandParseError {
   let hint: string;
   switch (prefix) {
@@ -304,7 +301,7 @@ export function malformedNumber(
       got: prefix,
       length: 1,
       hint,
-    }
+    },
   );
 }
 
@@ -316,13 +313,13 @@ export function missingScaleFactor(position: number): OperandParseError {
     {
       expected: ["1", "2", "4", "8", "expression"],
       hint: "Scale factor required after * (e.g., d0.w*2 or d0.w*scale)",
-    }
+    },
   );
 }
 
 export function invalidBaseRegister(
   register: string,
-  position: number
+  position: number,
 ): OperandParseError {
   return createError(
     "INVALID_BASE_REGISTER",
@@ -332,6 +329,6 @@ export function invalidBaseRegister(
       expected: ["a0-a7", "sp", "macro parameter", "symbol"],
       got: register,
       hint: "Base register must be an address register (a0-a7, sp), not a data register (d0-d7)",
-    }
+    },
   );
 }

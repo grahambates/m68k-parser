@@ -299,7 +299,11 @@ export interface AddressRegisterIndirectIndexNode extends Node {
   type: "address-register-indirect-index";
   displacement?: ExpressionNode; // Parsed displacement expression
   baseRegister: AddressRegisterNode | SymbolNode | MacroParameterNode;
-  indexRegister: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
+  indexRegister:
+    | DataRegisterNode
+    | AddressRegisterNode
+    | SymbolNode
+    | MacroParameterNode;
   indexSize?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
 }
@@ -321,7 +325,11 @@ export interface PCRelativeNode extends Node {
 export interface PCRelativeIndexNode extends Node {
   type: "pc-relative-index";
   displacement: ExpressionNode; // Parsed displacement expression
-  indexRegister: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
+  indexRegister:
+    | DataRegisterNode
+    | AddressRegisterNode
+    | SymbolNode
+    | MacroParameterNode;
   indexSize?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
 }
@@ -344,7 +352,11 @@ export interface MemoryIndirectNode extends Node {
   type: "memory-indirect";
   baseDisplacement?: ExpressionNode; // [bd,...]
   baseRegister?: AddressRegisterNode | SymbolNode | MacroParameterNode; // [bd,An,...]
-  indexRegister?: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode; // [bd,An,Rn,...]
+  indexRegister?:
+    | DataRegisterNode
+    | AddressRegisterNode
+    | SymbolNode
+    | MacroParameterNode; // [bd,An,Rn,...]
   indexSize?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
   outerDisplacement?: ExpressionNode; // [...],od

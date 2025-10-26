@@ -172,17 +172,26 @@ function parseIndexSpec(
   start: number,
   end: number,
 ): {
-  register: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
+  register:
+    | DataRegisterNode
+    | AddressRegisterNode
+    | SymbolNode
+    | MacroParameterNode;
   size?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode;
   error?: OperandParseError;
 } | null {
   let pos = 0;
-  let registerNode: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode;
+  let registerNode:
+    | DataRegisterNode
+    | AddressRegisterNode
+    | SymbolNode
+    | MacroParameterNode;
 
   // Try to match macro parameter first: \1, \@, \<name>, etc.
   // Match: \ followed by: digit, letter, @-variants, <name>, ?n, or .-+ symbols
-  const macroMatch = /^(\\(?:\d+|[a-z]|@!|@\?|@@|@|<[^>]+>|\?(?:\d+|[a-z])|[.+-]))/.exec(text);
+  const macroMatch =
+    /^(\\(?:\d+|[a-z]|@!|@\?|@@|@|<[^>]+>|\?(?:\d+|[a-z])|[.+-]))/.exec(text);
   if (macroMatch) {
     const macroParam = parseMacroParameter(macroMatch[1], start, end);
     if (macroParam) {
@@ -364,7 +373,12 @@ function parseMemoryIndirectWithTokens(
   // Parse inner content: can be bd, An, Rn.s*scale in various combinations
   let baseDisplacement: ExpressionNode | undefined;
   let baseRegister: AddressRegisterNode | undefined;
-  let indexRegister: DataRegisterNode | AddressRegisterNode | SymbolNode | MacroParameterNode | undefined;
+  let indexRegister:
+    | DataRegisterNode
+    | AddressRegisterNode
+    | SymbolNode
+    | MacroParameterNode
+    | undefined;
   let indexSize: SizeNode | SymbolNode | MacroParameterNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
 
@@ -692,7 +706,11 @@ function parseIndexedAddressingWithTokens(
       };
     } else {
       // Accept any base register, including macro parameters and symbols
-      const baseRegResult = createAddressRegisterOrSymbolNode(baseReg, start, end);
+      const baseRegResult = createAddressRegisterOrSymbolNode(
+        baseReg,
+        start,
+        end,
+      );
       if (baseRegResult.error) {
         return {
           success: false,
@@ -761,11 +779,8 @@ function parseIndexedAddressingWithTokens(
             start,
             end,
             displacement: displacement ? dispResult.value : undefined,
-            baseRegister: createAddressRegisterOrSymbolNode(
-              baseReg,
-              start,
-              end,
-            ).node,
+            baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end)
+              .node,
             indexRegister,
             indexSize,
             scaleFactor: undefined,
@@ -842,7 +857,8 @@ function parseIndexedAddressingWithTokens(
           start,
           end,
           displacement: dispResult.value,
-          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end).node,
+          baseRegister: createAddressRegisterOrSymbolNode(baseReg, start, end)
+            .node,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -1212,7 +1228,8 @@ export function parseOperand(
         mode: "pre-decrement",
         start,
         end,
-        register: createAddressRegisterOrSymbolNode(registerName, start, end).node,
+        register: createAddressRegisterOrSymbolNode(registerName, start, end)
+          .node,
       },
     };
   }
@@ -1227,7 +1244,8 @@ export function parseOperand(
         mode: "post-increment",
         start,
         end,
-        register: createAddressRegisterOrSymbolNode(registerName, start, end).node,
+        register: createAddressRegisterOrSymbolNode(registerName, start, end)
+          .node,
       },
     };
   }
@@ -1345,7 +1363,8 @@ export function parseOperand(
           type: "address-register-indirect",
           start,
           end,
-          register: createAddressRegisterOrSymbolNode(register, start, end).node,
+          register: createAddressRegisterOrSymbolNode(register, start, end)
+            .node,
           mode: "simple",
         },
       };
