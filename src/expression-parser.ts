@@ -1,4 +1,4 @@
-import { BinaryOp, ExpressionNode } from "./types";
+import { BinaryOp, ExpressionNode, ParserResult } from "./types";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
 import { isBuiltinSymbol } from "./syntax";
 import {
@@ -13,19 +13,19 @@ import {
  * @param expr - The expression string to parse
  * @param start - Start position in the original source
  * @param end - End position in the original source
- * @returns Expression node and optional error
+ * @returns Parser result with expression node and optional error
  */
 export function parseExpression(
   expr: string,
   start: number = 0,
   end: number = 0,
-): { expression: ExpressionNode; error?: OperandParseError } {
+): ParserResult<ExpressionNode> {
   const trimmed = expr.trim();
 
   // Handle empty expressions
   if (!trimmed) {
     return {
-      expression: {
+      value: {
         type: "unknown",
         start,
         end,
@@ -262,5 +262,5 @@ export function parseExpression(
   }
 
   const expression = parseLogicalOr();
-  return { expression, error: parseError };
+  return { value: expression, error: parseError };
 }

@@ -26,10 +26,17 @@ export type {
   Size,
 };
 
-// Parse result type - used for operand parsing with detailed errors
+// Strict parse result - discriminated union for success/failure
 export type ParseResult<T> =
   | { success: true; value: T }
   | { success: false; error: OperandParseError };
+
+// Resilient parse result - always returns a value with optional error
+// Used by top-level parsers for IDE/language server support
+export type ParserResult<T> = {
+  value: T;
+  error?: OperandParseError;
+};
 
 export type MnemonicNode =
   | InstructionNode

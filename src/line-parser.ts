@@ -656,7 +656,7 @@ function parseOperandList(
     // Parse the operand
     const opEnd = opStart + operandText.length;
     if (operandText) {
-      const { operand, error } = parseOperand(
+      const { value: operand, error } = parseOperand(
         operandText,
         opStart,
         opEnd,
@@ -793,7 +793,7 @@ export function parseLine(text: string): ParsedLine {
 
       // Parse condition as expression
       const condEnd = condStart + conditionText.length;
-      const { expression: condExpr, error: condError } = parseExpression(
+      const { value: condExpr, error: condError } = parseExpression(
         conditionText,
         condStart,
         condEnd,
