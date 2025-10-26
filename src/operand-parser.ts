@@ -22,6 +22,7 @@ import {
   isSpecialRegister,
   isFPUDataRegister,
   isFPUControlRegister,
+  isRegister,
 } from "./syntax";
 import {
   tokenizeOperand,
@@ -949,36 +950,7 @@ export function parseOperand(
   // Check potential register types
   const register = trimmed.toLowerCase();
 
-  // FPU data registers: fp0-fp7
-  if (isFPUDataRegister(register)) {
-    return {
-      operand: createRegisterNode(register, start, end),
-    };
-  }
-
-  // FPU control registers: fpcr, fpsr, fpiar
-  if (isFPUControlRegister(register)) {
-    return {
-      operand: createRegisterNode(register, start, end),
-    };
-  }
-
-  // Data Register Direct: Dn
-  if (isDataRegister(register)) {
-    return {
-      operand: createRegisterNode(register, start, end),
-    };
-  }
-
-  // Address register direct: An
-  if (isAddressRegister(register)) {
-    return {
-      operand: createRegisterNode(register, start, end),
-    };
-  }
-
-  // Special/system registers: sr, ccr, usp, ssp, pc, vbr, sfc, dfc, cacr, caar
-  if (isSpecialRegister(register)) {
+  if (isRegister(register)) {
     return {
       operand: createRegisterNode(register, start, end),
     };

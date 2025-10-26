@@ -775,6 +775,21 @@ export function isFPURegister(reg: string): reg is FPURegister {
   return isFPUDataRegister(reg) || isFPUControlRegister(reg);
 }
 
+export type Register =
+  | DataRegister
+  | AddressRegister
+  | SpecialRegister
+  | FPURegister;
+
+export function isRegister(reg: string): reg is Register {
+  return (
+    isDataRegister(reg) ||
+    isAddressRegister(reg) ||
+    isSpecialRegister(reg) ||
+    isFPURegister(reg)
+  );
+}
+
 export const builtinSymbols = [
   "__RS",
   "__SO",
