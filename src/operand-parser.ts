@@ -2,8 +2,6 @@ import {
   AddressRegister,
   DataRegister,
   FPUDataRegister,
-  FPUControlRegister,
-  SpecialRegister,
   OperandNode,
   ExpressionNode,
   ParseResult,
@@ -34,13 +32,13 @@ import {
   expectedToken,
   unclosedBracket,
   unclosedParen,
-  malformedMemoryIndirect,
   malformedIndexedAddressing,
   invalidScaleFactor,
   malformedBitfield,
   unclosedBrace,
   OperandParseError,
 } from "./parse-error";
+import { parseMacroParameter } from "./macro-utils";
 
 /**
  * Helper to create a register node from a register name
@@ -60,35 +58,35 @@ function createRegisterNode(
   if (isDataRegister(lower)) {
     return {
       type: "data-register",
-      register: lower as DataRegister,
+      register: lower,
       start,
       end,
     };
   } else if (isAddressRegister(lower)) {
     return {
       type: "address-register",
-      register: lower as AddressRegister,
+      register: lower,
       start,
       end,
     };
   } else if (isSpecialRegister(lower)) {
     return {
       type: "special-register",
-      register: lower as SpecialRegister,
+      register: lower,
       start,
       end,
     };
   } else if (isFPUDataRegister(lower)) {
     return {
       type: "fpu-data-register",
-      register: lower as FPUDataRegister,
+      register: lower,
       start,
       end,
     };
   } else if (isFPUControlRegister(lower)) {
     return {
       type: "fpu-control-register",
-      register: lower as FPUControlRegister,
+      register: lower,
       start,
       end,
     };
@@ -113,59 +111,9 @@ function createAddressRegisterOrSymbolNode(
   end: number,
 ): AddressRegisterNode | SymbolNode | MacroParameterNode {
   // Check if it's a macro parameter
-  // Macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
-  const macroMatch =
-    /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(name);
-  if (macroMatch) {
-    const param = macroMatch[1];
-    let paramType:
-      | "numeric"
-      | "letter"
-      | "special"
-      | "named"
-      | "query"
-      | "carg"
-      | "unique-push"
-      | "unique-push-below"
-      | "unique-pull";
-    let paramValue: string;
-
-    if (/^\d+$/.test(param)) {
-      paramType = "numeric";
-      paramValue = param;
-    } else if (/^[a-z]$/.test(param)) {
-      paramType = "letter";
-      paramValue = param;
-    } else if (param === "@!") {
-      paramType = "unique-push";
-      paramValue = "@!";
-    } else if (param === "@?") {
-      paramType = "unique-push-below";
-      paramValue = "@?";
-    } else if (param === "@@") {
-      paramType = "unique-pull";
-      paramValue = "@@";
-    } else if (param === "@") {
-      paramType = "special";
-      paramValue = "@";
-    } else if (param.startsWith("?")) {
-      paramType = "query";
-      paramValue = macroMatch[3]; // captured group after ?
-    } else if (param === "." || param === "+" || param === "-") {
-      paramType = "carg";
-      paramValue = param;
-    } else {
-      paramType = "named";
-      paramValue = macroMatch[2]; // captured group inside <>
-    }
-
-    return {
-      type: "macro-parameter",
-      start,
-      end,
-      paramType,
-      param: paramValue,
-    };
+  const macroPar = parseMacroParameter(name, start, end);
+  if (macroPar) {
+    return macroPar;
   }
 
   const lower = name.toLowerCase();
@@ -273,59 +221,9 @@ function createSizeOrSymbolNode(
   end: number,
 ): SizeNode | SymbolNode | MacroParameterNode {
   // Check if it's a macro parameter
-  // Macro parameters: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
-  const macroMatch =
-    /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(name);
-  if (macroMatch) {
-    const param = macroMatch[1];
-    let paramType:
-      | "numeric"
-      | "letter"
-      | "special"
-      | "named"
-      | "query"
-      | "carg"
-      | "unique-push"
-      | "unique-push-below"
-      | "unique-pull";
-    let paramValue: string;
-
-    if (/^\d+$/.test(param)) {
-      paramType = "numeric";
-      paramValue = param;
-    } else if (/^[a-z]$/.test(param)) {
-      paramType = "letter";
-      paramValue = param;
-    } else if (param === "@!") {
-      paramType = "unique-push";
-      paramValue = "@!";
-    } else if (param === "@?") {
-      paramType = "unique-push-below";
-      paramValue = "@?";
-    } else if (param === "@@") {
-      paramType = "unique-pull";
-      paramValue = "@@";
-    } else if (param === "@") {
-      paramType = "special";
-      paramValue = "@";
-    } else if (param.startsWith("?")) {
-      paramType = "query";
-      paramValue = macroMatch[3]; // captured group after ?
-    } else if (param === "." || param === "+" || param === "-") {
-      paramType = "carg";
-      paramValue = param;
-    } else {
-      paramType = "named";
-      paramValue = macroMatch[2]; // captured group inside <>
-    }
-
-    return {
-      type: "macro-parameter",
-      start,
-      end,
-      paramType,
-      param: paramValue,
-    };
+  const macroPar = parseMacroParameter(name, start, end);
+  if (macroPar) {
+    return macroPar;
   }
 
   const lower = name.toLowerCase();
@@ -796,7 +694,10 @@ function parseIndexedAddressingWithTokens(
 
   return {
     success: false,
-    error: malformedIndexedAddressing(`Invalid indexed addressing format`, start),
+    error: malformedIndexedAddressing(
+      `Invalid indexed addressing format`,
+      start,
+    ),
   };
 }
 
@@ -999,27 +900,10 @@ export function parseOperand(
   }
 
   // Macro parameter: \1, \@, \<name>, etc.
-  const macroParamMatch = /^\\([0-9]+|@|<[^>]+>)$/i.exec(trimmed);
-  if (macroParamMatch) {
-    const param = macroParamMatch[1];
-    let paramType: "numeric" | "special" | "named";
-
-    if (/^[0-9]+$/.test(param)) {
-      paramType = "numeric";
-    } else if (param === "@") {
-      paramType = "special";
-    } else {
-      paramType = "named";
-    }
-
+  const macroPar = parseMacroParameter(trimmed, start, end);
+  if (macroPar) {
     return {
-      operand: {
-        type: "macro-parameter",
-        start,
-        end,
-        paramType,
-        param,
-      },
+      operand: macroPar,
     };
   }
 
@@ -1268,6 +1152,21 @@ export function parseOperand(
     const displacement = dispMatch[1].trim();
     const register = dispMatch[2].trim().toLowerCase();
 
+    // Check for empty register (e.g., "( )" after trimming)
+    if (!register) {
+      return {
+        operand: {
+          type: "unknown",
+          start,
+          end,
+        },
+        error: malformedIndexedAddressing(
+          "Empty parentheses - missing register in indirect addressing",
+          start,
+        ),
+      };
+    }
+
     // PC relative without index
     if (register === "pc") {
       const { expression: dispExpr, error: dispError } = parseExpression(
@@ -1358,6 +1257,21 @@ export function parseOperand(
         ),
       },
       error: addrError,
+    };
+  }
+
+  // Check for empty parentheses: label() or ()
+  if (/\(\s*\)/.test(trimmed)) {
+    return {
+      operand: {
+        type: "unknown",
+        start,
+        end,
+      },
+      error: malformedIndexedAddressing(
+        "Empty parentheses - missing register in indirect addressing",
+        start,
+      ),
     };
   }
 

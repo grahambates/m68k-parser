@@ -14,7 +14,6 @@ import {
   CommentNode,
   InstructionNode,
   DirectiveNode,
-  MacroParameterNode,
   Size,
   Instruction,
   Directive,
@@ -23,6 +22,7 @@ import { OperandParseError } from "./parse-error";
 import { parseOperand } from "./operand-parser";
 import { parseExpression } from "./expression-parser";
 import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
+import { parseMacroParameter } from "./macro-utils";
 
 /**
  * Parser state - tracks position and accumulated errors
@@ -63,7 +63,6 @@ function advance(state: ParserState): string {
   return ch;
 }
 
-
 /**
  * Skip whitespace (spaces and tabs only, not newlines)
  */
@@ -79,7 +78,10 @@ function skipWhitespace(state: ParserState): void {
  * - Letter, underscore, dot, or backslash (for macro params)
  * - Must be at start of line OR have leading whitespace with a colon
  */
-function isLabelStart(state: ParserState, hasLeadingWhitespace: boolean): boolean {
+function isLabelStart(
+  state: ParserState,
+  hasLeadingWhitespace: boolean,
+): boolean {
   const ch = peek(state);
   if (!ch || ch === ";" || ch === "*") return false;
 
@@ -103,7 +105,11 @@ function isLabelStart(state: ParserState, hasLeadingWhitespace: boolean): boolea
       if (ahead === ":" && depth === 0) return true;
       if (ahead === ";" || ahead === "*" || ahead === "=") return false;
       // Stop if we hit a potential size qualifier (.w, .l, etc.)
-      if (ahead === "." && depth === 0 && /[wlbsqpx]/i.test(peek(state, i + 1))) {
+      if (
+        ahead === "." &&
+        depth === 0 &&
+        /[wlbsqpx]/i.test(peek(state, i + 1))
+      ) {
         return false;
       }
       i++;
@@ -120,7 +126,10 @@ function isLabelStart(state: ParserState, hasLeadingWhitespace: boolean): boolea
  * Format: identifier[:][:] or .identifier[:] or identifier$[:]
  * Scope: :: = external, . prefix or $ suffix = local, otherwise global
  */
-function parseLabel(state: ParserState, hasLeadingWhitespace: boolean): LabelNode | null {
+function parseLabel(
+  state: ParserState,
+  hasLeadingWhitespace: boolean,
+): LabelNode | null {
   if (!isLabelStart(state, hasLeadingWhitespace)) {
     return null;
   }
@@ -151,7 +160,11 @@ function parseLabel(state: ParserState, hasLeadingWhitespace: boolean): LabelNod
     // Check for size qualifier: .w, .l, etc (but .label is a label)
     if (ch === "." && label.length > 0) {
       const next = peek(state, 1);
-      if (next && /[wlbsqpx]/i.test(next) && !/[a-z0-9_$]/i.test(peek(state, 2) || "")) {
+      if (
+        next &&
+        /[wlbsqpx]/i.test(next) &&
+        !/[a-z0-9_$]/i.test(peek(state, 2) || "")
+      ) {
         // This looks like a size qualifier, not part of the label
         break;
       }
@@ -199,71 +212,6 @@ function parseLabel(state: ParserState, hasLeadingWhitespace: boolean): LabelNod
     end,
     label,
     scope,
-  };
-}
-
-/**
- * Parse a macro parameter node
- * Formats: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
- */
-function parseMacroParameter(
-  text: string,
-  start: number,
-  end: number
-): MacroParameterNode | null {
-  // Match various macro parameter formats
-  const match =
-    /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
-  if (!match) return null;
-
-  const param = match[1];
-  let paramType:
-    | "numeric"
-    | "letter"
-    | "special"
-    | "named"
-    | "query"
-    | "carg"
-    | "unique-push"
-    | "unique-push-below"
-    | "unique-pull";
-  let paramValue: string;
-
-  if (/^\d+$/.test(param)) {
-    paramType = "numeric";
-    paramValue = param;
-  } else if (/^[a-z]$/.test(param)) {
-    paramType = "letter";
-    paramValue = param;
-  } else if (param === "@!") {
-    paramType = "unique-push";
-    paramValue = "@!";
-  } else if (param === "@?") {
-    paramType = "unique-push-below";
-    paramValue = "@?";
-  } else if (param === "@@") {
-    paramType = "unique-pull";
-    paramValue = "@@";
-  } else if (param === "@") {
-    paramType = "special";
-    paramValue = "@";
-  } else if (param.startsWith("?")) {
-    paramType = "query";
-    paramValue = match[3];
-  } else if (param === "." || param === "+" || param === "-") {
-    paramType = "carg";
-    paramValue = param;
-  } else {
-    paramType = "named";
-    paramValue = match[2];
-  }
-
-  return {
-    type: "macro-parameter",
-    start,
-    end,
-    paramType,
-    param: paramValue,
   };
 }
 
@@ -318,7 +266,11 @@ function parseMnemonic(state: ParserState): MnemonicNode | null {
       }
     }
     // CARG forms: \., \+, \-
-    else if (peek(state) === "." || peek(state) === "+" || peek(state) === "-") {
+    else if (
+      peek(state) === "." ||
+      peek(state) === "+" ||
+      peek(state) === "-"
+    ) {
       macroText += advance(state);
     }
     // Single char forms: \1-\9, \a-\z
@@ -496,7 +448,7 @@ function parseQualifier(state: ParserState): QualifierNode | null {
  */
 function parseOperandList(
   state: ParserState,
-  mnemonicCategory?: "instruction" | "directive" | "macro"
+  mnemonicCategory?: "instruction" | "directive" | "macro",
 ): { operands: OperandNode[]; errors: OperandParseError[] } {
   const operands: OperandNode[] = [];
   const errors: OperandParseError[] = [];
@@ -583,7 +535,12 @@ function parseOperandList(
         advance(state); // consume whitespace
         skipWhitespace(state);
 
-        if (isEOF(state) || peek(state) === "," || peek(state) === ";" || peek(state) === "*") {
+        if (
+          isEOF(state) ||
+          peek(state) === "," ||
+          peek(state) === ";" ||
+          peek(state) === "*"
+        ) {
           // End of operand
           state.pos = saved; // restore position
           break;
@@ -628,7 +585,12 @@ function parseOperandList(
         else if (/[a-z]/i.test(nextCh) && operandText.length > 0) {
           // Check if operand looks complete (ends with ), ], }, or alphanumeric)
           const lastChar = operandText.trim().slice(-1);
-          if (lastChar === ")" || lastChar === "]" || lastChar === "}" || /[a-z0-9]/i.test(lastChar)) {
+          if (
+            lastChar === ")" ||
+            lastChar === "]" ||
+            lastChar === "}" ||
+            /[a-z0-9]/i.test(lastChar)
+          ) {
             // Operand looks complete, this is likely a comment
             state.pos = saved;
             break;
@@ -636,8 +598,7 @@ function parseOperandList(
           // Otherwise include it
           state.pos = saved;
           operandText += advance(state);
-        }
-        else {
+        } else {
           // Doesn't look like operand content, stop here
           state.pos = saved;
           break;
@@ -668,7 +629,12 @@ function parseOperandList(
     // Parse the operand
     const opEnd = opStart + operandText.length;
     if (operandText) {
-      const { operand, error } = parseOperand(operandText, opStart, opEnd, mnemonicCategory);
+      const { operand, error } = parseOperand(
+        operandText,
+        opStart,
+        opEnd,
+        mnemonicCategory,
+      );
       operands.push(operand);
       if (error) {
         errors.push(error);
@@ -803,7 +769,7 @@ export function parseLine(text: string): ParsedLine {
       const { expression: condExpr, error: condError } = parseExpression(
         conditionText,
         condStart,
-        condEnd
+        condEnd,
       );
       line.inlineCondition = condExpr;
       if (condError) {
@@ -833,7 +799,9 @@ export function parseLine(text: string): ParsedLine {
           ? (line.mnemonic as DirectiveNode).directive
           : null;
 
-    const isNoOperand = mnemonicText && noOperand.includes(mnemonicText as Instruction | Directive);
+    const isNoOperand =
+      mnemonicText &&
+      noOperand.includes(mnemonicText as Instruction | Directive);
 
     if (!isNoOperand) {
       // Regular operand parsing

@@ -363,7 +363,7 @@ describe("parse", () => {
           end: 8,
           type: "macro-parameter",
           paramType: "named",
-          param: "inst",
+          param: "<inst>",
         },
       });
     });
@@ -420,7 +420,7 @@ describe("parse", () => {
         qualifier: {
           type: "macro-parameter",
           paramType: "named",
-          param: "size",
+          param: "<size>",
         },
       });
     });
