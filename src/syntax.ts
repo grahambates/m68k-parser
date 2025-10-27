@@ -821,3 +821,47 @@ export type Size = (typeof sizes)[number];
 export function isSize(size: string): size is Size {
   return sizes.includes(size as Size);
 }
+
+export const addressSizes = ["w", "l"] as const;
+export type AddressSize = (typeof addressSizes)[number];
+export function isAddressSize(size: string): size is AddressSize {
+  return addressSizes.includes(size as AddressSize);
+}
+
+export const binaryOps = [
+  "+",
+  "-",
+  "*",
+  "/",
+  "%",
+  "&",
+  ",",
+  "^",
+  "<<",
+  ">>",
+  "&&",
+  ",,",
+  "=",
+  "<>",
+  "<",
+  ">",
+  "<=",
+  ">=",
+  "~",
+  "|",
+  "!",
+  "//",
+  "==",
+  "!=",
+  "||",
+] as const;
+export type BinaryOp = (typeof binaryOps)[number];
+export function isBinaryOp(op: string): op is BinaryOp {
+  return binaryOps.includes(op as BinaryOp);
+}
+
+export const unaryOps = ["+", "-", "~", "!"];
+export type UnaryOp = (typeof unaryOps)[number];
+export function isUnaryOp(op: string): op is UnaryOp {
+  return unaryOps.includes(op as UnaryOp);
+}

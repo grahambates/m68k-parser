@@ -1,6 +1,6 @@
 import { BinaryOp, ExpressionNode, Location, ParserResult } from "./types";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
-import { isBuiltinSymbol } from "./syntax";
+import { isBuiltinSymbol, isUnaryOp } from "./syntax";
 import { ParseError, unclosedParen, invalidExpression } from "./parse-error";
 
 /**
@@ -116,7 +116,10 @@ export function parseExpression(
       } else {
         // Missing closing parenthesis
         if (!parseError) {
-          parseError = unclosedParen({ start: loc.start + parenPos, end: loc.start + parenPos + 1 });
+          parseError = unclosedParen({
+            start: loc.start + parenPos,
+            end: loc.start + parenPos + 1,
+          });
         }
       }
       return {
@@ -128,11 +131,11 @@ export function parseExpression(
 
     // If we can't parse, return unknown and set error
     if (!parseError && token) {
-      const tokenValue = 'value' in token ? token.value : '';
-      parseError = invalidExpression(
-        `Unexpected token '${token.type}'`,
-        { start: loc.start + (token.position || 0), end: loc.start + (token.position || 0) + (tokenValue?.length || 1) },
-      );
+      const tokenValue = "value" in token ? token.value : "";
+      parseError = invalidExpression(`Unexpected token '${token.type}'`, {
+        start: loc.start + (token.position || 0),
+        end: loc.start + (token.position || 0) + (tokenValue?.length || 1),
+      });
     }
     return {
       type: "unknown",
@@ -143,14 +146,8 @@ export function parseExpression(
   function parseUnary(): ExpressionNode {
     const token = current();
 
-    if (
-      token.type === "operator" &&
-      (token.value === "+" ||
-        token.value === "-" ||
-        token.value === "!" ||
-        token.value === "~")
-    ) {
-      const operator = token.value as "+" | "-" | "~" | "!";
+    if (token.type === "operator" && isUnaryOp(token.value)) {
+      const operator = token.value;
       advance();
       const operand = parseUnary();
       return {
@@ -170,13 +167,16 @@ export function parseExpression(
    */
   function parseBinaryOp(
     parseHigher: () => ExpressionNode,
-    operators: string[],
+    operators: BinaryOp[],
     transformOp?: (op: string) => string,
   ): ExpressionNode {
     let left = parseHigher();
 
     let token = current();
-    while (token.type === "operator" && operators.includes(token.value)) {
+    while (
+      token.type === "operator" &&
+      operators.includes(token.value as BinaryOp)
+    ) {
       let operator = token.value;
       if (transformOp) {
         operator = transformOp(operator);

@@ -171,23 +171,6 @@ export function invalidScaleFactor(got: string, loc: Location): ParseError {
   );
 }
 
-export function invalidIndexSize(got: string, loc: Location): ParseError {
-  return createError("INVALID_INDEX_SIZE", `Invalid index size '${got}'`, loc, {
-    expected: ["w", "l"],
-    got,
-    hint: "Index size must be .w (word) or .l (long)",
-  });
-}
-
-export function malformedMemoryIndirect(
-  message: string,
-  loc: Location,
-): ParseError {
-  return createError("MALFORMED_MEMORY_INDIRECT", message, loc, {
-    hint: "Memory indirect format: ([bd,An,Rn.s*scale],od) - 68020+ only",
-  });
-}
-
 export function malformedIndexedAddressing(
   message: string,
   loc: Location,
@@ -201,17 +184,6 @@ export function malformedBitfield(message: string, loc: Location): ParseError {
   return createError("MALFORMED_BITFIELD", message, loc, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",
   });
-}
-
-export function missingOperand(operator: string, loc: Location): ParseError {
-  return createError(
-    "MISSING_OPERAND",
-    `Missing operand for operator '${operator}'`,
-    loc,
-    {
-      hint: "Binary operators require both left and right operands",
-    },
-  );
 }
 
 export function invalidExpression(message: string, loc: Location): ParseError {

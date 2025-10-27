@@ -10,6 +10,9 @@ import type {
   Instruction,
   Directive,
   Size,
+  AddressSize,
+  BinaryOp,
+  UnaryOp,
 } from "./syntax";
 import type { ParseError, ParseErrorCode } from "./parse-error";
 
@@ -24,6 +27,9 @@ export type {
   Instruction,
   Directive,
   Size,
+  AddressSize,
+  BinaryOp,
+  UnaryOp,
   ParseError,
   ParseErrorCode,
 };
@@ -69,30 +75,6 @@ export interface ParsedFile {
 }
 
 export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
-
-export type AddressSize = "w" | "l";
-
-export type BinaryOp =
-  | "+"
-  | "-"
-  | "*"
-  | "/"
-  | "%"
-  | "&"
-  | "|"
-  | "^"
-  | "<<"
-  | ">>"
-  | "&&"
-  | "||"
-  | "="
-  | "<>"
-  | "<"
-  | ">"
-  | "<="
-  | ">=";
-
-export type UnaryOp = "+" | "-" | "~" | "!";
 
 // Location information for AST nodes
 export interface Location {

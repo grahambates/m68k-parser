@@ -232,13 +232,26 @@ function parseIndexSpec(
   if (text[pos] === "*") {
     const starPos = pos;
     pos++; // skip *
-    const scaleExpr = text.substring(pos).trim();
+    const afterStar = text.substring(pos);
+    const scaleExpr = afterStar.trim();
     if (scaleExpr) {
-      const { value: scaleNode } = parseExpression(scaleExpr, loc);
+      // Calculate precise location of the scale factor expression
+      const trimStart = afterStar.length - afterStar.trimStart().length;
+      const scaleStart = pos + trimStart;
+      const scaleEnd = scaleStart + scaleExpr.length;
+      const scaleLoc: Location = {
+        start: loc.start + scaleStart,
+        end: loc.start + scaleEnd,
+        line: loc.line,
+      };
+      const { value: scaleNode } = parseExpression(scaleExpr, scaleLoc);
       scaleFactor = scaleNode;
     } else {
       // Missing scale factor after *
-      error = missingScaleFactor({ start: loc.start + starPos, end: loc.start + starPos + 1 });
+      error = missingScaleFactor({
+        start: loc.start + starPos,
+        end: loc.start + starPos + 1,
+      });
     }
   }
 
@@ -251,7 +264,6 @@ function parseIndexSpec(
  */
 function validateScaleFactor(
   scaleFactor: ExpressionNode | undefined,
-  loc: Location,
 ): ParseError | undefined {
   if (!scaleFactor) return undefined;
 
@@ -346,7 +358,11 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "lparen") {
     return {
       success: false,
-      error: expectedToken(["("], { start: loc.start, end: loc.start + 1 }, text[0]),
+      error: expectedToken(
+        ["("],
+        { start: loc.start, end: loc.start + 1 },
+        text[0],
+      ),
     };
   }
   const openParen = consume();
@@ -356,7 +372,10 @@ function parseMemoryIndirectWithTokens(
       success: false,
       error: expectedToken(
         ["["],
-        { start: loc.start + current().position, end: loc.start + current().position + current().value.length },
+        {
+          start: loc.start + current().position,
+          end: loc.start + current().position + current().value.length,
+        },
         current().value,
       ),
     };
@@ -398,7 +417,10 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "rbracket") {
     return {
       success: false,
-      error: unclosedBracket({ start: loc.start + openBracket.position, end: loc.start + openBracket.position + 1 }),
+      error: unclosedBracket({
+        start: loc.start + openBracket.position,
+        end: loc.start + openBracket.position + 1,
+      }),
     };
   }
   consume("rbracket");
@@ -425,7 +447,19 @@ function parseMemoryIndirectWithTokens(
     const second = innerParts[1];
 
     const firstIsBaseReg = isAddressRegister(first.toLowerCase());
-    const indexSpec = parseIndexSpec(second, loc);
+
+    // Calculate precise location of 'second' (after first comma in brackets)
+    const bracketIndex = text.indexOf("[");
+    const commaInBracket = text.indexOf(",", bracketIndex);
+    const secondStart = text.indexOf(second, commaInBracket + 1);
+    const secondEnd = secondStart + second.length;
+    const secondLoc: Location = {
+      start: loc.start + secondStart,
+      end: loc.start + secondEnd,
+      line: loc.line,
+    };
+
+    const indexSpec = parseIndexSpec(second, secondLoc);
 
     if (firstIsBaseReg && indexSpec) {
       // Check for parseIndexSpec error first
@@ -443,7 +477,7 @@ function parseMemoryIndirectWithTokens(
       scaleFactor = indexSpec.scaleFactor;
 
       // Validate scale factor if it's a literal
-      const scaleError = validateScaleFactor(scaleFactor, loc);
+      const scaleError = validateScaleFactor(scaleFactor);
       if (scaleError) {
         return {
           success: false,
@@ -482,7 +516,19 @@ function parseMemoryIndirectWithTokens(
       baseRegister = createRegisterNode(an, loc) as AddressRegisterNode;
     }
 
-    const indexSpec = parseIndexSpec(idx, loc);
+    // Calculate precise location of idx (after second comma in brackets)
+    const bracketIndex = text.indexOf("[");
+    const firstComma = text.indexOf(",", bracketIndex);
+    const secondComma = text.indexOf(",", firstComma + 1);
+    const idxStart = text.indexOf(idx, secondComma + 1);
+    const idxEnd = idxStart + idx.length;
+    const idxLoc: Location = {
+      start: loc.start + idxStart,
+      end: loc.start + idxEnd,
+      line: loc.line,
+    };
+
+    const indexSpec = parseIndexSpec(idx, idxLoc);
     if (indexSpec) {
       // Check for parseIndexSpec error first
       if (indexSpec.error) {
@@ -497,7 +543,7 @@ function parseMemoryIndirectWithTokens(
       scaleFactor = indexSpec.scaleFactor;
 
       // Validate scale factor if it's a literal
-      const scaleError = validateScaleFactor(scaleFactor, loc);
+      const scaleError = validateScaleFactor(scaleFactor);
       if (scaleError) {
         return {
           success: false,
@@ -528,7 +574,10 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "rparen") {
     return {
       success: false,
-      error: unclosedParen({ start: loc.start + openParen.position, end: loc.start + openParen.position + 1 }),
+      error: unclosedParen({
+        start: loc.start + openParen.position,
+        end: loc.start + openParen.position + 1,
+      }),
     };
   }
   consume("rparen");
@@ -590,7 +639,10 @@ function parseIndexedAddressingWithTokens(
       success: false,
       error: expectedToken(
         ["("],
-        { start: loc.start + current().position, end: loc.start + current().position + current().value.length },
+        {
+          start: loc.start + current().position,
+          end: loc.start + current().position + current().value.length,
+        },
         current().value,
       ),
     };
@@ -620,7 +672,10 @@ function parseIndexedAddressingWithTokens(
   if (current().type !== "rparen") {
     return {
       success: false,
-      error: unclosedParen({ start: loc.start + openParen.position, end: loc.start + openParen.position + 1 }),
+      error: unclosedParen({
+        start: loc.start + openParen.position,
+        end: loc.start + openParen.position + 1,
+      }),
     };
   }
   consume();
@@ -632,7 +687,17 @@ function parseIndexedAddressingWithTokens(
     const indexPart = parts[1];
 
     // Parse index: d1.w*2, a2.l*4, d1*(foo+1), etc.
-    const indexSpec = parseIndexSpec(indexPart, loc);
+    // Calculate precise location of indexPart
+    const commaIndex = text.indexOf(",");
+    const indexPartStart = text.indexOf(indexPart, commaIndex + 1);
+    const indexPartEnd = indexPartStart + indexPart.length;
+    const indexPartLoc: Location = {
+      start: loc.start + indexPartStart,
+      end: loc.start + indexPartEnd,
+      line: loc.line,
+    };
+
+    const indexSpec = parseIndexSpec(indexPart, indexPartLoc);
     if (!indexSpec) {
       return {
         success: false,
@@ -656,7 +721,7 @@ function parseIndexedAddressingWithTokens(
     const scaleFactor = indexSpec.scaleFactor;
 
     // Validate scale factor if it's a literal
-    const scaleError = validateScaleFactor(scaleFactor, loc);
+    const scaleError = validateScaleFactor(scaleFactor);
     if (scaleError) {
       return {
         success: false,
@@ -688,7 +753,20 @@ function parseIndexedAddressingWithTokens(
       };
     } else {
       // Accept any base register, including macro parameters and symbols
-      const baseRegResult = createAddressRegisterOrSymbolNode(baseReg, loc);
+      // Calculate precise location of the base register
+      const parenIndex = text.indexOf("(");
+      const baseRegStart = parenIndex + 1; // Right after opening paren
+      const baseRegEnd = baseRegStart + baseReg.length;
+      const baseRegLoc: Location = {
+        start: loc.start + baseRegStart,
+        end: loc.start + baseRegEnd,
+        line: loc.line,
+      };
+
+      const baseRegResult = createAddressRegisterOrSymbolNode(
+        baseReg,
+        baseRegLoc,
+      );
       if (baseRegResult.error) {
         return {
           success: false,
@@ -748,13 +826,24 @@ function parseIndexedAddressingWithTokens(
         };
       } else {
         // Accept any base register, including macro parameters and symbols
+        // Calculate precise location of the base register
+        const parenIndex = text.indexOf("(");
+        const baseRegStart = parenIndex + 1; // Right after opening paren
+        const baseRegEnd = baseRegStart + baseReg.length;
+        const baseRegLoc: Location = {
+          start: loc.start + baseRegStart,
+          end: loc.start + baseRegEnd,
+          line: loc.line,
+        };
+
         return {
           success: true,
           value: {
             type: "address-register-indirect-index",
             loc,
             displacement: displacement ? dispResult.value : undefined,
-            baseRegister: createAddressRegisterOrSymbolNode(baseReg, loc).node,
+            baseRegister: createAddressRegisterOrSymbolNode(baseReg, baseRegLoc)
+              .node,
             indexRegister,
             indexSize,
             scaleFactor: undefined,
@@ -768,7 +857,18 @@ function parseIndexedAddressingWithTokens(
     const baseReg = part1;
     const indexPart = part2;
 
-    const indexSpec = parseIndexSpec(indexPart, loc);
+    // Calculate precise location of indexPart (after second comma)
+    const firstCommaIndex = text.indexOf(",");
+    const secondCommaIndex = text.indexOf(",", firstCommaIndex + 1);
+    const indexPartStart = text.indexOf(indexPart, secondCommaIndex + 1);
+    const indexPartEnd = indexPartStart + indexPart.length;
+    const indexPartLoc: Location = {
+      start: loc.start + indexPartStart,
+      end: loc.start + indexPartEnd,
+      line: loc.line,
+    };
+
+    const indexSpec = parseIndexSpec(indexPart, indexPartLoc);
     if (!indexSpec) {
       return {
         success: false,
@@ -792,7 +892,7 @@ function parseIndexedAddressingWithTokens(
     const scaleFactor = indexSpec.scaleFactor;
 
     // Validate scale factor if it's a literal
-    const scaleError = validateScaleFactor(scaleFactor, loc);
+    const scaleError = validateScaleFactor(scaleFactor);
     if (scaleError) {
       return {
         success: false,
@@ -823,13 +923,29 @@ function parseIndexedAddressingWithTokens(
       };
     } else {
       // Accept any base register, including macro parameters and symbols
+      // Calculate precise location of the base register (it's part1, after first comma)
+      const parenIndex = text.indexOf("(");
+      const firstCommaIndex = text.indexOf(",", parenIndex);
+      const baseRegStart = firstCommaIndex + 1; // Right after first comma
+      // Find the actual start of baseReg, skipping whitespace
+      const afterComma = text.substring(firstCommaIndex + 1);
+      const trimStart = afterComma.length - afterComma.trimStart().length;
+      const actualBaseRegStart = baseRegStart + trimStart;
+      const baseRegEnd = actualBaseRegStart + baseReg.length;
+      const baseRegLoc: Location = {
+        start: loc.start + actualBaseRegStart,
+        end: loc.start + baseRegEnd,
+        line: loc.line,
+      };
+
       return {
         success: true,
         value: {
           type: "address-register-indirect-index",
           loc,
           displacement: dispResult.value,
-          baseRegister: createAddressRegisterOrSymbolNode(baseReg, loc).node,
+          baseRegister: createAddressRegisterOrSymbolNode(baseReg, baseRegLoc)
+            .node,
           indexRegister,
           indexSize,
           scaleFactor,
@@ -840,10 +956,7 @@ function parseIndexedAddressingWithTokens(
 
   return {
     success: false,
-    error: malformedIndexedAddressing(
-      `Invalid indexed addressing format`,
-      loc,
-    ),
+    error: malformedIndexedAddressing(`Invalid indexed addressing format`, loc),
   };
 }
 
@@ -879,7 +992,11 @@ function parseBitfieldWithTokens(
   if (current().type !== "lbrace") {
     return {
       success: false,
-      error: expectedToken(["{"], { start: loc.start, end: loc.start + current().value.length }, current().value),
+      error: expectedToken(
+        ["{"],
+        { start: loc.start, end: loc.start + current().value.length },
+        current().value,
+      ),
     };
   }
   const openBrace = consume();
@@ -940,7 +1057,10 @@ function parseBitfieldWithTokens(
   if (current().type !== "rbrace") {
     return {
       success: false,
-      error: unclosedBrace({ start: loc.start + openBrace.position, end: loc.start + openBrace.position + 1 }),
+      error: unclosedBrace({
+        start: loc.start + openBrace.position,
+        end: loc.start + openBrace.position + 1,
+      }),
     };
   }
   consume();
@@ -1184,12 +1304,25 @@ export function parseOperand(
   const preDecMatch = /^-\(([^)]+)\)$/i.exec(trimmed);
   if (preDecMatch) {
     const registerName = preDecMatch[1].trim();
+    // Calculate precise location of the register (after "-(")
+    const registerStart = text.indexOf("(") + 1;
+    const afterParen = text.substring(registerStart);
+    const trimStart = afterParen.length - afterParen.trimStart().length;
+    const actualRegisterStart = registerStart + trimStart;
+    const registerEnd = actualRegisterStart + registerName.length;
+    const registerLoc: Location = {
+      start: loc.start + actualRegisterStart,
+      end: loc.start + registerEnd,
+      line: loc.line,
+    };
+
     return {
       value: {
         type: "address-register-indirect",
         mode: "pre-decrement",
         loc,
-        register: createAddressRegisterOrSymbolNode(registerName, loc).node,
+        register: createAddressRegisterOrSymbolNode(registerName, registerLoc)
+          .node,
       },
     };
   }
@@ -1198,12 +1331,25 @@ export function parseOperand(
   const postIncMatch = /^\(([^)]+)\)\+$/i.exec(trimmed);
   if (postIncMatch) {
     const registerName = postIncMatch[1].trim();
+    // Calculate precise location of the register (after "(")
+    const registerStart = text.indexOf("(") + 1;
+    const afterParen = text.substring(registerStart);
+    const trimStart = afterParen.length - afterParen.trimStart().length;
+    const actualRegisterStart = registerStart + trimStart;
+    const registerEnd = actualRegisterStart + registerName.length;
+    const registerLoc: Location = {
+      start: loc.start + actualRegisterStart,
+      end: loc.start + registerEnd,
+      line: loc.line,
+    };
+
     return {
       value: {
         type: "address-register-indirect",
         mode: "post-increment",
         loc,
-        register: createAddressRegisterOrSymbolNode(registerName, loc).node,
+        register: createAddressRegisterOrSymbolNode(registerName, registerLoc)
+          .node,
       },
     };
   }
@@ -1235,7 +1381,20 @@ export function parseOperand(
     }
 
     // Address register indirect with displacement: (disp,an)
-    const regResult = createAddressRegisterOrSymbolNode(register, loc);
+    // Calculate precise location of the register (after comma)
+    const commaIndex = text.indexOf(",");
+    const registerStart = commaIndex + 1;
+    const afterComma = text.substring(registerStart);
+    const trimStart = afterComma.length - afterComma.trimStart().length;
+    const actualRegisterStart = registerStart + trimStart;
+    const registerEnd = actualRegisterStart + register.length;
+    const registerLoc: Location = {
+      start: loc.start + actualRegisterStart,
+      end: loc.start + registerEnd,
+      line: loc.line,
+    };
+
+    const regResult = createAddressRegisterOrSymbolNode(register, registerLoc);
     return {
       value: {
         type: "address-register-indirect-displacement",
@@ -1307,13 +1466,27 @@ export function parseOperand(
       };
     }
 
+    // Calculate precise location of the register (inside parentheses)
+    const parenIndex = text.indexOf("(");
+    const registerStart = parenIndex + 1;
+    const afterParen = text.substring(registerStart);
+    const trimStart = afterParen.length - afterParen.trimStart().length;
+    const actualRegisterStart = registerStart + trimStart;
+    const registerEnd = actualRegisterStart + register.length;
+    const registerLoc: Location = {
+      start: loc.start + actualRegisterStart,
+      end: loc.start + registerEnd,
+      line: loc.line,
+    };
+
     // Simple address register indirect: (an) with no displacement
     if (!displacement) {
       return {
         value: {
           type: "address-register-indirect",
           loc,
-          register: createAddressRegisterOrSymbolNode(register, loc).node,
+          register: createAddressRegisterOrSymbolNode(register, registerLoc)
+            .node,
           mode: "simple",
         },
       };
@@ -1324,7 +1497,7 @@ export function parseOperand(
       displacement,
       loc,
     );
-    const regResult2 = createAddressRegisterOrSymbolNode(register, loc);
+    const regResult2 = createAddressRegisterOrSymbolNode(register, registerLoc);
     return {
       value: {
         type: "address-register-indirect-displacement",
@@ -1413,7 +1586,10 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: unclosedParen({ start: loc.start + parenPos, end: loc.start + parenPos + 1 }),
+      error: unclosedParen({
+        start: loc.start + parenPos,
+        end: loc.start + parenPos + 1,
+      }),
     };
   }
 
@@ -1424,7 +1600,10 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: unclosedBracket({ start: loc.start + bracketPos, end: loc.start + bracketPos + 1 }),
+      error: unclosedBracket({
+        start: loc.start + bracketPos,
+        end: loc.start + bracketPos + 1,
+      }),
     };
   }
 
