@@ -49,11 +49,6 @@ import {
 import { parseMacroParameter } from "./macro-utils";
 import { isValidIdentifier } from "./tokenizer-utils";
 
-// Strict parse result - discriminated union for success/failure
-type StrictParseResult<T> =
-  | { success: true; value: T }
-  | { success: false; errors: ParseError[] };
-
 /**
  * Helper to create a register node from a register name
  */
@@ -981,15 +976,18 @@ function parseIndexedAddressingWithTokens(
 function parseBitfieldWithTokens(
   text: string,
   loc: Location,
-): StrictParseResult<OperandNode> {
-  const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
+): ParserResult<OperandNode> {
+  const { tokens, errors: errors } = tokenizeOperand(text);
   let pos = 0;
 
-  // If tokenizer had errors, return first one
-  if (tokenizerErrors.length > 0) {
+  // If tokenizer had errors, return them
+  if (errors.length > 0) {
     return {
-      success: false,
-      errors: tokenizerErrors,
+      value: {
+        type: "unknown",
+        loc,
+      },
+      errors,
     };
   }
 
@@ -1006,7 +1004,10 @@ function parseBitfieldWithTokens(
   // Must start with {
   if (current().type !== "lbrace") {
     return {
-      success: false,
+      value: {
+        type: "unknown",
+        loc,
+      },
       errors: [
         expectedToken(
           ["{"],
@@ -1032,17 +1033,17 @@ function parseBitfieldWithTokens(
 
   if (!offsetPart) {
     return {
-      success: false,
+      value: {
+        type: "unknown",
+        loc,
+      },
       errors: [malformedBitfield("Bitfield offset cannot be empty", loc)],
     };
   }
 
   const offsetResult = parseExpression(offsetPart, loc);
   if (offsetResult.errors) {
-    return {
-      success: false,
-      errors: offsetResult.errors,
-    };
+    errors.push(...offsetResult.errors);
   }
   const offset = offsetResult.value;
   let width: ExpressionNode | undefined;
@@ -1061,10 +1062,7 @@ function parseBitfieldWithTokens(
     if (widthPart) {
       const widthResult = parseExpression(widthPart, loc);
       if (widthResult.errors) {
-        return {
-          success: false,
-          errors: widthResult.errors,
-        };
+        errors.push(...widthResult.errors);
       }
       width = widthResult.value;
     }
@@ -1072,26 +1070,24 @@ function parseBitfieldWithTokens(
 
   // Must end with }
   if (current().type !== "rbrace") {
-    return {
-      success: false,
-      errors: [
-        unclosedBrace({
-          start: loc.start + openBrace.position,
-          end: loc.start + openBrace.position + 1,
-        }),
-      ],
-    };
+    errors.push(
+      unclosedBrace({
+        start: loc.start + openBrace.position,
+        end: loc.start + openBrace.position + 1,
+      }),
+    );
+  } else {
+    consume();
   }
-  consume();
 
   return {
-    success: true,
     value: {
       type: "bitfield",
       loc,
       offset,
       width,
     },
+    errors,
   };
 }
 
@@ -1214,19 +1210,8 @@ export function parseOperand(
   }
 
   // Bitfield specification (68020+): {offset:width} or {offset}
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    const result = parseBitfieldWithTokens(trimmed, loc);
-    if (result.success) {
-      return { value: result.value, errors: [] };
-    }
-    // If token-based parser failed, return unknown with error
-    return {
-      value: {
-        type: "unknown",
-        loc,
-      },
-      errors: result.errors,
-    };
+  if (trimmed.startsWith("{")) {
+    return parseBitfieldWithTokens(trimmed, loc);
   }
 
   // Addressing modes:
@@ -1330,15 +1315,24 @@ export function parseOperand(
       line: loc.line,
     };
 
+    const errors: ParseError[] = [];
+
+    const baseRegResult = createAddressRegisterOrSymbolNode(
+      registerName,
+      registerLoc,
+    );
+    if (baseRegResult.error) {
+      errors.push(baseRegResult.error);
+    }
+
     return {
       value: {
         type: "address-register-indirect",
         mode: "pre-decrement",
         loc,
-        register: createAddressRegisterOrSymbolNode(registerName, registerLoc)
-          .node,
+        register: baseRegResult.node,
       },
-      errors: [],
+      errors,
     };
   }
 
@@ -1358,15 +1352,24 @@ export function parseOperand(
       line: loc.line,
     };
 
+    const errors: ParseError[] = [];
+
+    const baseRegResult = createAddressRegisterOrSymbolNode(
+      registerName,
+      registerLoc,
+    );
+    if (baseRegResult.error) {
+      errors.push(baseRegResult.error);
+    }
+
     return {
       value: {
         type: "address-register-indirect",
         mode: "post-increment",
         loc,
-        register: createAddressRegisterOrSymbolNode(registerName, registerLoc)
-          .node,
+        register: baseRegResult.node,
       },
-      errors: [],
+      errors,
     };
   }
 
@@ -1584,22 +1587,6 @@ export function parseOperand(
       errors: [
         malformedIndexedAddressing(
           "Empty parentheses - missing register in indirect addressing",
-          loc,
-        ),
-      ],
-    };
-  }
-
-  // Check for malformed indexed addressing with trailing comma: label(a1,) or (a1,)
-  if (/\([^)]*,\s*\)/.test(trimmed)) {
-    return {
-      value: {
-        type: "unknown",
-        loc,
-      },
-      errors: [
-        malformedIndexedAddressing(
-          "Missing index register after comma in indexed addressing",
           loc,
         ),
       ],
