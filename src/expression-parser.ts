@@ -116,7 +116,7 @@ export function parseExpression(
       } else {
         // Missing closing parenthesis
         if (!parseError) {
-          parseError = unclosedParen(loc.start + parenPos);
+          parseError = unclosedParen({ start: loc.start + parenPos, end: loc.start + parenPos + 1 });
         }
       }
       return {
@@ -128,9 +128,10 @@ export function parseExpression(
 
     // If we can't parse, return unknown and set error
     if (!parseError && token) {
+      const tokenValue = 'value' in token ? token.value : '';
       parseError = invalidExpression(
         `Unexpected token '${token.type}'`,
-        loc.start + (token.position || 0),
+        { start: loc.start + (token.position || 0), end: loc.start + (token.position || 0) + (tokenValue?.length || 1) },
       );
     }
     return {

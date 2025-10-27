@@ -131,7 +131,7 @@ function createAddressRegisterOrSymbolNode(
         name: name,
         loc,
       },
-      error: invalidBaseRegister(name, loc.start),
+      error: invalidBaseRegister(name, loc),
     };
   }
 
@@ -238,7 +238,7 @@ function parseIndexSpec(
       scaleFactor = scaleNode;
     } else {
       // Missing scale factor after *
-      error = missingScaleFactor(loc.start + starPos);
+      error = missingScaleFactor({ start: loc.start + starPos, end: loc.start + starPos + 1 });
     }
   }
 
@@ -251,7 +251,7 @@ function parseIndexSpec(
  */
 function validateScaleFactor(
   scaleFactor: ExpressionNode | undefined,
-  position: number,
+  loc: Location,
 ): ParseError | undefined {
   if (!scaleFactor) return undefined;
 
@@ -259,7 +259,7 @@ function validateScaleFactor(
   if (scaleFactor.type === "numeric-literal") {
     const value = scaleFactor.value;
     if (![1, 2, 4, 8].includes(value)) {
-      return invalidScaleFactor(value.toString(), position);
+      return invalidScaleFactor(value.toString(), scaleFactor.loc);
     }
   }
 
@@ -346,7 +346,7 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "lparen") {
     return {
       success: false,
-      error: expectedToken(["("], loc.start, text[0]),
+      error: expectedToken(["("], { start: loc.start, end: loc.start + 1 }, text[0]),
     };
   }
   const openParen = consume();
@@ -356,7 +356,7 @@ function parseMemoryIndirectWithTokens(
       success: false,
       error: expectedToken(
         ["["],
-        loc.start + current().position,
+        { start: loc.start + current().position, end: loc.start + current().position + current().value.length },
         current().value,
       ),
     };
@@ -398,7 +398,7 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "rbracket") {
     return {
       success: false,
-      error: unclosedBracket(loc.start + openBracket.position),
+      error: unclosedBracket({ start: loc.start + openBracket.position, end: loc.start + openBracket.position + 1 }),
     };
   }
   consume("rbracket");
@@ -443,7 +443,7 @@ function parseMemoryIndirectWithTokens(
       scaleFactor = indexSpec.scaleFactor;
 
       // Validate scale factor if it's a literal
-      const scaleError = validateScaleFactor(scaleFactor, loc.start);
+      const scaleError = validateScaleFactor(scaleFactor, loc);
       if (scaleError) {
         return {
           success: false,
@@ -497,7 +497,7 @@ function parseMemoryIndirectWithTokens(
       scaleFactor = indexSpec.scaleFactor;
 
       // Validate scale factor if it's a literal
-      const scaleError = validateScaleFactor(scaleFactor, loc.start);
+      const scaleError = validateScaleFactor(scaleFactor, loc);
       if (scaleError) {
         return {
           success: false,
@@ -528,7 +528,7 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "rparen") {
     return {
       success: false,
-      error: unclosedParen(loc.start + openParen.position),
+      error: unclosedParen({ start: loc.start + openParen.position, end: loc.start + openParen.position + 1 }),
     };
   }
   consume("rparen");
@@ -590,7 +590,7 @@ function parseIndexedAddressingWithTokens(
       success: false,
       error: expectedToken(
         ["("],
-        loc.start + current().position,
+        { start: loc.start + current().position, end: loc.start + current().position + current().value.length },
         current().value,
       ),
     };
@@ -620,7 +620,7 @@ function parseIndexedAddressingWithTokens(
   if (current().type !== "rparen") {
     return {
       success: false,
-      error: unclosedParen(loc.start + openParen.position),
+      error: unclosedParen({ start: loc.start + openParen.position, end: loc.start + openParen.position + 1 }),
     };
   }
   consume();
@@ -638,7 +638,7 @@ function parseIndexedAddressingWithTokens(
         success: false,
         error: malformedIndexedAddressing(
           `Invalid index register format '${indexPart}'`,
-          loc.start,
+          loc,
         ),
       };
     }
@@ -656,7 +656,7 @@ function parseIndexedAddressingWithTokens(
     const scaleFactor = indexSpec.scaleFactor;
 
     // Validate scale factor if it's a literal
-    const scaleError = validateScaleFactor(scaleFactor, loc.start);
+    const scaleError = validateScaleFactor(scaleFactor, loc);
     if (scaleError) {
       return {
         success: false,
@@ -774,7 +774,7 @@ function parseIndexedAddressingWithTokens(
         success: false,
         error: malformedIndexedAddressing(
           `Invalid index register format '${indexPart}'`,
-          loc.start,
+          loc,
         ),
       };
     }
@@ -792,7 +792,7 @@ function parseIndexedAddressingWithTokens(
     const scaleFactor = indexSpec.scaleFactor;
 
     // Validate scale factor if it's a literal
-    const scaleError = validateScaleFactor(scaleFactor, loc.start);
+    const scaleError = validateScaleFactor(scaleFactor, loc);
     if (scaleError) {
       return {
         success: false,
@@ -842,7 +842,7 @@ function parseIndexedAddressingWithTokens(
     success: false,
     error: malformedIndexedAddressing(
       `Invalid indexed addressing format`,
-      loc.start,
+      loc,
     ),
   };
 }
@@ -879,7 +879,7 @@ function parseBitfieldWithTokens(
   if (current().type !== "lbrace") {
     return {
       success: false,
-      error: expectedToken(["{"], loc.start, current().value),
+      error: expectedToken(["{"], { start: loc.start, end: loc.start + current().value.length }, current().value),
     };
   }
   const openBrace = consume();
@@ -899,7 +899,7 @@ function parseBitfieldWithTokens(
   if (!offsetPart) {
     return {
       success: false,
-      error: malformedBitfield("Bitfield offset cannot be empty", loc.start),
+      error: malformedBitfield("Bitfield offset cannot be empty", loc),
     };
   }
 
@@ -940,7 +940,7 @@ function parseBitfieldWithTokens(
   if (current().type !== "rbrace") {
     return {
       success: false,
-      error: unclosedBrace(loc.start + openBrace.position),
+      error: unclosedBrace({ start: loc.start + openBrace.position, end: loc.start + openBrace.position + 1 }),
     };
   }
   consume();
@@ -1286,7 +1286,7 @@ export function parseOperand(
         },
         error: malformedIndexedAddressing(
           "Empty parentheses - missing register in indirect addressing",
-          loc.start,
+          loc,
         ),
       };
     }
@@ -1381,7 +1381,7 @@ export function parseOperand(
       },
       error: malformedIndexedAddressing(
         "Empty parentheses - missing register in indirect addressing",
-        loc.start,
+        loc,
       ),
     };
   }
@@ -1395,7 +1395,7 @@ export function parseOperand(
       },
       error: malformedIndexedAddressing(
         "Missing index register after comma in indexed addressing",
-        loc.start,
+        loc,
       ),
     };
   }
@@ -1413,7 +1413,7 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: unclosedParen(loc.start + parenPos),
+      error: unclosedParen({ start: loc.start + parenPos, end: loc.start + parenPos + 1 }),
     };
   }
 
@@ -1424,7 +1424,7 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: unclosedBracket(loc.start + bracketPos),
+      error: unclosedBracket({ start: loc.start + bracketPos, end: loc.start + bracketPos + 1 }),
     };
   }
 

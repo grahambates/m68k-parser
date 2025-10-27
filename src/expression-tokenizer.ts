@@ -216,7 +216,7 @@ export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
         }
       }
       // If we couldn't parse it as a macro parameter, report unknown character
-      errors.push(unknownCharacter("\\", i - 1));
+      errors.push(unknownCharacter("\\", { start: i - 1, end: i }));
       continue;
     }
 
@@ -232,7 +232,7 @@ export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
     }
 
     // Unknown character - report error and skip it
-    errors.push(unknownCharacter(char, i));
+    errors.push(unknownCharacter(char, { start: i, end: i + 1 }));
     i++;
   }
 

@@ -258,7 +258,7 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
       }
       if (value === "$") {
         // No hex digits after $
-        errors.push(malformedNumber("$", start));
+        errors.push(malformedNumber("$", { start, end: start + 1 }));
       }
       tokens.push({ type: "number", value, position: start });
       continue;
@@ -272,7 +272,7 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
       }
       if (value === "%") {
         // No binary digits after %
-        errors.push(malformedNumber("%", start));
+        errors.push(malformedNumber("%", { start, end: start + 1 }));
       }
       tokens.push({ type: "number", value, position: start });
       continue;
@@ -286,7 +286,7 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
       }
       if (value === "@") {
         // No octal digits after @
-        errors.push(malformedNumber("@", start));
+        errors.push(malformedNumber("@", { start, end: start + 1 }));
       }
       tokens.push({ type: "number", value, position: start });
       continue;
@@ -347,7 +347,7 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
     }
 
     // Unknown character - report error and skip it
-    errors.push(unknownCharacter(ch, pos));
+    errors.push(unknownCharacter(ch, { start: pos, end: pos + 1 }));
     advance();
   }
 

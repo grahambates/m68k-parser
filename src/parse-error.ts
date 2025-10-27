@@ -3,6 +3,8 @@
  * Provides detailed error messages with position information
  */
 
+import { Location } from "./types";
+
 export type ParseErrorCode =
   | "UNEXPECTED_TOKEN"
   | "EXPECTED_TOKEN"
@@ -32,8 +34,7 @@ export type ParseErrorCode =
 export interface ParseError {
   code: ParseErrorCode;
   message: string;
-  position: number; // Character position in operand string
-  length?: number; // Length of problematic token/section
+  loc: Location;
   expected?: string[]; // What was expected (for better error messages)
   got?: string; // What was actually found
   hint?: string; // Helpful suggestion for fixing the error
@@ -45,9 +46,8 @@ export interface ParseError {
 export function createError(
   code: ParseErrorCode,
   message: string,
-  position: number,
+  loc: Location,
   options?: {
-    length?: number;
     expected?: string[];
     got?: string;
     hint?: string;
@@ -56,8 +56,7 @@ export function createError(
   return {
     code,
     message,
-    position,
-    length: options?.length,
+    loc,
     expected: options?.expected,
     got: options?.got,
     hint: options?.hint,
@@ -65,18 +64,20 @@ export function createError(
 }
 
 /**
- * Format an error for display with position context
+ * Format an error for display with location context
  */
 export function formatError(error: ParseError, operandText: string): string {
   const lines: string[] = [];
 
   lines.push(`Error: ${error.message}`);
 
+  const length = error.loc.end - error.loc.start;
+
   // Show the operand text with a pointer to the error position
   lines.push(`  ${operandText}`);
-  const pointer = " ".repeat(error.position + 2) + "^";
-  if (error.length && error.length > 1) {
-    lines.push(pointer + "~".repeat(error.length - 1));
+  const pointer = " ".repeat(error.loc.start + 2) + "^";
+  if (length > 1) {
+    lines.push(pointer + "~".repeat(length - 1));
   } else {
     lines.push(pointer);
   }
@@ -103,30 +104,25 @@ export function formatError(error: ParseError, operandText: string): string {
 
 export function unexpectedToken(
   got: string,
-  position: number,
+  loc: Location,
   expected?: string[],
 ): ParseError {
-  return createError(
-    "UNEXPECTED_TOKEN",
-    `Unexpected token '${got}'`,
-    position,
-    {
-      expected,
-      got,
-      length: got.length,
-    },
-  );
+  return createError("UNEXPECTED_TOKEN", `Unexpected token '${got}'`, loc, {
+    expected,
+    got,
+    // length: got.length,
+  });
 }
 
 export function expectedToken(
   expected: string[],
-  position: number,
+  loc: Location,
   got?: string,
 ): ParseError {
   return createError(
     "EXPECTED_TOKEN",
     `Expected ${expected.join(" or ")}`,
-    position,
+    loc,
     {
       expected,
       got,
@@ -134,44 +130,39 @@ export function expectedToken(
   );
 }
 
-export function unclosedBracket(position: number): ParseError {
+export function unclosedBracket(loc: Location): ParseError {
   return createError(
     "UNCLOSED_BRACKET",
     "Unclosed bracket - missing ']'",
-    position,
+    loc,
     {
       hint: "Memory indirect addressing requires matching [ and ]",
     },
   );
 }
 
-export function unclosedParen(position: number): ParseError {
+export function unclosedParen(loc: Location): ParseError {
   return createError(
     "UNCLOSED_PAREN",
     "Unclosed parenthesis - missing ')'",
-    position,
+    loc,
     {
       hint: "Indirect addressing requires matching ( and )",
     },
   );
 }
 
-export function unclosedBrace(position: number): ParseError {
-  return createError(
-    "UNCLOSED_BRACE",
-    "Unclosed brace - missing '}'",
-    position,
-    {
-      hint: "Bitfield specification requires matching { and }",
-    },
-  );
+export function unclosedBrace(loc: Location): ParseError {
+  return createError("UNCLOSED_BRACE", "Unclosed brace - missing '}'", loc, {
+    hint: "Bitfield specification requires matching { and }",
+  });
 }
 
-export function invalidScaleFactor(got: string, position: number): ParseError {
+export function invalidScaleFactor(got: string, loc: Location): ParseError {
   return createError(
     "INVALID_SCALE_FACTOR",
     `Invalid scale factor '${got}'`,
-    position,
+    loc,
     {
       expected: ["1", "2", "4", "8"],
       got,
@@ -180,65 +171,54 @@ export function invalidScaleFactor(got: string, position: number): ParseError {
   );
 }
 
-export function invalidIndexSize(got: string, position: number): ParseError {
-  return createError(
-    "INVALID_INDEX_SIZE",
-    `Invalid index size '${got}'`,
-    position,
-    {
-      expected: ["w", "l"],
-      got,
-      hint: "Index size must be .w (word) or .l (long)",
-    },
-  );
+export function invalidIndexSize(got: string, loc: Location): ParseError {
+  return createError("INVALID_INDEX_SIZE", `Invalid index size '${got}'`, loc, {
+    expected: ["w", "l"],
+    got,
+    hint: "Index size must be .w (word) or .l (long)",
+  });
 }
 
 export function malformedMemoryIndirect(
   message: string,
-  position: number,
+  loc: Location,
 ): ParseError {
-  return createError("MALFORMED_MEMORY_INDIRECT", message, position, {
+  return createError("MALFORMED_MEMORY_INDIRECT", message, loc, {
     hint: "Memory indirect format: ([bd,An,Rn.s*scale],od) - 68020+ only",
   });
 }
 
 export function malformedIndexedAddressing(
   message: string,
-  position: number,
+  loc: Location,
 ): ParseError {
-  return createError("MALFORMED_INDEXED_ADDRESSING", message, position, {
+  return createError("MALFORMED_INDEXED_ADDRESSING", message, loc, {
     hint: "Indexed addressing format: disp(An,Rn.size) or (An,Rn.size)",
   });
 }
 
-export function malformedBitfield(
-  message: string,
-  position: number,
-): ParseError {
-  return createError("MALFORMED_BITFIELD", message, position, {
+export function malformedBitfield(message: string, loc: Location): ParseError {
+  return createError("MALFORMED_BITFIELD", message, loc, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",
   });
 }
 
-export function missingOperand(operator: string, position: number): ParseError {
+export function missingOperand(operator: string, loc: Location): ParseError {
   return createError(
     "MISSING_OPERAND",
     `Missing operand for operator '${operator}'`,
-    position,
+    loc,
     {
       hint: "Binary operators require both left and right operands",
     },
   );
 }
 
-export function invalidExpression(
-  message: string,
-  position: number,
-): ParseError {
-  return createError("INVALID_EXPRESSION", message, position);
+export function invalidExpression(message: string, loc: Location): ParseError {
+  return createError("INVALID_EXPRESSION", message, loc);
 }
 
-export function unknownCharacter(char: string, position: number): ParseError {
+export function unknownCharacter(char: string, loc: Location): ParseError {
   const displayChar =
     char === " "
       ? "space"
@@ -250,16 +230,16 @@ export function unknownCharacter(char: string, position: number): ParseError {
   return createError(
     "UNKNOWN_CHARACTER",
     `Unknown character ${displayChar}`,
-    position,
+    loc,
     {
       got: char,
-      length: 1,
+      // length: 1,
       hint: "Character is not valid in this context",
     },
   );
 }
 
-export function malformedNumber(prefix: string, position: number): ParseError {
+export function malformedNumber(prefix: string, loc: Location): ParseError {
   let hint: string;
   switch (prefix) {
     case "$":
@@ -278,20 +258,20 @@ export function malformedNumber(prefix: string, position: number): ParseError {
   return createError(
     "MALFORMED_NUMBER",
     `Malformed number with prefix '${prefix}'`,
-    position,
+    loc,
     {
       got: prefix,
-      length: 1,
+      // length: 1,
       hint,
     },
   );
 }
 
-export function missingScaleFactor(position: number): ParseError {
+export function missingScaleFactor(loc: Location): ParseError {
   return createError(
     "MISSING_SCALE_FACTOR",
     "Missing scale factor after '*'",
-    position,
+    loc,
     {
       expected: ["1", "2", "4", "8", "expression"],
       hint: "Scale factor required after * (e.g., d0.w*2 or d0.w*scale)",
@@ -301,12 +281,12 @@ export function missingScaleFactor(position: number): ParseError {
 
 export function invalidBaseRegister(
   register: string,
-  position: number,
+  loc: Location,
 ): ParseError {
   return createError(
     "INVALID_BASE_REGISTER",
     `Invalid base register '${register}' - address register required`,
-    position,
+    loc,
     {
       expected: ["a0-a7", "sp", "macro parameter", "symbol"],
       got: register,

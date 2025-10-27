@@ -11,7 +11,7 @@ import type {
   Directive,
   Size,
 } from "./syntax";
-import type { ParseError } from "./parse-error";
+import type { ParseError, ParseErrorCode } from "./parse-error";
 
 export type {
   DataRegister,
@@ -24,6 +24,8 @@ export type {
   Instruction,
   Directive,
   Size,
+  ParseError,
+  ParseErrorCode,
 };
 
 // Resilient parse result - always returns a value with optional error
