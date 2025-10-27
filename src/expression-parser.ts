@@ -23,6 +23,7 @@ export function parseExpression(
         type: "unknown",
         loc,
       },
+      errors: [],
     };
   }
 
@@ -244,12 +245,14 @@ export function parseExpression(
     return parseBinaryOp(parseLogicalAnd, ["||"]);
   }
 
-  const expression = parseLogicalOr();
+  const value = parseLogicalOr();
 
-  // Prioritize tokenizer errors as they represent more fundamental issues
+  // Collect all errors - prioritize tokenizer errors as they represent more fundamental issues
   // If tokenizer can't recognize characters, that's the root cause
-  const finalError =
-    (tokenizerErrors.length > 0 ? tokenizerErrors[0] : undefined) || parseError;
+  const errors: ParseError[] = [...tokenizerErrors];
+  if (parseError) {
+    errors.push(parseError);
+  }
 
-  return { value: expression, error: finalError };
+  return { value, errors };
 }

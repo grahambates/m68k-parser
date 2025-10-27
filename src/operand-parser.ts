@@ -51,7 +51,7 @@ import { isValidIdentifier } from "./tokenizer-utils";
 // Strict parse result - discriminated union for success/failure
 type StrictParseResult<T> =
   | { success: true; value: T }
-  | { success: false; error: ParseError };
+  | { success: false; errors: ParseError[] };
 
 /**
  * Helper to create a register node from a register name
@@ -65,44 +65,45 @@ function createRegisterNode(
   | SpecialRegisterNode
   | FPUDataRegisterNode
   | FPUControlRegisterNode {
-  const lower = name.toLowerCase();
+  const register = name.toLowerCase();
 
-  if (isDataRegister(lower)) {
+  if (isDataRegister(register)) {
     return {
       type: "data-register",
-      register: lower,
+      register,
       loc,
     };
-  } else if (isAddressRegister(lower)) {
+  } else if (isAddressRegister(register)) {
     return {
       type: "address-register",
-      register: lower,
+      register,
       loc,
     };
-  } else if (isSpecialRegister(lower)) {
+  } else if (isSpecialRegister(register)) {
     return {
       type: "special-register",
-      register: lower,
+      register,
       loc,
     };
-  } else if (isFPUDataRegister(lower)) {
+  } else if (isFPUDataRegister(register)) {
     return {
       type: "fpu-data-register",
-      register: lower,
+      register,
       loc,
     };
-  } else if (isFPUControlRegister(lower)) {
+  } else if (isFPUControlRegister(register)) {
     return {
       type: "fpu-control-register",
-      register: lower,
+      register,
       loc,
     };
   }
 
   // Default to address register for unknown
+  // This shouldn't happen because we only call this with already matched strings
   return {
     type: "address-register",
-    register: lower as AddressRegister,
+    register: register as AddressRegister,
     loc,
   };
 }
@@ -188,7 +189,7 @@ function parseIndexSpec(
     | MacroParameterNode;
   size?: SizeNode | SymbolNode | MacroParameterNode;
   scaleFactor?: ExpressionNode;
-  error?: ParseError;
+  errors: ParseError[];
 } | null {
   let pos = 0;
   let registerNode:
@@ -231,7 +232,7 @@ function parseIndexSpec(
 
   let size: SizeNode | SymbolNode | MacroParameterNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
-  let error: ParseError | undefined;
+  const errors: ParseError[] = [];
 
   // Check for size after dot
   if (text[pos] === ".") {
@@ -243,7 +244,7 @@ function parseIndexSpec(
       if (indexSizeResult.success) {
         size = indexSizeResult.value;
       } else {
-        error = indexSizeResult.error;
+        errors.push(...indexSizeResult.errors);
       }
       pos += sizeMatch[1].length;
     }
@@ -269,14 +270,16 @@ function parseIndexSpec(
       scaleFactor = scaleNode;
     } else {
       // Missing scale factor after *
-      error = missingScaleFactor({
-        start: loc.start + starPos,
-        end: loc.start + starPos + 1,
-      });
+      errors.push(
+        missingScaleFactor({
+          start: loc.start + starPos,
+          end: loc.start + starPos + 1,
+        }),
+      );
     }
   }
 
-  return { register: registerNode, size, scaleFactor, error };
+  return { register: registerNode, size, scaleFactor, errors };
 }
 
 /**
@@ -334,7 +337,7 @@ function createAddressSizeNode(
   // Invalid
   return {
     success: false,
-    error: invalidIndexSize(name, loc),
+    errors: [invalidIndexSize(name, loc)],
   };
 }
 
@@ -346,14 +349,14 @@ function parseMemoryIndirectWithTokens(
   text: string,
   loc: Location,
 ): StrictParseResult<MemoryIndirectNode> {
-  const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
+  const { tokens, errors } = tokenizeOperand(text);
   let pos = 0;
 
-  // If tokenizer had errors, return first one
-  if (tokenizerErrors.length > 0) {
+  // If tokenizer had errors, return them
+  if (errors.length > 0) {
     return {
       success: false,
-      error: tokenizerErrors[0],
+      errors: errors,
     };
   }
 
@@ -384,11 +387,9 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "lparen") {
     return {
       success: false,
-      error: expectedToken(
-        ["("],
-        { start: loc.start, end: loc.start + 1 },
-        text[0],
-      ),
+      errors: [
+        expectedToken(["("], { start: loc.start, end: loc.start + 1 }, text[0]),
+      ],
     };
   }
   const openParen = consume();
@@ -396,14 +397,16 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "lbracket") {
     return {
       success: false,
-      error: expectedToken(
-        ["["],
-        {
-          start: loc.start + current().position,
-          end: loc.start + current().position + current().value.length,
-        },
-        current().value,
-      ),
+      errors: [
+        expectedToken(
+          ["["],
+          {
+            start: loc.start + current().position,
+            end: loc.start + current().position + current().value.length,
+          },
+          current().value,
+        ),
+      ],
     };
   }
   const openBracket = consume();
@@ -443,10 +446,12 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "rbracket") {
     return {
       success: false,
-      error: unclosedBracket({
-        start: loc.start + openBracket.position,
-        end: loc.start + openBracket.position + 1,
-      }),
+      errors: [
+        unclosedBracket({
+          start: loc.start + openBracket.position,
+          end: loc.start + openBracket.position + 1,
+        }),
+      ],
     };
   }
   consume("rbracket");
@@ -459,10 +464,10 @@ function parseMemoryIndirectWithTokens(
       baseRegister = createRegisterNode(part, loc) as AddressRegisterNode;
     } else {
       const bdResult = parseExpression(part, loc);
-      if (bdResult.error) {
+      if (bdResult.errors) {
         return {
           success: false,
-          error: bdResult.error,
+          errors: bdResult.errors,
         };
       }
       baseDisplacement = bdResult.value;
@@ -489,10 +494,10 @@ function parseMemoryIndirectWithTokens(
 
     if (firstIsBaseReg && indexSpec) {
       // Check for parseIndexSpec error first
-      if (indexSpec.error) {
+      if (indexSpec.errors) {
         return {
           success: false,
-          error: indexSpec.error,
+          errors: indexSpec.errors,
         };
       }
 
@@ -507,16 +512,16 @@ function parseMemoryIndirectWithTokens(
       if (scaleError) {
         return {
           success: false,
-          error: scaleError,
+          errors: [scaleError],
         };
       }
     } else {
       // [bd,An]
       const bdResult = parseExpression(first, loc);
-      if (bdResult.error) {
+      if (bdResult.errors) {
         return {
           success: false,
-          error: bdResult.error,
+          errors: bdResult.errors,
         };
       }
       baseDisplacement = bdResult.value;
@@ -531,10 +536,10 @@ function parseMemoryIndirectWithTokens(
     const idx = innerParts[2];
 
     const bdResult = parseExpression(bd, loc);
-    if (bdResult.error) {
+    if (bdResult.errors) {
       return {
         success: false,
-        error: bdResult.error,
+        errors: bdResult.errors,
       };
     }
     baseDisplacement = bdResult.value;
@@ -557,10 +562,10 @@ function parseMemoryIndirectWithTokens(
     const indexSpec = parseIndexSpec(idx, idxLoc);
     if (indexSpec) {
       // Check for parseIndexSpec error first
-      if (indexSpec.error) {
+      if (indexSpec.errors) {
         return {
           success: false,
-          error: indexSpec.error,
+          errors: indexSpec.errors,
         };
       }
 
@@ -573,7 +578,7 @@ function parseMemoryIndirectWithTokens(
       if (scaleError) {
         return {
           success: false,
-          error: scaleError,
+          errors: [scaleError],
         };
       }
     }
@@ -586,10 +591,10 @@ function parseMemoryIndirectWithTokens(
     const outerPart = parseExpressionFromTokens(["rparen", "eof"]);
     if (outerPart) {
       const odResult = parseExpression(outerPart, loc);
-      if (odResult.error) {
+      if (odResult.errors) {
         return {
           success: false,
-          error: odResult.error,
+          errors: odResult.errors,
         };
       }
       outerDisplacement = odResult.value;
@@ -600,10 +605,12 @@ function parseMemoryIndirectWithTokens(
   if (current().type !== "rparen") {
     return {
       success: false,
-      error: unclosedParen({
-        start: loc.start + openParen.position,
-        end: loc.start + openParen.position + 1,
-      }),
+      errors: [
+        unclosedParen({
+          start: loc.start + openParen.position,
+          end: loc.start + openParen.position + 1,
+        }),
+      ],
     };
   }
   consume("rparen");
@@ -634,11 +641,11 @@ function parseIndexedAddressingWithTokens(
   const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
   let pos = 0;
 
-  // If tokenizer had errors, return first one
+  // If tokenizer had errors, return them
   if (tokenizerErrors.length > 0) {
     return {
       success: false,
-      error: tokenizerErrors[0],
+      errors: tokenizerErrors,
     };
   }
 
@@ -663,14 +670,16 @@ function parseIndexedAddressingWithTokens(
   if (current().type !== "lparen") {
     return {
       success: false,
-      error: expectedToken(
-        ["("],
-        {
-          start: loc.start + current().position,
-          end: loc.start + current().position + current().value.length,
-        },
-        current().value,
-      ),
+      errors: [
+        expectedToken(
+          ["("],
+          {
+            start: loc.start + current().position,
+            end: loc.start + current().position + current().value.length,
+          },
+          current().value,
+        ),
+      ],
     };
   }
   const openParen = consume();
@@ -698,10 +707,12 @@ function parseIndexedAddressingWithTokens(
   if (current().type !== "rparen") {
     return {
       success: false,
-      error: unclosedParen({
-        start: loc.start + openParen.position,
-        end: loc.start + openParen.position + 1,
-      }),
+      errors: [
+        unclosedParen({
+          start: loc.start + openParen.position,
+          end: loc.start + openParen.position + 1,
+        }),
+      ],
     };
   }
   consume();
@@ -727,18 +738,20 @@ function parseIndexedAddressingWithTokens(
     if (!indexSpec) {
       return {
         success: false,
-        error: malformedIndexedAddressing(
-          `Invalid index register format '${indexPart}'`,
-          loc,
-        ),
+        errors: [
+          malformedIndexedAddressing(
+            `Invalid index register format '${indexPart}'`,
+            loc,
+          ),
+        ],
       };
     }
 
     // Check for parseIndexSpec error
-    if (indexSpec.error) {
+    if (indexSpec.errors) {
       return {
         success: false,
-        error: indexSpec.error,
+        errors: indexSpec.errors,
       };
     }
 
@@ -751,16 +764,16 @@ function parseIndexedAddressingWithTokens(
     if (scaleError) {
       return {
         success: false,
-        error: scaleError,
+        errors: [scaleError],
       };
     }
 
     // Parse displacement and check for errors
     const dispResult = parseExpression(displacement || "0", loc);
-    if (dispResult.error) {
+    if (dispResult.errors) {
       return {
         success: false,
-        error: dispResult.error,
+        errors: dispResult.errors,
       };
     }
 
@@ -796,7 +809,7 @@ function parseIndexedAddressingWithTokens(
       if (baseRegResult.error) {
         return {
           success: false,
-          error: baseRegResult.error,
+          errors: [baseRegResult.error],
         };
       }
 
@@ -835,10 +848,10 @@ function parseIndexedAddressingWithTokens(
 
       // Parse displacement and check for errors
       const dispResult = parseExpression(displacement || "0", loc);
-      if (dispResult.error) {
+      if (dispResult.errors) {
         return {
           success: false,
-          error: dispResult.error,
+          errors: dispResult.errors,
         };
       }
 
@@ -902,18 +915,20 @@ function parseIndexedAddressingWithTokens(
     if (!indexSpec) {
       return {
         success: false,
-        error: malformedIndexedAddressing(
-          `Invalid index register format '${indexPart}'`,
-          loc,
-        ),
+        errors: [
+          malformedIndexedAddressing(
+            `Invalid index register format '${indexPart}'`,
+            loc,
+          ),
+        ],
       };
     }
 
     // Check for parseIndexSpec error
-    if (indexSpec.error) {
+    if (indexSpec.errors) {
       return {
         success: false,
-        error: indexSpec.error,
+        errors: indexSpec.errors,
       };
     }
 
@@ -926,16 +941,16 @@ function parseIndexedAddressingWithTokens(
     if (scaleError) {
       return {
         success: false,
-        error: scaleError,
+        errors: [scaleError],
       };
     }
 
     // Parse displacement and check for errors
     const dispResult = parseExpression(disp, loc);
-    if (dispResult.error) {
+    if (dispResult.errors) {
       return {
         success: false,
-        error: dispResult.error,
+        errors: dispResult.errors,
       };
     }
 
@@ -986,7 +1001,9 @@ function parseIndexedAddressingWithTokens(
 
   return {
     success: false,
-    error: malformedIndexedAddressing(`Invalid indexed addressing format`, loc),
+    errors: [
+      malformedIndexedAddressing(`Invalid indexed addressing format`, loc),
+    ],
   };
 }
 
@@ -1004,7 +1021,7 @@ function parseBitfieldWithTokens(
   if (tokenizerErrors.length > 0) {
     return {
       success: false,
-      error: tokenizerErrors[0],
+      errors: tokenizerErrors,
     };
   }
 
@@ -1022,11 +1039,13 @@ function parseBitfieldWithTokens(
   if (current().type !== "lbrace") {
     return {
       success: false,
-      error: expectedToken(
-        ["{"],
-        { start: loc.start, end: loc.start + current().value.length },
-        current().value,
-      ),
+      errors: [
+        expectedToken(
+          ["{"],
+          { start: loc.start, end: loc.start + current().value.length },
+          current().value,
+        ),
+      ],
     };
   }
   const openBrace = consume();
@@ -1046,15 +1065,15 @@ function parseBitfieldWithTokens(
   if (!offsetPart) {
     return {
       success: false,
-      error: malformedBitfield("Bitfield offset cannot be empty", loc),
+      errors: [malformedBitfield("Bitfield offset cannot be empty", loc)],
     };
   }
 
   const offsetResult = parseExpression(offsetPart, loc);
-  if (offsetResult.error) {
+  if (offsetResult.errors) {
     return {
       success: false,
-      error: offsetResult.error,
+      errors: offsetResult.errors,
     };
   }
   const offset = offsetResult.value;
@@ -1073,10 +1092,10 @@ function parseBitfieldWithTokens(
 
     if (widthPart) {
       const widthResult = parseExpression(widthPart, loc);
-      if (widthResult.error) {
+      if (widthResult.errors) {
         return {
           success: false,
-          error: widthResult.error,
+          errors: widthResult.errors,
         };
       }
       width = widthResult.value;
@@ -1087,10 +1106,12 @@ function parseBitfieldWithTokens(
   if (current().type !== "rbrace") {
     return {
       success: false,
-      error: unclosedBrace({
-        start: loc.start + openBrace.position,
-        end: loc.start + openBrace.position + 1,
-      }),
+      errors: [
+        unclosedBrace({
+          start: loc.start + openBrace.position,
+          end: loc.start + openBrace.position + 1,
+        }),
+      ],
     };
   }
   consume();
@@ -1184,6 +1205,7 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
+      errors: [],
     };
   }
 
@@ -1210,6 +1232,7 @@ export function parseOperand(
         quote,
         content,
       },
+      errors: [],
     };
   }
 
@@ -1218,6 +1241,7 @@ export function parseOperand(
   if (macroPar) {
     return {
       value: macroPar,
+      errors: [],
     };
   }
 
@@ -1225,7 +1249,7 @@ export function parseOperand(
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     const result = parseBitfieldWithTokens(trimmed, loc);
     if (result.success) {
-      return { value: result.value };
+      return { value: result.value, errors: [] };
     }
     // If token-based parser failed, return unknown with error
     return {
@@ -1233,7 +1257,7 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: result.error,
+      errors: result.errors,
     };
   }
 
@@ -1243,7 +1267,7 @@ export function parseOperand(
   if (trimmed.startsWith("#")) {
     const exprText = trimmed.slice(1);
     const exprStart = loc.start + text.indexOf(exprText);
-    const { value: exprValue, error: exprError } = parseExpression(exprText, {
+    const { value: exprValue, errors: exprErrors } = parseExpression(exprText, {
       start: exprStart,
       end: loc.end,
       line: loc.line,
@@ -1254,7 +1278,7 @@ export function parseOperand(
         loc,
         value: exprValue,
       },
-      error: exprError,
+      errors: exprErrors,
     };
   }
 
@@ -1264,6 +1288,7 @@ export function parseOperand(
   if (isRegister(register)) {
     return {
       value: createRegisterNode(register, loc),
+      errors: [],
     };
   }
 
@@ -1287,6 +1312,7 @@ export function parseOperand(
         raw,
         registers,
       },
+      errors: [],
     };
   }
 
@@ -1310,6 +1336,7 @@ export function parseOperand(
         raw,
         registers,
       },
+      errors: [],
     };
   }
 
@@ -1318,7 +1345,7 @@ export function parseOperand(
   if (trimmed.startsWith("([")) {
     const result = parseMemoryIndirectWithTokens(trimmed, loc);
     if (result.success) {
-      return { value: result.value };
+      return { value: result.value, errors: [] };
     }
     // If token-based parser failed, return unknown with error
     return {
@@ -1326,7 +1353,7 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: result.error,
+      errors: result.errors,
     };
   }
 
@@ -1354,6 +1381,7 @@ export function parseOperand(
         register: createAddressRegisterOrSymbolNode(registerName, registerLoc)
           .node,
       },
+      errors: [],
     };
   }
 
@@ -1381,6 +1409,7 @@ export function parseOperand(
         register: createAddressRegisterOrSymbolNode(registerName, registerLoc)
           .node,
       },
+      errors: [],
     };
   }
 
@@ -1393,7 +1422,7 @@ export function parseOperand(
   if (dispInParensMatch) {
     const displacement = dispInParensMatch[1].trim();
     const register = dispInParensMatch[2].trim().toLowerCase();
-    const { value: dispExpr, error: dispError } = parseExpression(
+    const { value: dispExpr, errors: dispErrors } = parseExpression(
       displacement,
       loc,
     );
@@ -1406,7 +1435,7 @@ export function parseOperand(
           loc,
           displacement: dispExpr,
         },
-        error: dispError,
+        errors: dispErrors,
       };
     }
 
@@ -1425,6 +1454,11 @@ export function parseOperand(
     };
 
     const regResult = createAddressRegisterOrSymbolNode(register, registerLoc);
+
+    // Collect all errors
+    const errors: ParseError[] = [...dispErrors];
+    if (regResult.error) errors.push(regResult.error);
+
     return {
       value: {
         type: "address-register-indirect-displacement",
@@ -1432,7 +1466,7 @@ export function parseOperand(
         displacement: dispExpr,
         register: regResult.node,
       },
-      error: dispError || regResult.error,
+      errors,
     };
   }
 
@@ -1446,7 +1480,7 @@ export function parseOperand(
   if (hasIndexedPattern) {
     const result = parseIndexedAddressingWithTokens(trimmed, loc);
     if (result.success) {
-      return { value: result.value };
+      return { value: result.value, errors: [] };
     }
     // Pattern matched indexed addressing, but parsing failed with an error
     // Return unknown node with error
@@ -1455,7 +1489,7 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: result.error,
+      errors: result.errors,
     };
   }
 
@@ -1473,16 +1507,18 @@ export function parseOperand(
           type: "unknown",
           loc,
         },
-        error: malformedIndexedAddressing(
-          "Empty parentheses - missing register in indirect addressing",
-          loc,
-        ),
+        errors: [
+          malformedIndexedAddressing(
+            "Empty parentheses - missing register in indirect addressing",
+            loc,
+          ),
+        ],
       };
     }
 
     // PC relative without index
     if (register === "pc") {
-      const { value: dispExpr, error: dispError } = parseExpression(
+      const { value: dispExpr, errors: dispErrors } = parseExpression(
         displacement || "0",
         loc,
       );
@@ -1492,7 +1528,7 @@ export function parseOperand(
           loc,
           displacement: dispExpr,
         },
-        error: dispError,
+        errors: dispErrors,
       };
     }
 
@@ -1519,15 +1555,21 @@ export function parseOperand(
             .node,
           mode: "simple",
         },
+        errors: [],
       };
     }
 
     // Address register indirect with displacement
-    const { value: dispExpr, error: dispError } = parseExpression(
+    const { value: dispExpr, errors: dispErrors } = parseExpression(
       displacement,
       loc,
     );
     const regResult2 = createAddressRegisterOrSymbolNode(register, registerLoc);
+
+    // Collect all errors
+    const errors: ParseError[] = [...dispErrors];
+    if (regResult2.error) errors.push(regResult2.error);
+
     return {
       value: {
         type: "address-register-indirect-displacement",
@@ -1535,14 +1577,14 @@ export function parseOperand(
         displacement: dispExpr,
         register: regResult2.node,
       },
-      error: dispError || regResult2.error,
+      errors,
     };
   }
 
   // Absolute address with explicit size: (expr).w or (expr).l
   const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/i.exec(trimmed);
   if (absoluteSizedMatch) {
-    const { value: addrExpr, error: addrError } = parseExpression(
+    const { value: addrExpr, errors: addrErrors } = parseExpression(
       absoluteSizedMatch[1],
       loc,
     );
@@ -1554,7 +1596,7 @@ export function parseOperand(
           loc,
           address: addrExpr,
         },
-        error: indexSizeResult.error,
+        errors: indexSizeResult.errors,
       };
     }
     return {
@@ -1564,14 +1606,14 @@ export function parseOperand(
         address: addrExpr,
         addressSize: indexSizeResult.value,
       },
-      error: addrError,
+      errors: addrErrors,
     };
   }
 
   // Absolute address with .w or .l suffix (without parens): label.w, $1000.w
   const absoluteWithSizeMatch = /^(.+)\.(w|l)$/i.exec(trimmed);
   if (absoluteWithSizeMatch) {
-    const { value: addrExpr, error: addrError } = parseExpression(
+    const { value: addrExpr, errors: addrErrors } = parseExpression(
       absoluteWithSizeMatch[1],
       loc,
     );
@@ -1586,7 +1628,7 @@ export function parseOperand(
           loc,
           address: addrExpr,
         },
-        error: addressSizeResult.error,
+        errors: addressSizeResult.errors,
       };
     }
     return {
@@ -1596,7 +1638,7 @@ export function parseOperand(
         address: addrExpr,
         addressSize: addressSizeResult.value,
       },
-      error: addrError,
+      errors: addrErrors,
     };
   }
 
@@ -1607,10 +1649,12 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: malformedIndexedAddressing(
-        "Empty parentheses - missing register in indirect addressing",
-        loc,
-      ),
+      errors: [
+        malformedIndexedAddressing(
+          "Empty parentheses - missing register in indirect addressing",
+          loc,
+        ),
+      ],
     };
   }
 
@@ -1621,10 +1665,12 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: malformedIndexedAddressing(
-        "Missing index register after comma in indexed addressing",
-        loc,
-      ),
+      errors: [
+        malformedIndexedAddressing(
+          "Missing index register after comma in indexed addressing",
+          loc,
+        ),
+      ],
     };
   }
 
@@ -1641,10 +1687,12 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: unclosedParen({
-        start: loc.start + parenPos,
-        end: loc.start + parenPos + 1,
-      }),
+      errors: [
+        unclosedParen({
+          start: loc.start + parenPos,
+          end: loc.start + parenPos + 1,
+        }),
+      ],
     };
   }
 
@@ -1655,16 +1703,18 @@ export function parseOperand(
         type: "unknown",
         loc,
       },
-      error: unclosedBracket({
-        start: loc.start + bracketPos,
-        end: loc.start + bracketPos + 1,
-      }),
+      errors: [
+        unclosedBracket({
+          start: loc.start + bracketPos,
+          end: loc.start + bracketPos + 1,
+        }),
+      ],
     };
   }
 
   // Everything else is treated as an expression (symbols, constants, arithmetic, etc.)
   // This includes: labels, complex expressions like "offset+4", arithmetic, etc.
-  const { value: expr, error: exprError } = parseExpression(trimmed, loc);
+  const { value: expr, errors: exprErrors } = parseExpression(trimmed, loc);
 
   if (mnemonicCategory === "instruction") {
     // For instructions, all expressions are absolute addresses
@@ -1674,7 +1724,7 @@ export function parseOperand(
         loc,
         address: expr,
       },
-      error: exprError,
+      errors: exprErrors,
     };
   } else {
     // For directives and macros, use value type
@@ -1684,7 +1734,7 @@ export function parseOperand(
         loc,
         value: expr,
       },
-      error: exprError,
+      errors: exprErrors,
     };
   }
 }

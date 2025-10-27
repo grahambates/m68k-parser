@@ -34,10 +34,10 @@ export type {
   ParseErrorCode,
 };
 
-// Resilient parse result - always returns a value with optional error
+// Resilient parse result - always returns a value with optional errors
 export type ParserResult<T> = {
   value: T;
-  error?: ParseError;
+  errors: ParseError[];
 };
 
 export type MnemonicNode =
@@ -54,7 +54,7 @@ export interface ParsedLine {
   mnemonic?: MnemonicNode;
   qualifier?: QualifierNode;
   operands?: OperandNode[];
-  errors?: ParseError[]; // Parse errors from operand parsing
+  errors: ParseError[]; // Parse errors from operand parsing
   comment?: CommentNode;
 }
 

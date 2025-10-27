@@ -682,7 +682,7 @@ function parseOperandList(
     // Parse the operand
     const opEnd = opStart + operandText.length;
     if (operandText) {
-      const { value: operand, error } = parseOperand(
+      const { value: operand, errors: operandErrors } = parseOperand(
         operandText,
         {
           start: opStart,
@@ -692,8 +692,9 @@ function parseOperandList(
         mnemonicCategory,
       );
       operands.push(operand);
-      if (error) {
-        errors.push(error);
+      // Collect all errors from the result
+      if (operandErrors && operandErrors.length > 0) {
+        errors.push(...operandErrors);
       }
     } else {
       // Empty operand (e.g., after comma but before next operand)
@@ -773,7 +774,7 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
     errors: [],
   };
 
-  const line: ParsedLine = {};
+  const line: ParsedLine = { errors: [] };
 
   // Track whether we have leading whitespace (affects label parsing)
   const hasLeadingWhitespace = /^[ \t]/.test(text);
@@ -822,7 +823,7 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
 
       // Parse condition as expression
       const condEnd = condStart + conditionText.length;
-      const { value: condExpr, error: condError } = parseExpression(
+      const { value: condExpr, errors: condErrors } = parseExpression(
         conditionText,
         {
           start: condStart,
@@ -831,8 +832,8 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
         },
       );
       line.inlineCondition = condExpr;
-      if (condError) {
-        state.errors.push(condError);
+      if (condErrors && condErrors.length > 0) {
+        state.errors.push(...condErrors);
       }
 
       // Parse statement recursively
