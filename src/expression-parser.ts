@@ -1,4 +1,4 @@
-import { BinaryOp, ExpressionNode, ParserResult } from "./types";
+import { BinaryOp, ExpressionNode, Location, ParserResult } from "./types";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
 import { isBuiltinSymbol } from "./syntax";
 import { ParseError, unclosedParen, invalidExpression } from "./parse-error";
@@ -7,16 +7,12 @@ import { ParseError, unclosedParen, invalidExpression } from "./parse-error";
  * Parse an expression string into an expression AST
  * Uses recursive descent parser with vasm operator precedence
  * @param expr - The expression string to parse
- * @param start - Start position in the original source
- * @param end - End position in the original source
- * @param lineNumber - Optional 1-indexed line number for location tracking
+ * @param loc - Location in the original source
  * @returns Parser result with expression node and optional error
  */
 export function parseExpression(
   expr: string,
-  start: number = 0,
-  end: number = 0,
-  lineNumber?: number,
+  loc: Location,
 ): ParserResult<ExpressionNode> {
   const trimmed = expr.trim();
 
@@ -25,7 +21,7 @@ export function parseExpression(
     return {
       value: {
         type: "unknown",
-        loc: { start, end, line: lineNumber },
+        loc,
       },
     };
   }
@@ -58,7 +54,7 @@ export function parseExpression(
         format: token.format,
         raw: token.value,
         value,
-        loc: { start, end, line: lineNumber },
+        loc,
       };
     }
 
@@ -71,14 +67,14 @@ export function parseExpression(
         return {
           type: "builtin-symbol",
           name: symbolName,
-          loc: { start, end, line: lineNumber },
+          loc,
         };
       }
 
       return {
         type: "symbol",
         name: symbolName,
-        loc: { start, end, line: lineNumber },
+        loc,
       };
     }
 
@@ -86,7 +82,7 @@ export function parseExpression(
       advance();
       return {
         type: "current-address",
-        loc: { start, end, line: lineNumber },
+        loc,
       };
     }
 
@@ -107,7 +103,7 @@ export function parseExpression(
         type: "macro-parameter",
         paramType,
         param,
-        loc: { start, end, line: lineNumber },
+        loc,
       };
     }
 
@@ -120,13 +116,13 @@ export function parseExpression(
       } else {
         // Missing closing parenthesis
         if (!parseError) {
-          parseError = unclosedParen(start + parenPos);
+          parseError = unclosedParen(loc.start + parenPos);
         }
       }
       return {
         type: "group",
         expression: expr,
-        loc: { start, end, line: lineNumber },
+        loc,
       };
     }
 
@@ -134,12 +130,12 @@ export function parseExpression(
     if (!parseError && token) {
       parseError = invalidExpression(
         `Unexpected token '${token.type}'`,
-        start + (token.position || 0),
+        loc.start + (token.position || 0),
       );
     }
     return {
       type: "unknown",
-      loc: { start, end, line: lineNumber },
+      loc,
     };
   }
 
@@ -160,7 +156,7 @@ export function parseExpression(
         type: "unary-op",
         operator,
         operand,
-        loc: { start, end, line: lineNumber },
+        loc,
       };
     }
 
@@ -177,8 +173,6 @@ export function parseExpression(
     transformOp?: (op: string) => string,
   ): ExpressionNode {
     let left = parseHigher();
-    const start = left.loc.start;
-    const end = left.loc.end;
 
     let token = current();
     while (token.type === "operator" && operators.includes(token.value)) {
@@ -193,7 +187,7 @@ export function parseExpression(
         operator: operator as BinaryOp, // Type will be validated by caller
         left,
         right,
-        loc: { start, end, line: lineNumber },
+        loc: left.loc,
       };
       token = current();
     }

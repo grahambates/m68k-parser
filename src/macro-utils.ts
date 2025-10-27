@@ -2,24 +2,19 @@
  * Utility functions for handling macro parameters
  */
 
-import { MacroParameterNode } from "./types";
+import { Location, MacroParameterNode } from "./types";
 
 /**
  * Parse a macro parameter and return a MacroParameterNode
  * Handles all macro parameter types: \1-\9, \a-\z, \@, \<name>, \?n, \., \+, \-, \@!, \@?, \@@
  *
  * @param text - The text to parse (should start with \)
- * @param start - Start position in source
- * @param end - End position in source
- * @param keepBrackets - If true, keeps <> brackets in named parameter value (default: true)
+ * @param loc - Location in source
  * @returns MacroParameterNode or null if not a macro parameter
  */
 export function parseMacroParameter(
   text: string,
-  start: number,
-  end: number,
-  keepBrackets: boolean = true,
-  lineNumber?: number,
+  loc: Location,
 ): MacroParameterNode | null {
   const match =
     /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
@@ -64,12 +59,12 @@ export function parseMacroParameter(
     paramValue = param;
   } else {
     paramType = "named";
-    paramValue = keepBrackets ? param : match[2]; // Keep <> or extract content
+    paramValue = param;
   }
 
   return {
     type: "macro-parameter",
-    loc: { start, end, line: lineNumber },
+    loc,
     paramType,
     param: paramValue,
   };

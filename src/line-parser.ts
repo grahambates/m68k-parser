@@ -309,7 +309,7 @@ function parseMnemonic(
     advance(state);
     return {
       type: "directive",
-      loc: { start, end: state.pos },
+      loc: { start, end: state.pos, line: lineNumber },
       directive: "=",
     };
   }
@@ -360,7 +360,11 @@ function parseMnemonic(
     }
 
     const macroEnd = state.pos;
-    const macroParam = parseMacroParameter(macroText, macroStart, macroEnd);
+    const macroParam = parseMacroParameter(macroText, {
+      start: macroStart,
+      end: macroEnd,
+      // TODO: don't have line number in scope?
+    });
     if (macroParam) {
       return macroParam;
     }
@@ -486,7 +490,11 @@ function parseQualifier(state: ParserState): QualifierNode | null {
     }
 
     const macroEnd = state.pos;
-    const macroParam = parseMacroParameter(macroText, macroStart, macroEnd);
+    const macroParam = parseMacroParameter(macroText, {
+      start: macroStart,
+      end: macroEnd,
+      // TODO: don't have line number in scope?
+    });
     if (macroParam) {
       return macroParam;
     }
@@ -679,8 +687,11 @@ function parseOperandList(
     if (operandText) {
       const { value: operand, error } = parseOperand(
         operandText,
-        opStart,
-        opEnd,
+        {
+          start: opStart,
+          end: opEnd,
+          // TODO: line number?
+        },
         mnemonicCategory,
       );
       operands.push(operand);
@@ -819,8 +830,11 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
       const condEnd = condStart + conditionText.length;
       const { value: condExpr, error: condError } = parseExpression(
         conditionText,
-        condStart,
-        condEnd,
+        {
+          start: condStart,
+          end: condEnd,
+          line: lineNumber,
+        },
       );
       line.inlineCondition = condExpr;
       if (condError) {

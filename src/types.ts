@@ -26,11 +26,6 @@ export type {
   Size,
 };
 
-// Strict parse result - discriminated union for success/failure
-export type StrictParseResult<T> =
-  | { success: true; value: T }
-  | { success: false; error: ParseError };
-
 // Resilient parse result - always returns a value with optional error
 export type ParserResult<T> = {
   value: T;
