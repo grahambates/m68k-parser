@@ -13,12 +13,14 @@ import {
  * @param expr - The expression string to parse
  * @param start - Start position in the original source
  * @param end - End position in the original source
+ * @param lineNumber - Optional 1-indexed line number for location tracking
  * @returns Parser result with expression node and optional error
  */
 export function parseExpression(
   expr: string,
   start: number = 0,
   end: number = 0,
+  lineNumber?: number,
 ): ParserResult<ExpressionNode> {
   const trimmed = expr.trim();
 
@@ -27,8 +29,7 @@ export function parseExpression(
     return {
       value: {
         type: "unknown",
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       },
     };
   }
@@ -61,8 +62,7 @@ export function parseExpression(
         format: token.format,
         raw: token.value,
         value,
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
     }
 
@@ -75,16 +75,14 @@ export function parseExpression(
         return {
           type: "builtin-symbol",
           name: symbolName,
-          start,
-          end,
+          loc: { start, end, line: lineNumber },
         };
       }
 
       return {
         type: "symbol",
         name: symbolName,
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
     }
 
@@ -92,8 +90,7 @@ export function parseExpression(
       advance();
       return {
         type: "current-address",
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
     }
 
@@ -114,8 +111,7 @@ export function parseExpression(
         type: "macro-parameter",
         paramType,
         param,
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
     }
 
@@ -134,8 +130,7 @@ export function parseExpression(
       return {
         type: "group",
         expression: expr,
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
     }
 
@@ -148,8 +143,7 @@ export function parseExpression(
     }
     return {
       type: "unknown",
-      start,
-      end,
+      loc: { start, end, line: lineNumber },
     };
   }
 
@@ -170,8 +164,7 @@ export function parseExpression(
         type: "unary-op",
         operator,
         operand,
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
     }
 
@@ -188,8 +181,8 @@ export function parseExpression(
     transformOp?: (op: string) => string,
   ): ExpressionNode {
     let left = parseHigher();
-    const start = left.start;
-    const end = left.end;
+    const start = left.loc.start;
+    const end = left.loc.end;
 
     let token = current();
     while (token.type === "operator" && operators.includes(token.value)) {
@@ -204,8 +197,7 @@ export function parseExpression(
         operator: operator as BinaryOp, // Type will be validated by caller
         left,
         right,
-        start,
-        end,
+        loc: { start, end, line: lineNumber },
       };
       token = current();
     }

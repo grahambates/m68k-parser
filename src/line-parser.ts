@@ -7,6 +7,8 @@
 
 import {
   ParsedLine,
+  ParsedFile,
+  ParsedSourceLine,
   LabelNode,
   MnemonicNode,
   QualifierNode,
@@ -129,6 +131,7 @@ function isLabelStart(
 function parseLabel(
   state: ParserState,
   hasLeadingWhitespace: boolean,
+  lineNumber?: number,
 ): LabelNode | null {
   if (!isLabelStart(state, hasLeadingWhitespace)) {
     return null;
@@ -208,8 +211,7 @@ function parseLabel(
 
   return {
     type: "label",
-    start,
-    end,
+    loc: { start, end, line: lineNumber },
     label,
     scope,
   };
@@ -296,7 +298,7 @@ function shouldContinueOperand(
  * Parse a mnemonic (instruction, directive, or macro)
  * Format: identifier or \macro-param
  */
-function parseMnemonic(state: ParserState): MnemonicNode | null {
+function parseMnemonic(state: ParserState, lineNumber?: number): MnemonicNode | null {
   const start = state.pos;
 
   // Check for special = directive
@@ -304,8 +306,7 @@ function parseMnemonic(state: ParserState): MnemonicNode | null {
     advance(state);
     return {
       type: "directive",
-      start,
-      end: state.pos,
+      loc: { start, end: state.pos },
       directive: "=",
     };
   }
@@ -427,22 +428,19 @@ function parseMnemonic(state: ParserState): MnemonicNode | null {
   if (isInstruction(lcMnemonic)) {
     return {
       type: "instruction",
-      start,
-      end,
+      loc: { start, end, line: lineNumber },
       instruction: lcMnemonic,
     };
   } else if (isDirective(lcMnemonic)) {
     return {
       type: "directive",
-      start,
-      end,
+      loc: { start, end, line: lineNumber },
       directive: lcMnemonic,
     };
   } else {
     return {
       type: "macro",
-      start,
-      end,
+      loc: { start, end, line: lineNumber },
       macro: mnemonic,
     };
   }
@@ -508,8 +506,7 @@ function parseQualifier(state: ParserState): QualifierNode | null {
   if (isSize(lcSize)) {
     return {
       type: "size",
-      start: start + 1, // start after the dot
-      end,
+      loc: { start: start + 1, end }, // start after the dot
       size: lcSize as Size,
     };
   }
@@ -668,8 +665,7 @@ function parseOperandList(
         // This is after a comma - create empty unknown operand
         operands.push({
           type: "unknown",
-          start: opStart,
-          end: opStart,
+          loc: { start: opStart, end: opStart },
         });
       }
       break;
@@ -692,8 +688,7 @@ function parseOperandList(
       // Empty operand (e.g., after comma but before next operand)
       operands.push({
         type: "unknown",
-        start: opStart,
-        end: opStart,
+        loc: { start: opStart, end: opStart },
       });
     }
 
@@ -715,7 +710,7 @@ function parseOperandList(
  * Parse a comment
  * Format: [;|*]text or just text (positional comment)
  */
-function parseComment(state: ParserState): CommentNode | null {
+function parseComment(state: ParserState, lineNumber?: number): CommentNode | null {
   if (isEOF(state)) {
     return null;
   }
@@ -749,8 +744,7 @@ function parseComment(state: ParserState): CommentNode | null {
 
   return {
     type: "comment",
-    start,
-    end,
+    loc: { start, end, line: lineNumber },
     hasPrefix,
     content,
   };
@@ -758,8 +752,10 @@ function parseComment(state: ParserState): CommentNode | null {
 
 /**
  * Main entry point: parse a line of assembly
+ * @param text - The line text to parse
+ * @param lineNumber - Optional 1-indexed line number for location tracking
  */
-export function parseLine(text: string): ParsedLine {
+export function parseLine(text: string, lineNumber?: number): ParsedLine {
   const state: ParserState = {
     text,
     pos: 0,
@@ -772,14 +768,14 @@ export function parseLine(text: string): ParsedLine {
   const hasLeadingWhitespace = /^[ \t]/.test(text);
 
   // Parse label (if at start of line or has colon)
-  const label = parseLabel(state, hasLeadingWhitespace);
+  const label = parseLabel(state, hasLeadingWhitespace, lineNumber);
   if (label) line.label = label;
 
   // Skip whitespace
   skipWhitespace(state);
 
   // Parse mnemonic
-  const mnemonic = parseMnemonic(state);
+  const mnemonic = parseMnemonic(state, lineNumber);
   if (mnemonic) line.mnemonic = mnemonic;
 
   // Parse size qualifier
@@ -831,8 +827,10 @@ export function parseLine(text: string): ParsedLine {
         const statementStart = text.indexOf(statementText);
         line.operands = statementLine.operands.map((op) => ({
           ...op,
-          start: statementStart + op.start - 2,
-          end: statementStart + op.end - 2,
+          loc: {
+            start: statementStart + op.loc.start - 2,
+            end: statementStart + op.loc.end - 2,
+          },
         }));
       }
       if (statementLine.errors) {
@@ -876,7 +874,7 @@ export function parseLine(text: string): ParsedLine {
   }
 
   // Parse comment
-  const comment = parseComment(state);
+  const comment = parseComment(state, lineNumber);
   if (comment) line.comment = comment;
 
   // Add errors to result if any
@@ -885,4 +883,51 @@ export function parseLine(text: string): ParsedLine {
   }
 
   return line;
+}
+
+/**
+ * Parse an entire source file (multiple lines)
+ * @param source - The source code as a string (can contain multiple lines)
+ * @returns ParsedFile object with all parsed lines and aggregated error information
+ */
+export function parseFile(source: string): ParsedFile {
+  // Normalize line endings to \n
+  const normalizedSource = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Split into lines
+  const textLines = normalizedSource.split("\n");
+
+  const parsedLines: ParsedSourceLine[] = [];
+  const allErrors: Array<{ lineNumber: number; error: OperandParseError }> = [];
+  let totalErrorCount = 0;
+
+  // Parse each line
+  textLines.forEach((text, index) => {
+    const lineNumber = index + 1; // 1-indexed
+    const parsed = parseLine(text, lineNumber);
+
+    parsedLines.push({
+      lineNumber,
+      text,
+      parsed,
+    });
+
+    // Collect errors from this line
+    if (parsed.errors) {
+      totalErrorCount += parsed.errors.length;
+      parsed.errors.forEach((error) => {
+        allErrors.push({
+          lineNumber,
+          error,
+        });
+      });
+    }
+  });
+
+  return {
+    lines: parsedLines,
+    totalLines: textLines.length,
+    errorCount: totalErrorCount,
+    errors: allErrors,
+  };
 }

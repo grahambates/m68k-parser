@@ -19,6 +19,7 @@ export function parseMacroParameter(
   start: number,
   end: number,
   keepBrackets: boolean = true,
+  lineNumber?: number,
 ): MacroParameterNode | null {
   const match =
     /^\\(\d+|[a-z]|@!|@\?|@@|@|<([^>]+)>|\?(\d+|[a-z])|[.+-])$/.exec(text);
@@ -68,8 +69,7 @@ export function parseMacroParameter(
 
   return {
     type: "macro-parameter",
-    start,
-    end,
+    loc: { start, end, line: lineNumber },
     paramType,
     param: paramValue,
   };

@@ -300,19 +300,16 @@ describe("parse AST", () => {
         const sizedParens = parseLine("  move ($1000).w,d0");
         expect(sizedParens.operands?.[0]).toMatchObject({
           type: "absolute-address",
-          start: 7,
-          end: 16,
+          loc: { start: 7, end: 16 },
           address: {
             type: "group",
+            loc: { start: 7, end: 16 },
             expression: {
               type: "numeric-literal",
               format: "hex",
               value: 0x1000,
-              start: 7,
-              end: 16,
+              loc: { start: 7, end: 16 },
             },
-            start: 7,
-            end: 16,
           },
           addressSize: {
             type: "size",
@@ -612,20 +609,17 @@ describe("parse AST", () => {
       expect(line.label).toMatchObject({
         type: "label",
         scope: "global",
-        start: 0,
-        end: 5,
+        loc: { start: 0, end: 5 },
       });
 
       expect(line.mnemonic).toMatchObject({
         type: "instruction",
-        start: 10,
-        end: 14,
+        loc: { start: 10, end: 14 },
       });
 
       expect(line.qualifier).toMatchObject({
         type: "size",
-        start: 15,
-        end: 16,
+        loc: { start: 15, end: 16 },
       });
 
       expect(line.operands).toHaveLength(2);
@@ -636,8 +630,7 @@ describe("parse AST", () => {
           type: "numeric-literal",
           format: "decimal",
         },
-        start: 21,
-        end: 23,
+        loc: { start: 21, end: 23 },
       });
 
       expect(line.operands?.[1]).toMatchObject({
@@ -658,15 +651,13 @@ describe("parse AST", () => {
           type: "size",
           size: "w",
         },
-        start: 24,
-        end: 35,
+        loc: { start: 24, end: 35 },
       });
 
       expect(line.comment).toMatchObject({
         type: "comment",
         hasPrefix: true,
-        start: 39,
-        end: 53,
+        loc: { start: 39, end: 53 },
       });
     });
   });

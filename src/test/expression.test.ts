@@ -594,18 +594,16 @@ describe("Expression Parsing", () => {
       const line = parseLine("  move.l (BASE+4).w,d0");
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
-        start: 9,
-        end: 19,
+        loc: { start: 9, end: 19 },
         address: {
           type: "group",
+          loc: { start: 9, end: 19 },
           expression: {
             type: "binary-op",
             operator: "+",
             left: { type: "symbol", name: "BASE" },
             right: { type: "numeric-literal", format: "decimal", value: 4 },
           },
-          start: 9,
-          end: 19,
         },
         addressSize: {
           type: "size",

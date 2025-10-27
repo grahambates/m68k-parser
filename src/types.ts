@@ -56,6 +56,22 @@ export interface ParsedLine {
   comment?: CommentNode;
 }
 
+export interface ParsedSourceLine {
+  lineNumber: number; // 1-indexed line number
+  text: string; // Original line text
+  parsed: ParsedLine; // Parsed result
+}
+
+export interface ParsedFile {
+  lines: ParsedSourceLine[]; // All lines in the file
+  totalLines: number; // Total number of lines
+  errorCount: number; // Total number of errors across all lines
+  errors: Array<{
+    lineNumber: number;
+    error: OperandParseError;
+  }>; // All errors with line numbers
+}
+
 export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
 
 export type AddressSize = "w" | "l";
@@ -82,10 +98,16 @@ export type BinaryOp =
 
 export type UnaryOp = "+" | "-" | "~" | "!";
 
+// Location information for AST nodes
+export interface Location {
+  start: number; // character offset from start of line
+  end: number; // character offset from start of line
+  line?: number; // optional 1-indexed line number
+}
+
 // Base node - all AST nodes extend this
 export interface Node {
-  start: number;
-  end: number;
+  loc: Location;
 }
 
 // Label
