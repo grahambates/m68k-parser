@@ -32,6 +32,7 @@ import { parseMacroParameter } from "./macro-utils";
 interface ParserState {
   text: string;
   pos: number;
+  line?: number;
   errors: ParseError[];
 }
 
@@ -131,7 +132,6 @@ function isLabelStart(
 function parseLabel(
   state: ParserState,
   hasLeadingWhitespace: boolean,
-  lineNumber?: number,
 ): LabelNode | null {
   if (!isLabelStart(state, hasLeadingWhitespace)) {
     return null;
@@ -211,7 +211,7 @@ function parseLabel(
 
   return {
     type: "label",
-    loc: { start, end, line: lineNumber },
+    loc: { start, end, line: state.line },
     label,
     scope,
   };
@@ -298,10 +298,7 @@ function shouldContinueOperand(
  * Parse a mnemonic (instruction, directive, or macro)
  * Format: identifier or \macro-param
  */
-function parseMnemonic(
-  state: ParserState,
-  lineNumber?: number,
-): MnemonicNode | null {
+function parseMnemonic(state: ParserState): MnemonicNode | null {
   const start = state.pos;
 
   // Check for special = directive
@@ -309,7 +306,7 @@ function parseMnemonic(
     advance(state);
     return {
       type: "directive",
-      loc: { start, end: state.pos, line: lineNumber },
+      loc: { start, end: state.pos, line: state.line },
       directive: "=",
     };
   }
@@ -363,7 +360,7 @@ function parseMnemonic(
     const macroParam = parseMacroParameter(macroText, {
       start: macroStart,
       end: macroEnd,
-      // TODO: don't have line number in scope?
+      line: state.line,
     });
     if (macroParam) {
       return macroParam;
@@ -435,19 +432,19 @@ function parseMnemonic(
   if (isInstruction(lcMnemonic)) {
     return {
       type: "instruction",
-      loc: { start, end, line: lineNumber },
+      loc: { start, end, line: state.line },
       instruction: lcMnemonic,
     };
   } else if (isDirective(lcMnemonic)) {
     return {
       type: "directive",
-      loc: { start, end, line: lineNumber },
+      loc: { start, end, line: state.line },
       directive: lcMnemonic,
     };
   } else {
     return {
       type: "macro",
-      loc: { start, end, line: lineNumber },
+      loc: { start, end, line: state.line },
       macro: mnemonic,
     };
   }
@@ -493,7 +490,7 @@ function parseQualifier(state: ParserState): QualifierNode | null {
     const macroParam = parseMacroParameter(macroText, {
       start: macroStart,
       end: macroEnd,
-      // TODO: don't have line number in scope?
+      line: state.line,
     });
     if (macroParam) {
       return macroParam;
@@ -517,7 +514,7 @@ function parseQualifier(state: ParserState): QualifierNode | null {
   if (isSize(lcSize)) {
     return {
       type: "size",
-      loc: { start: start + 1, end }, // start after the dot
+      loc: { start: start + 1, end, line: state.line }, // start after the dot
       size: lcSize as Size,
     };
   }
@@ -676,7 +673,7 @@ function parseOperandList(
         // This is after a comma - create empty unknown operand
         operands.push({
           type: "unknown",
-          loc: { start: opStart, end: opStart },
+          loc: { start: opStart, end: opStart, line: state.line },
         });
       }
       break;
@@ -690,7 +687,7 @@ function parseOperandList(
         {
           start: opStart,
           end: opEnd,
-          // TODO: line number?
+          line: state.line,
         },
         mnemonicCategory,
       );
@@ -702,7 +699,7 @@ function parseOperandList(
       // Empty operand (e.g., after comma but before next operand)
       operands.push({
         type: "unknown",
-        loc: { start: opStart, end: opStart },
+        loc: { start: opStart, end: opStart, line: state.line },
       });
     }
 
@@ -724,10 +721,7 @@ function parseOperandList(
  * Parse a comment
  * Format: [;|*]text or just text (positional comment)
  */
-function parseComment(
-  state: ParserState,
-  lineNumber?: number,
-): CommentNode | null {
+function parseComment(state: ParserState): CommentNode | null {
   if (isEOF(state)) {
     return null;
   }
@@ -761,7 +755,7 @@ function parseComment(
 
   return {
     type: "comment",
-    loc: { start, end, line: lineNumber },
+    loc: { start, end, line: state.line },
     hasPrefix,
     content,
   };
@@ -770,12 +764,12 @@ function parseComment(
 /**
  * Main entry point: parse a line of assembly
  * @param text - The line text to parse
- * @param lineNumber - Optional 1-indexed line number for location tracking
  */
 export function parseLine(text: string, lineNumber?: number): ParsedLine {
   const state: ParserState = {
     text,
     pos: 0,
+    line: lineNumber,
     errors: [],
   };
 
@@ -785,14 +779,14 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
   const hasLeadingWhitespace = /^[ \t]/.test(text);
 
   // Parse label (if at start of line or has colon)
-  const label = parseLabel(state, hasLeadingWhitespace, lineNumber);
+  const label = parseLabel(state, hasLeadingWhitespace);
   if (label) line.label = label;
 
   // Skip whitespace
   skipWhitespace(state);
 
   // Parse mnemonic
-  const mnemonic = parseMnemonic(state, lineNumber);
+  const mnemonic = parseMnemonic(state);
   if (mnemonic) line.mnemonic = mnemonic;
 
   // Parse size qualifier
@@ -850,6 +844,7 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
           loc: {
             start: statementStart + op.loc.start - 2,
             end: statementStart + op.loc.end - 2,
+            line: state.line,
           },
         }));
       }
@@ -894,7 +889,7 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
   }
 
   // Parse comment
-  const comment = parseComment(state, lineNumber);
+  const comment = parseComment(state);
   if (comment) line.comment = comment;
 
   // Add errors to result if any
