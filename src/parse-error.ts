@@ -3,7 +3,7 @@
  * Provides detailed error messages with position information
  */
 
-export type OperandErrorCode =
+export type ParseErrorCode =
   | "UNEXPECTED_TOKEN"
   | "EXPECTED_TOKEN"
   | "INVALID_REGISTER"
@@ -29,8 +29,8 @@ export type OperandErrorCode =
   | "MISSING_SCALE_FACTOR"
   | "INVALID_BASE_REGISTER";
 
-export interface OperandParseError {
-  code: OperandErrorCode;
+export interface ParseError {
+  code: ParseErrorCode;
   message: string;
   position: number; // Character position in operand string
   length?: number; // Length of problematic token/section
@@ -43,7 +43,7 @@ export interface OperandParseError {
  * Create a parse error object
  */
 export function createError(
-  code: OperandErrorCode,
+  code: ParseErrorCode,
   message: string,
   position: number,
   options?: {
@@ -52,7 +52,7 @@ export function createError(
     got?: string;
     hint?: string;
   },
-): OperandParseError {
+): ParseError {
   return {
     code,
     message,
@@ -67,10 +67,7 @@ export function createError(
 /**
  * Format an error for display with position context
  */
-export function formatError(
-  error: OperandParseError,
-  operandText: string,
-): string {
+export function formatError(error: ParseError, operandText: string): string {
   const lines: string[] = [];
 
   lines.push(`Error: ${error.message}`);
@@ -108,7 +105,7 @@ export function unexpectedToken(
   got: string,
   position: number,
   expected?: string[],
-): OperandParseError {
+): ParseError {
   return createError(
     "UNEXPECTED_TOKEN",
     `Unexpected token '${got}'`,
@@ -125,7 +122,7 @@ export function expectedToken(
   expected: string[],
   position: number,
   got?: string,
-): OperandParseError {
+): ParseError {
   return createError(
     "EXPECTED_TOKEN",
     `Expected ${expected.join(" or ")}`,
@@ -137,7 +134,7 @@ export function expectedToken(
   );
 }
 
-export function unclosedBracket(position: number): OperandParseError {
+export function unclosedBracket(position: number): ParseError {
   return createError(
     "UNCLOSED_BRACKET",
     "Unclosed bracket - missing ']'",
@@ -148,7 +145,7 @@ export function unclosedBracket(position: number): OperandParseError {
   );
 }
 
-export function unclosedParen(position: number): OperandParseError {
+export function unclosedParen(position: number): ParseError {
   return createError(
     "UNCLOSED_PAREN",
     "Unclosed parenthesis - missing ')'",
@@ -159,7 +156,7 @@ export function unclosedParen(position: number): OperandParseError {
   );
 }
 
-export function unclosedBrace(position: number): OperandParseError {
+export function unclosedBrace(position: number): ParseError {
   return createError(
     "UNCLOSED_BRACE",
     "Unclosed brace - missing '}'",
@@ -170,10 +167,7 @@ export function unclosedBrace(position: number): OperandParseError {
   );
 }
 
-export function invalidScaleFactor(
-  got: string,
-  position: number,
-): OperandParseError {
+export function invalidScaleFactor(got: string, position: number): ParseError {
   return createError(
     "INVALID_SCALE_FACTOR",
     `Invalid scale factor '${got}'`,
@@ -186,10 +180,7 @@ export function invalidScaleFactor(
   );
 }
 
-export function invalidIndexSize(
-  got: string,
-  position: number,
-): OperandParseError {
+export function invalidIndexSize(got: string, position: number): ParseError {
   return createError(
     "INVALID_INDEX_SIZE",
     `Invalid index size '${got}'`,
@@ -205,7 +196,7 @@ export function invalidIndexSize(
 export function malformedMemoryIndirect(
   message: string,
   position: number,
-): OperandParseError {
+): ParseError {
   return createError("MALFORMED_MEMORY_INDIRECT", message, position, {
     hint: "Memory indirect format: ([bd,An,Rn.s*scale],od) - 68020+ only",
   });
@@ -214,7 +205,7 @@ export function malformedMemoryIndirect(
 export function malformedIndexedAddressing(
   message: string,
   position: number,
-): OperandParseError {
+): ParseError {
   return createError("MALFORMED_INDEXED_ADDRESSING", message, position, {
     hint: "Indexed addressing format: disp(An,Rn.size) or (An,Rn.size)",
   });
@@ -223,16 +214,13 @@ export function malformedIndexedAddressing(
 export function malformedBitfield(
   message: string,
   position: number,
-): OperandParseError {
+): ParseError {
   return createError("MALFORMED_BITFIELD", message, position, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",
   });
 }
 
-export function missingOperand(
-  operator: string,
-  position: number,
-): OperandParseError {
+export function missingOperand(operator: string, position: number): ParseError {
   return createError(
     "MISSING_OPERAND",
     `Missing operand for operator '${operator}'`,
@@ -246,14 +234,11 @@ export function missingOperand(
 export function invalidExpression(
   message: string,
   position: number,
-): OperandParseError {
+): ParseError {
   return createError("INVALID_EXPRESSION", message, position);
 }
 
-export function unknownCharacter(
-  char: string,
-  position: number,
-): OperandParseError {
+export function unknownCharacter(char: string, position: number): ParseError {
   const displayChar =
     char === " "
       ? "space"
@@ -274,10 +259,7 @@ export function unknownCharacter(
   );
 }
 
-export function malformedNumber(
-  prefix: string,
-  position: number,
-): OperandParseError {
+export function malformedNumber(prefix: string, position: number): ParseError {
   let hint: string;
   switch (prefix) {
     case "$":
@@ -305,7 +287,7 @@ export function malformedNumber(
   );
 }
 
-export function missingScaleFactor(position: number): OperandParseError {
+export function missingScaleFactor(position: number): ParseError {
   return createError(
     "MISSING_SCALE_FACTOR",
     "Missing scale factor after '*'",
@@ -320,7 +302,7 @@ export function missingScaleFactor(position: number): OperandParseError {
 export function invalidBaseRegister(
   register: string,
   position: number,
-): OperandParseError {
+): ParseError {
   return createError(
     "INVALID_BASE_REGISTER",
     `Invalid base register '${register}' - address register required`,

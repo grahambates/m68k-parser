@@ -11,7 +11,7 @@ import type {
   Directive,
   Size,
 } from "./syntax";
-import type { OperandParseError } from "./parse-error";
+import type { ParseError } from "./parse-error";
 
 export type {
   DataRegister,
@@ -27,15 +27,14 @@ export type {
 };
 
 // Strict parse result - discriminated union for success/failure
-export type ParseResult<T> =
+export type StrictParseResult<T> =
   | { success: true; value: T }
-  | { success: false; error: OperandParseError };
+  | { success: false; error: ParseError };
 
 // Resilient parse result - always returns a value with optional error
-// Used by top-level parsers for IDE/language server support
 export type ParserResult<T> = {
   value: T;
-  error?: OperandParseError;
+  error?: ParseError;
 };
 
 export type MnemonicNode =
@@ -52,7 +51,7 @@ export interface ParsedLine {
   mnemonic?: MnemonicNode;
   qualifier?: QualifierNode;
   operands?: OperandNode[];
-  errors?: OperandParseError[]; // Parse errors from operand parsing
+  errors?: ParseError[]; // Parse errors from operand parsing
   comment?: CommentNode;
 }
 
@@ -68,7 +67,7 @@ export interface ParsedFile {
   errorCount: number; // Total number of errors across all lines
   errors: Array<{
     lineNumber: number;
-    error: OperandParseError;
+    error: ParseError;
   }>; // All errors with line numbers
 }
 

@@ -20,7 +20,7 @@ import {
   Instruction,
   Directive,
 } from "./types";
-import { OperandParseError } from "./parse-error";
+import { ParseError } from "./parse-error";
 import { parseOperand } from "./operand-parser";
 import { parseExpression } from "./expression-parser";
 import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
@@ -32,7 +32,7 @@ import { parseMacroParameter } from "./macro-utils";
 interface ParserState {
   text: string;
   pos: number;
-  errors: OperandParseError[];
+  errors: ParseError[];
 }
 
 /**
@@ -298,7 +298,10 @@ function shouldContinueOperand(
  * Parse a mnemonic (instruction, directive, or macro)
  * Format: identifier or \macro-param
  */
-function parseMnemonic(state: ParserState, lineNumber?: number): MnemonicNode | null {
+function parseMnemonic(
+  state: ParserState,
+  lineNumber?: number,
+): MnemonicNode | null {
   const start = state.pos;
 
   // Check for special = directive
@@ -523,9 +526,9 @@ function parseQualifier(state: ParserState): QualifierNode | null {
 function parseOperandList(
   state: ParserState,
   mnemonicCategory?: "instruction" | "directive" | "macro",
-): { operands: OperandNode[]; errors: OperandParseError[] } {
+): { operands: OperandNode[]; errors: ParseError[] } {
   const operands: OperandNode[] = [];
-  const errors: OperandParseError[] = [];
+  const errors: ParseError[] = [];
 
   while (true) {
     skipWhitespace(state);
@@ -710,7 +713,10 @@ function parseOperandList(
  * Parse a comment
  * Format: [;|*]text or just text (positional comment)
  */
-function parseComment(state: ParserState, lineNumber?: number): CommentNode | null {
+function parseComment(
+  state: ParserState,
+  lineNumber?: number,
+): CommentNode | null {
   if (isEOF(state)) {
     return null;
   }
@@ -898,7 +904,7 @@ export function parseFile(source: string): ParsedFile {
   const textLines = normalizedSource.split("\n");
 
   const parsedLines: ParsedSourceLine[] = [];
-  const allErrors: Array<{ lineNumber: number; error: OperandParseError }> = [];
+  const allErrors: Array<{ lineNumber: number; error: ParseError }> = [];
   let totalErrorCount = 0;
 
   // Parse each line

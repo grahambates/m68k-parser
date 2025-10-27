@@ -1,11 +1,7 @@
 import { BinaryOp, ExpressionNode, ParserResult } from "./types";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
 import { isBuiltinSymbol } from "./syntax";
-import {
-  OperandParseError,
-  unclosedParen,
-  invalidExpression,
-} from "./parse-error";
+import { ParseError, unclosedParen, invalidExpression } from "./parse-error";
 
 /**
  * Parse an expression string into an expression AST
@@ -36,7 +32,7 @@ export function parseExpression(
 
   const { tokens, errors: tokenizerErrors } = tokenizeExpression(trimmed);
   let pos = 0;
-  let parseError: OperandParseError | undefined;
+  let parseError: ParseError | undefined;
 
   function current(): ExpressionToken {
     return tokens[pos];

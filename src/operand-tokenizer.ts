@@ -10,11 +10,7 @@ import {
   isFPUDataRegister,
   isFPUControlRegister,
 } from "./syntax";
-import {
-  OperandParseError,
-  unknownCharacter,
-  malformedNumber,
-} from "./parse-error";
+import { ParseError, unknownCharacter, malformedNumber } from "./parse-error";
 import {
   isIdentifierStart,
   isIdentifierPart,
@@ -62,7 +58,7 @@ export interface OperandToken {
 
 export interface OperandTokenizeResult {
   tokens: OperandToken[];
-  errors: OperandParseError[];
+  errors: ParseError[];
 }
 
 /**
@@ -85,7 +81,7 @@ function isRegisterName(str: string): boolean {
  */
 export function tokenizeOperand(text: string): OperandTokenizeResult {
   const tokens: OperandToken[] = [];
-  const errors: OperandParseError[] = [];
+  const errors: ParseError[] = [];
   let pos = 0;
 
   function peek(offset = 0): string {

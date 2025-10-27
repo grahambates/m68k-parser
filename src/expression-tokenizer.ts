@@ -1,5 +1,5 @@
 import { NumberFormat } from "./types";
-import { OperandParseError, unknownCharacter } from "./parse-error";
+import { ParseError, unknownCharacter } from "./parse-error";
 import {
   isDigit,
   isHexDigit,
@@ -26,7 +26,7 @@ export type ExpressionToken =
 
 export interface ExpressionTokenizeResult {
   tokens: ExpressionToken[];
-  errors: OperandParseError[];
+  errors: ParseError[];
 }
 
 /**
@@ -35,7 +35,7 @@ export interface ExpressionTokenizeResult {
  */
 export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
   const tokens: ExpressionToken[] = [];
-  const errors: OperandParseError[] = [];
+  const errors: ParseError[] = [];
   let i = 0;
 
   while (i < expr.length) {
