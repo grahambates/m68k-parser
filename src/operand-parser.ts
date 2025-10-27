@@ -24,6 +24,7 @@ import {
   isFPUDataRegister,
   isFPUControlRegister,
   isRegister,
+  isAddressSize,
 } from "./syntax";
 import {
   tokenizeOperand,
@@ -40,9 +41,12 @@ import {
   unclosedBrace,
   missingScaleFactor,
   invalidBaseRegister,
+  invalidIdentifier,
   ParseError,
+  invalidIndexSize,
 } from "./parse-error";
 import { parseMacroParameter } from "./macro-utils";
+import { isValidIdentifier } from "./tokenizer-utils";
 
 // Strict parse result - discriminated union for success/failure
 type StrictParseResult<T> =
@@ -146,6 +150,18 @@ function createAddressRegisterOrSymbolNode(
     };
   }
 
+  // Check if it's a valid identifier before treating as symbol
+  if (!isValidIdentifier(name)) {
+    return {
+      node: {
+        type: "symbol",
+        name: name,
+        loc,
+      },
+      error: invalidIdentifier(name, loc, "base register position"),
+    };
+  }
+
   // Treat as symbol
   return {
     node: {
@@ -223,7 +239,12 @@ function parseIndexSpec(
     // Find the size part (up to * or end)
     const sizeMatch = /^([wl]|\\\S+|\w+)/i.exec(text.substring(pos));
     if (sizeMatch) {
-      size = createSizeOrSymbolNode(sizeMatch[1], loc);
+      const indexSizeResult = createAddressSizeNode(sizeMatch[1], loc);
+      if (indexSizeResult.success) {
+        size = indexSizeResult.value;
+      } else {
+        error = indexSizeResult.error;
+      }
       pos += sizeMatch[1].length;
     }
   }
@@ -280,35 +301,40 @@ function validateScaleFactor(
 }
 
 /**
- * Helper to create a size node, symbol, or macro parameter node
+ * Helper to create a size node or macro parameter node
  * Used for index sizes and address sizes that can be dynamic
  */
-function createSizeOrSymbolNode(
+function createAddressSizeNode(
   name: string,
   loc: Location,
-): SizeNode | SymbolNode | MacroParameterNode {
+): StrictParseResult<SizeNode | MacroParameterNode> {
   // Check if it's a macro parameter
   const macroPar = parseMacroParameter(name, loc);
   if (macroPar) {
-    return macroPar;
+    return {
+      success: true,
+      value: macroPar,
+    };
   }
 
   const lower = name.toLowerCase();
 
   // Check if it's a valid size
-  if (lower === "w" || lower === "l") {
+  if (isAddressSize(lower)) {
     return {
-      type: "size",
-      size: lower as "w" | "l",
-      loc,
+      success: true,
+      value: {
+        type: "size",
+        size: lower,
+        loc,
+      },
     };
   }
 
-  // Treat as symbol
+  // Invalid
   return {
-    type: "symbol",
-    name,
-    loc,
+    success: false,
+    error: invalidIndexSize(name, loc),
   };
 }
 
@@ -801,7 +827,11 @@ function parseIndexedAddressingWithTokens(
       const indexRegister = createRegisterNode(part1, loc) as
         | DataRegisterNode
         | AddressRegisterNode;
-      const indexSize = createSizeOrSymbolNode(part2, loc);
+      const indexSizeResult = createAddressSizeNode(part2, loc);
+      if (!indexSizeResult.success) {
+        return indexSizeResult;
+      }
+      const indexSize = indexSizeResult.value;
 
       // Parse displacement and check for errors
       const dispResult = parseExpression(displacement || "0", loc);
@@ -1516,12 +1546,23 @@ export function parseOperand(
       absoluteSizedMatch[1],
       loc,
     );
+    const indexSizeResult = createAddressSizeNode(absoluteSizedMatch[2], loc);
+    if (!indexSizeResult.success) {
+      return {
+        value: {
+          type: "absolute-address",
+          loc,
+          address: addrExpr,
+        },
+        error: indexSizeResult.error,
+      };
+    }
     return {
       value: {
         type: "absolute-address",
         loc,
         address: addrExpr,
-        addressSize: createSizeOrSymbolNode(absoluteSizedMatch[2], loc),
+        addressSize: indexSizeResult.value,
       },
       error: addrError,
     };
@@ -1534,12 +1575,26 @@ export function parseOperand(
       absoluteWithSizeMatch[1],
       loc,
     );
+    const addressSizeResult = createAddressSizeNode(
+      absoluteWithSizeMatch[2],
+      loc,
+    );
+    if (!addressSizeResult.success) {
+      return {
+        value: {
+          type: "absolute-address",
+          loc,
+          address: addrExpr,
+        },
+        error: addressSizeResult.error,
+      };
+    }
     return {
       value: {
         type: "absolute-address",
         loc,
         address: addrExpr,
-        addressSize: createSizeOrSymbolNode(absoluteWithSizeMatch[2], loc),
+        addressSize: addressSizeResult.value,
       },
       error: addrError,
     };

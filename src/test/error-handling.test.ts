@@ -147,13 +147,6 @@ describe("Error Handling and Edge Cases", () => {
       expect(line.errors?.[0].code).toBe("MISSING_SCALE_FACTOR");
     });
 
-    it("accepts symbolic index size", () => {
-      // .x could be a macro parameter or variable, so it's valid
-      const line = parseLine(" move.w (a0,d0.x*2),d1");
-      expect(line.errors).toBeUndefined();
-      expect(line.operands?.[0].indexSize?.type).toBe("symbol");
-    });
-
     it("accepts valid scale factors", () => {
       const line1 = parseLine(" move.w (a0,d0.w*1),d1");
       const line2 = parseLine(" move.w (a0,d0.w*2),d1");

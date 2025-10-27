@@ -29,7 +29,8 @@ export type ParseErrorCode =
   | "UNKNOWN_CHARACTER"
   | "MALFORMED_NUMBER"
   | "MISSING_SCALE_FACTOR"
-  | "INVALID_BASE_REGISTER";
+  | "INVALID_BASE_REGISTER"
+  | "INVALID_IDENTIFIER";
 
 export interface ParseError {
   code: ParseErrorCode;
@@ -265,4 +266,29 @@ export function invalidBaseRegister(
       hint: "Base register must be an address register (a0-a7, sp), not a data register (d0-d7)",
     },
   );
+}
+
+export function invalidIdentifier(
+  identifier: string,
+  loc: Location,
+  context?: string,
+): ParseError {
+  const contextStr = context ? ` in ${context}` : "";
+  return createError(
+    "INVALID_IDENTIFIER",
+    `Invalid identifier '${identifier}'${contextStr}`,
+    loc,
+    {
+      got: identifier,
+      hint: "Identifiers must start with a letter, underscore, or dot and contain only letters, digits, underscores, dots, $, or \\",
+    },
+  );
+}
+
+export function invalidIndexSize(got: string, loc: Location): ParseError {
+  return createError("INVALID_INDEX_SIZE", `Invalid index size '${got}'`, loc, {
+    expected: ["w", "l"],
+    got,
+    hint: "Index size must be .w (word) or .l (long)",
+  });
 }
