@@ -1327,8 +1327,7 @@ export function parseOperand(
 
     return {
       value: {
-        type: "address-register-indirect",
-        mode: "pre-decrement",
+        type: "address-register-indirect-predec",
         loc,
         register: baseRegResult.node,
       },
@@ -1364,8 +1363,7 @@ export function parseOperand(
 
     return {
       value: {
-        type: "address-register-indirect",
-        mode: "post-increment",
+        type: "address-register-indirect-postinc",
         loc,
         register: baseRegResult.node,
       },
@@ -1466,7 +1464,7 @@ export function parseOperand(
 
     // PC relative without index
     if (register === "pc") {
-      const { value: dispExpr, errors: dispErrors } = parseExpression(
+      const { value: dispExpr, errors } = parseExpression(
         displacement || "0",
         loc,
       );
@@ -1476,7 +1474,7 @@ export function parseOperand(
           loc,
           displacement: dispExpr,
         },
-        errors: dispErrors,
+        errors,
       };
     }
 
@@ -1501,7 +1499,6 @@ export function parseOperand(
           loc,
           register: createAddressRegisterOrSymbolNode(register, registerLoc)
             .node,
-          mode: "simple",
         },
         errors: [],
       };

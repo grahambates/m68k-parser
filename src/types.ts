@@ -49,38 +49,30 @@ export type MnemonicNode =
 export type QualifierNode = SizeNode | MacroParameterNode;
 
 export interface ParsedLine {
+  lineNumber?: number;
   inlineCondition?: ExpressionNode; // For iif directive: the condition expression
   label?: LabelNode;
   mnemonic?: MnemonicNode;
   qualifier?: QualifierNode;
   operands?: OperandNode[];
-  errors: ParseError[]; // Parse errors from operand parsing
   comment?: CommentNode;
 }
 
-export interface ParsedSourceLine {
-  lineNumber: number; // 1-indexed line number
-  text: string; // Original line text
-  parsed: ParsedLine; // Parsed result
-}
-
 export interface ParsedFile {
-  lines: ParsedSourceLine[]; // All lines in the file
-  totalLines: number; // Total number of lines
-  errorCount: number; // Total number of errors across all lines
-  errors: Array<{
-    lineNumber: number;
-    error: ParseError;
-  }>; // All errors with line numbers
+  lines: ParsedLine[]; // All lines in the file
+  errors: ParseError[];
 }
 
 export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
 
 // Location information for AST nodes
 export interface Location {
-  start: number; // character offset from start of line
-  end: number; // character offset from start of line
-  line?: number; // optional 1-indexed line number
+  /** Start column */
+  start: number;
+  /** End column */
+  end: number;
+  /** Line number (1-based) */
+  line?: number;
 }
 
 // Base node - all AST nodes extend this
@@ -95,7 +87,7 @@ export interface LabelNode extends Node {
   label: string;
 }
 
-// Instruction (e.g., move, add, bra)
+// CPU Instruction (e.g., move, add, bra)
 export interface InstructionNode extends Node {
   type: "instruction";
   instruction: string;
@@ -202,6 +194,8 @@ export type OperandNode =
   | FPURegisterListNode
   | ImmediateNode
   | AddressRegisterIndirectNode
+  | AddressRegisterIndirectPostIncNode
+  | AddressRegisterIndirectPreDecNode
   | AddressRegisterIndirectDisplacementNode
   | AddressRegisterIndirectIndexNode
   | MemoryIndirectNode
@@ -280,11 +274,22 @@ export interface ImmediateNode extends Node {
   value: ExpressionNode; // Parsed expression (the part after #)
 }
 
-// Address register indirect: (a0), (a0)+, -(a0)
+// Address register indirect: (a0)
 export interface AddressRegisterIndirectNode extends Node {
   type: "address-register-indirect";
   register: AddressRegisterNode | SymbolNode | MacroParameterNode;
-  mode: "simple" | "post-increment" | "pre-decrement";
+}
+
+// Address register indirect post-increment: (a0)+
+export interface AddressRegisterIndirectPostIncNode extends Node {
+  type: "address-register-indirect-postinc";
+  register: AddressRegisterNode | SymbolNode | MacroParameterNode;
+}
+
+// Address register indirect pre-decrement: -(a0)
+export interface AddressRegisterIndirectPreDecNode extends Node {
+  type: "address-register-indirect-predec";
+  register: AddressRegisterNode | SymbolNode | MacroParameterNode;
 }
 
 // Address register indirect with displacement: 10(a0), offset(a0)
@@ -372,7 +377,7 @@ export interface BitfieldNode extends Node {
   width?: ExpressionNode; // Width or register reference (optional, defaults to 1)
 }
 
-// Unknown/incomplete operand
+// Unknown/incomplete
 export interface UnknownNode extends Node {
   type: "unknown";
 }

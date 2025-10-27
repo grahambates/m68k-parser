@@ -5,7 +5,7 @@ describe("parse", () => {
     it("parses a complete instruction line", () => {
       const line = parseLine(
         "label:    move.w     #1,10(a0,d1,w)    ; comment here",
-      );
+      ).value;
       expect(line.label).toMatchObject({
         loc: { start: 0, end: 5 },
         label: "label",
@@ -26,7 +26,7 @@ describe("parse", () => {
     });
 
     it("parses an instruction line with no size", () => {
-      const line = parseLine("label: move #1,10(a0,d1,w) ; comment here");
+      const line = parseLine("label: move #1,10(a0,d1,w) ; comment here").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -43,49 +43,49 @@ describe("parse", () => {
     });
 
     it("parses a line with only a label", () => {
-      const line = parseLine("label:");
+      const line = parseLine("label:").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
       });
     });
 
     it("parses a label with no colon", () => {
-      const line = parseLine("label");
+      const line = parseLine("label").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
       });
     });
 
     it("parses a label with double colon (external)", () => {
-      const line = parseLine("label::");
+      const line = parseLine("label::").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label", scope: "external" },
       });
     });
 
     it("parses a local label", () => {
-      const line = parseLine(".label:");
+      const line = parseLine(".label:").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 6 }, label: ".label", scope: "local" },
       });
     });
 
     it("parses a local label with alternate syntax", () => {
-      const line = parseLine("label$:");
+      const line = parseLine("label$:").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 6 }, label: "label$", scope: "local" },
       });
     });
 
     it("parses a label with leading whitespace", () => {
-      const line = parseLine("   label:");
+      const line = parseLine("   label:").value;
       expect(line).toMatchObject({
         label: { loc: { start: 3, end: 8 }, label: "label" },
       });
     });
 
     it("parses a label and mnemonic with no whitespace", () => {
-      const line = parseLine("label:rts");
+      const line = parseLine("label:rts").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -97,7 +97,7 @@ describe("parse", () => {
     });
 
     it("parses an instruction line with no label", () => {
-      const line = parseLine("     move.w #1,10(a0,d1,w) ; comment here");
+      const line = parseLine("     move.w #1,10(a0,d1,w) ; comment here").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 5, end: 9 },
@@ -114,7 +114,7 @@ describe("parse", () => {
     });
 
     it("parses an instruction line with no operands", () => {
-      const line = parseLine("     bra.s ; comment here");
+      const line = parseLine("     bra.s ; comment here").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 5, end: 8 },
@@ -127,7 +127,7 @@ describe("parse", () => {
     });
 
     it("parses a comment by position", () => {
-      const line = parseLine("label: move #1,10(a0,d1.w) comment here");
+      const line = parseLine("label: move #1,10(a0,d1.w) comment here").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -144,7 +144,7 @@ describe("parse", () => {
     });
 
     it("parses a comment by position for instructions with no operands", () => {
-      const line = parseLine(" rts comment here");
+      const line = parseLine(" rts comment here").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 4 },
@@ -156,7 +156,7 @@ describe("parse", () => {
     });
 
     it("parses a comment by separator for macros with no operands", () => {
-      const line = parseLine(" mcr ; comment here");
+      const line = parseLine(" mcr ; comment here").value;
       expect(line).toMatchObject({
         mnemonic: { loc: { start: 1, end: 4 }, type: "macro", macro: "mcr" },
         comment: { loc: { start: 5, end: 19 }, content: "comment here" },
@@ -166,7 +166,7 @@ describe("parse", () => {
     it("parses operands with space after comma", () => {
       const line = parseLine(
         "label:    move.w     #1, 10(a0,d1,w)    ; comment here",
-      );
+      ).value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -184,17 +184,17 @@ describe("parse", () => {
     });
 
     it("parses an empty line", () => {
-      const line = parseLine("");
+      const line = parseLine("").value;
       expect(line).toMatchObject({});
     });
 
     it("parses a line with only whitespace", () => {
-      const line = parseLine("  ");
+      const line = parseLine("  ").value;
       expect(line).toMatchObject({});
     });
 
     it("parses '=' as a mnemonic", () => {
-      const line = parseLine("label = value");
+      const line = parseLine("label = value").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -207,7 +207,7 @@ describe("parse", () => {
     });
 
     it("parses '=' as a mnemonic with no whitespace", () => {
-      const line = parseLine("label=value");
+      const line = parseLine("label=value").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -220,7 +220,7 @@ describe("parse", () => {
     });
 
     it("parses an incomplete size", () => {
-      const line = parseLine("label:    move.");
+      const line = parseLine("label:    move.").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 5 }, label: "label" },
         mnemonic: {
@@ -234,7 +234,7 @@ describe("parse", () => {
     });
 
     it("parses an incomplete operand list", () => {
-      const line = parseLine(" move d0,");
+      const line = parseLine(" move d0,").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 5 },
@@ -249,7 +249,7 @@ describe("parse", () => {
     });
 
     it("parses an operand containing spaces in double quotes", () => {
-      const line = parseLine(' dc.b "foo bar baz" ; comment');
+      const line = parseLine(' dc.b "foo bar baz" ; comment').value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 3 },
@@ -265,7 +265,7 @@ describe("parse", () => {
     });
 
     it("parses an operand containing spaces with in single quotes", () => {
-      const line = parseLine(" dc.b 'foo bar baz' ; comment");
+      const line = parseLine(" dc.b 'foo bar baz' ; comment").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 3 },
@@ -281,7 +281,7 @@ describe("parse", () => {
     });
 
     it("parses an operand containing spaces with unbalanced quotes", () => {
-      const line = parseLine(" dc.b 'foo bar baz");
+      const line = parseLine(" dc.b 'foo bar baz").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 3 },
@@ -294,7 +294,7 @@ describe("parse", () => {
     });
 
     it("parses a label containing a numeric macro parameter", () => {
-      const line = parseLine("foo\\1bar: rts");
+      const line = parseLine("foo\\1bar: rts").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 8 }, label: "foo\\1bar" },
         mnemonic: {
@@ -306,7 +306,7 @@ describe("parse", () => {
     });
 
     it("parses a label containing a special char macro parameter", () => {
-      const line = parseLine("foo\\@bar: rts");
+      const line = parseLine("foo\\@bar: rts").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 8 }, label: "foo\\@bar" },
         mnemonic: {
@@ -318,7 +318,7 @@ describe("parse", () => {
     });
 
     it("parses a label containing a quoted macro parameter", () => {
-      const line = parseLine("foo\\<reptn>bar: rts");
+      const line = parseLine("foo\\<reptn>bar: rts").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 14 }, label: "foo\\<reptn>bar" },
         mnemonic: {
@@ -330,7 +330,7 @@ describe("parse", () => {
     });
 
     it("parses a mnemonic containing a macro parameter", () => {
-      const line = parseLine(" b\\1 d0,d1");
+      const line = parseLine(" b\\1 d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: { loc: { start: 1, end: 4 }, type: "macro", macro: "b\\1" },
         operands: [
@@ -341,7 +341,7 @@ describe("parse", () => {
     });
 
     it("parses a numeric macro parameter as mnemonic", () => {
-      const line = parseLine(" \\1.w d0,d1");
+      const line = parseLine(" \\1.w d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 3 },
@@ -358,7 +358,7 @@ describe("parse", () => {
     });
 
     it("parses a special macro parameter as mnemonic", () => {
-      const line = parseLine(" \\@.l d0,d1");
+      const line = parseLine(" \\@.l d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 3 },
@@ -371,7 +371,7 @@ describe("parse", () => {
     });
 
     it("parses a named macro parameter as mnemonic", () => {
-      const line = parseLine(" \\<inst> d0,d1");
+      const line = parseLine(" \\<inst> d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 8 },
@@ -383,7 +383,7 @@ describe("parse", () => {
     });
 
     it("parses a numeric macro parameter as qualifier", () => {
-      const line = parseLine(" move.\\1 d0,d1");
+      const line = parseLine(" move.\\1 d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 5 },
@@ -404,7 +404,7 @@ describe("parse", () => {
     });
 
     it("parses a special macro parameter as qualifier", () => {
-      const line = parseLine(" move.\\@ d0,d1");
+      const line = parseLine(" move.\\@ d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 5 },
@@ -420,7 +420,7 @@ describe("parse", () => {
     });
 
     it("parses a named macro parameter as qualifier", () => {
-      const line = parseLine(" move.\\<size> d0,d1");
+      const line = parseLine(" move.\\<size> d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 5 },
@@ -436,7 +436,7 @@ describe("parse", () => {
     });
 
     it("parses letter macro parameters (\\a-\\z) as mnemonic", () => {
-      const line = parseLine(" \\k.w d0,d1");
+      const line = parseLine(" \\k.w d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -448,7 +448,7 @@ describe("parse", () => {
     });
 
     it("parses letter macro parameters as qualifier", () => {
-      const line = parseLine(" move.\\z d0,d1");
+      const line = parseLine(" move.\\z d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: { type: "instruction", instruction: "move" },
         qualifier: {
@@ -460,7 +460,7 @@ describe("parse", () => {
     });
 
     it("parses query macro parameter (\\?n) as mnemonic", () => {
-      const line = parseLine(" \\?1 d0,d1");
+      const line = parseLine(" \\?1 d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -471,7 +471,7 @@ describe("parse", () => {
     });
 
     it("parses query macro parameter (\\?a) with letter", () => {
-      const line = parseLine(" \\?k d0,d1");
+      const line = parseLine(" \\?k d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -482,7 +482,7 @@ describe("parse", () => {
     });
 
     it("parses CARG current operator (\\.) as mnemonic", () => {
-      const line = parseLine(" \\. d0,d1");
+      const line = parseLine(" \\. d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -497,7 +497,7 @@ describe("parse", () => {
     });
 
     it("parses CARG increment operator (\\+) as mnemonic", () => {
-      const line = parseLine(" \\+ d0,d1");
+      const line = parseLine(" \\+ d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -512,7 +512,7 @@ describe("parse", () => {
     });
 
     it("parses CARG decrement operator (\\-) as mnemonic", () => {
-      const line = parseLine(" \\- d0,d1");
+      const line = parseLine(" \\- d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -527,7 +527,7 @@ describe("parse", () => {
     });
 
     it("parses an operand containing a macro parameter", () => {
-      const line = parseLine(" move \\1,d0");
+      const line = parseLine(" move \\1,d0").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 1, end: 5 },
@@ -542,7 +542,7 @@ describe("parse", () => {
     });
 
     it("parses a quoted macro arguments", () => {
-      const line = parseLine('    FOO     <1,"foo">,d2');
+      const line = parseLine('    FOO     <1,"foo">,d2').value;
       expect(line).toMatchObject({
         mnemonic: { loc: { start: 4, end: 7 }, type: "macro", macro: "FOO" },
         operands: [
@@ -555,7 +555,7 @@ describe("parse", () => {
     it("parses a complex statement with parens", () => {
       const line = parseLine(
         " dc.w	ddfstop,(DIW_XSTRT-17+(DIW_W>>4-1)<<4)>>1&$fc-SCROLL*8",
-      );
+      ).value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "directive",
@@ -574,7 +574,7 @@ describe("parse", () => {
     });
 
     it("parses iif directive with simple condition", () => {
-      const line = parseLine("    iif DEBUG dc.w $1234");
+      const line = parseLine("    iif DEBUG dc.w $1234").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 4, end: 7 },
@@ -600,7 +600,7 @@ describe("parse", () => {
     });
 
     it("parses iif directive with expression condition", () => {
-      const line = parseLine("    iif REPTN==1 move.l d0,d1");
+      const line = parseLine("    iif REPTN==1 move.l d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 4, end: 7 },
@@ -627,7 +627,7 @@ describe("parse", () => {
     });
 
     it("parses iif directive with label (from docs example)", () => {
-      const line = parseLine("foo iif bar equ 42");
+      const line = parseLine("foo iif bar equ 42").value;
       expect(line).toMatchObject({
         label: { loc: { start: 0, end: 3 }, label: "foo" },
         mnemonic: {
@@ -652,7 +652,7 @@ describe("parse", () => {
     });
 
     it("parses iif directive with multiple operands in statement", () => {
-      const line = parseLine("    iif MODE&1 dc.w $1234,$5678");
+      const line = parseLine("    iif MODE&1 dc.w $1234,$5678").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 4, end: 7 },
@@ -691,7 +691,7 @@ describe("parse", () => {
     });
 
     it("parses ifmacrod directive", () => {
-      const line = parseLine("    ifmacrod MYMACRO");
+      const line = parseLine("    ifmacrod MYMACRO").value;
       expect(line).toMatchObject({
         mnemonic: {
           loc: { start: 4, end: 12 },
@@ -711,7 +711,7 @@ describe("parse", () => {
     });
 
     it("parses FPU data register fp0", () => {
-      const line = parseLine(" fmove.x fp0,fp1");
+      const line = parseLine(" fmove.x fp0,fp1").value;
       expect(line).toMatchObject({
         mnemonic: { type: "instruction", instruction: "fmove" },
         qualifier: { type: "size", size: "x" },
@@ -723,7 +723,7 @@ describe("parse", () => {
     });
 
     it("parses FPU control register fpcr", () => {
-      const line = parseLine(" fmove.l fpcr,d0");
+      const line = parseLine(" fmove.l fpcr,d0").value;
       expect(line).toMatchObject({
         mnemonic: { type: "instruction", instruction: "fmove" },
         qualifier: { type: "size", size: "l" },
@@ -735,7 +735,7 @@ describe("parse", () => {
     });
 
     it("parses FPU register list", () => {
-      const line = parseLine(" fmovem.x fp0-fp7,-(sp)");
+      const line = parseLine(" fmovem.x fp0-fp7,-(sp)").value;
       expect(line).toMatchObject({
         mnemonic: { type: "instruction", instruction: "fmovem" },
         qualifier: { type: "size", size: "x" },
@@ -746,8 +746,7 @@ describe("parse", () => {
             registers: ["fp0", "fp1", "fp2", "fp3", "fp4", "fp5", "fp6", "fp7"],
           },
           {
-            type: "address-register-indirect",
-            mode: "pre-decrement",
+            type: "address-register-indirect-predec",
             register: {
               type: "address-register",
               register: "sp",
@@ -758,7 +757,7 @@ describe("parse", () => {
     });
 
     it("parses FPU register list with multiple ranges", () => {
-      const line = parseLine(" fmovem.x fp0-fp3/fp5-fp7,(a0)");
+      const line = parseLine(" fmovem.x fp0-fp3/fp5-fp7,(a0)").value;
       expect(line).toMatchObject({
         mnemonic: { type: "instruction", instruction: "fmovem" },
         operands: [
@@ -769,7 +768,6 @@ describe("parse", () => {
           },
           {
             type: "address-register-indirect",
-            mode: "simple",
             register: {
               type: "address-register",
               register: "a0",
@@ -780,7 +778,7 @@ describe("parse", () => {
     });
 
     it("parses indexed addressing with scale factor *2", () => {
-      const line = parseLine(" move.l (a0,d1.w*2),d0");
+      const line = parseLine(" move.l (a0,d1.w*2),d0").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -808,7 +806,7 @@ describe("parse", () => {
     });
 
     it("parses indexed addressing with scale factor *4", () => {
-      const line = parseLine(" move.l 10(a0,d1.l*4),d0");
+      const line = parseLine(" move.l 10(a0,d1.l*4),d0").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -843,7 +841,7 @@ describe("parse", () => {
     });
 
     it("parses PC relative with scale factor", () => {
-      const line = parseLine(" move.l table(pc,d0.w*2),d1");
+      const line = parseLine(" move.l table(pc,d0.w*2),d1").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -874,7 +872,7 @@ describe("parse", () => {
     });
 
     it("parses indexed addressing with macro parameter as base register", () => {
-      const line = parseLine(" move.w #1,label(\\1,a2.w)");
+      const line = parseLine(" move.w #1,label(\\1,a2.w)").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -905,7 +903,7 @@ describe("parse", () => {
     });
 
     it("parses indexed addressing with expression scale factor", () => {
-      const line = parseLine(" move.l 38(a0,d0.w*(foo+1)),d1");
+      const line = parseLine(" move.l 38(a0,d0.w*(foo+1)),d1").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -957,7 +955,7 @@ describe("parse", () => {
     });
 
     it("parses bitfield with offset and width", () => {
-      const line = parseLine(" bfchg {0:5},d0");
+      const line = parseLine(" bfchg {0:5},d0").value;
       expect(line).toMatchObject({
         mnemonic: { type: "instruction", instruction: "bfchg" },
         operands: [
@@ -978,7 +976,7 @@ describe("parse", () => {
     });
 
     it("parses bitfield with just offset", () => {
-      const line = parseLine(" bftst {10},d1");
+      const line = parseLine(" bftst {10},d1").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -994,7 +992,7 @@ describe("parse", () => {
     });
 
     it("parses bitfield with register offset and width", () => {
-      const line = parseLine(" bfexts {d0:d1},(a0)");
+      const line = parseLine(" bfexts {d0:d1},(a0)").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -1010,7 +1008,6 @@ describe("parse", () => {
           },
           {
             type: "address-register-indirect",
-            mode: "simple",
             register: {
               type: "address-register",
               register: "a0",
@@ -1021,7 +1018,7 @@ describe("parse", () => {
     });
 
     it("parses memory indirect with base register and outer displacement", () => {
-      const line = parseLine(" move.l ([a0],4),d0");
+      const line = parseLine(" move.l ([a0],4),d0").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -1041,7 +1038,7 @@ describe("parse", () => {
     });
 
     it("parses memory indirect with base displacement and register", () => {
-      const line = parseLine(" move.l ([8,a1]),d0");
+      const line = parseLine(" move.l ([8,a1]),d0").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -1061,7 +1058,7 @@ describe("parse", () => {
     });
 
     it("parses memory indirect with index register", () => {
-      const line = parseLine(" move.l ([a0,d1.w]),d0");
+      const line = parseLine(" move.l ([a0,d1.w]),d0").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -1085,7 +1082,7 @@ describe("parse", () => {
     });
 
     it("parses memory indirect with full syntax", () => {
-      const line = parseLine(" move.l ([16,a2,d3.l*4],32),d0");
+      const line = parseLine(" move.l ([16,a2,d3.l*4],32),d0").value;
       expect(line).toMatchObject({
         operands: [
           {
@@ -1129,7 +1126,7 @@ describe("parse", () => {
 
     it("reports error for unclosed parenthesis", () => {
       const line = parseLine(" move.w .label(a1");
-      expect(line.operands?.[0].type).toBe("unknown");
+      expect(line.value.operands?.[0].type).toBe("unknown");
       expect(line.errors).toBeDefined();
       expect(line.errors?.[0].code).toBe("UNCLOSED_PAREN");
     });
@@ -1153,7 +1150,7 @@ describe("parse", () => {
     });
 
     it("parses packed decimal size qualifier .p", () => {
-      const line = parseLine(" dc.p #1.5");
+      const line = parseLine(" dc.p #1.5").value;
       expect(line).toMatchObject({
         mnemonic: { type: "directive", directive: "dc" },
         qualifier: { type: "size", size: "p" },
@@ -1161,7 +1158,7 @@ describe("parse", () => {
     });
 
     it("parses quad size qualifier .q", () => {
-      const line = parseLine(" dc.q $0123456789abcdef");
+      const line = parseLine(" dc.q $0123456789abcdef").value;
       expect(line).toMatchObject({
         mnemonic: { type: "directive", directive: "dc" },
         qualifier: { type: "size", size: "q" },
@@ -1169,7 +1166,7 @@ describe("parse", () => {
     });
 
     it("parses extended macro parameter \\@! (unique-push)", () => {
-      const line = parseLine(" \\@! d0,d1");
+      const line = parseLine(" \\@! d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -1184,7 +1181,7 @@ describe("parse", () => {
     });
 
     it("parses extended macro parameter \\@? (unique-push-below)", () => {
-      const line = parseLine(" \\@? d0,d1");
+      const line = parseLine(" \\@? d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -1195,7 +1192,7 @@ describe("parse", () => {
     });
 
     it("parses extended macro parameter \\@@ (unique-pull)", () => {
-      const line = parseLine(" \\@@ d0,d1");
+      const line = parseLine(" \\@@ d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -1206,7 +1203,7 @@ describe("parse", () => {
     });
 
     it("parses \\@! with size qualifier", () => {
-      const line = parseLine(" \\@!.w d0,d1");
+      const line = parseLine(" \\@!.w d0,d1").value;
       expect(line).toMatchObject({
         mnemonic: {
           type: "macro-parameter",
@@ -1260,7 +1257,7 @@ describe("parse", () => {
     });
 
     it("accepts macro parameters in index register position", () => {
-      const line = parseLine(" move.w d0,(a0,\\1)");
+      const line = parseLine(" move.w d0,(a0,\\1)").value;
       expect(line.operands).toBeDefined();
       expect(line.operands?.length).toBe(2);
       expect(line.operands?.[1].type).toBe("address-register-indirect-index");
@@ -1270,7 +1267,7 @@ describe("parse", () => {
     });
 
     it("accepts macro parameters with size in index position", () => {
-      const line = parseLine(" move.w d0,(a0,\\1.w)");
+      const line = parseLine(" move.w d0,(a0,\\1.w)").value;
       expect(line.operands).toBeDefined();
       expect(line.operands?.length).toBe(2);
       expect(line.operands?.[1].type).toBe("address-register-indirect-index");

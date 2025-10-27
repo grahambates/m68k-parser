@@ -3,7 +3,7 @@ import { parseLine } from "../index";
 describe("Expression Parsing", () => {
   describe("Arithmetic operators", () => {
     it("parses addition", () => {
-      const line = parseLine("  dc.w label+4");
+      const line = parseLine("  dc.w label+4").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -16,7 +16,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses subtraction", () => {
-      const line = parseLine("  dc.w offset-8");
+      const line = parseLine("  dc.w offset-8").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -29,7 +29,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses multiplication", () => {
-      const line = parseLine("  dc.w width*height");
+      const line = parseLine("  dc.w width*height").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -42,7 +42,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses division", () => {
-      const line = parseLine("  dc.w total/count");
+      const line = parseLine("  dc.w total/count").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -55,7 +55,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses modulo with %", () => {
-      const line = parseLine("  dc.w value%16");
+      const line = parseLine("  dc.w value%16").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -68,7 +68,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses modulo with //", () => {
-      const line = parseLine("  dc.w value//16");
+      const line = parseLine("  dc.w value//16").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -83,7 +83,7 @@ describe("Expression Parsing", () => {
 
   describe("Bitwise operators", () => {
     it("parses bitwise AND", () => {
-      const line = parseLine("  dc.w value&$FF");
+      const line = parseLine("  dc.w value&$FF").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -96,7 +96,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bitwise OR with |", () => {
-      const line = parseLine("  dc.w flags|$80");
+      const line = parseLine("  dc.w flags|$80").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -109,7 +109,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bitwise OR with !", () => {
-      const line = parseLine("  dc.w flags!$80");
+      const line = parseLine("  dc.w flags!$80").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -122,7 +122,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bitwise XOR with ^", () => {
-      const line = parseLine("  dc.w value^$FFFF");
+      const line = parseLine("  dc.w value^$FFFF").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -135,7 +135,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bitwise XOR with ~", () => {
-      const line = parseLine("  dc.w value~$FFFF");
+      const line = parseLine("  dc.w value~$FFFF").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -148,7 +148,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses left shift", () => {
-      const line = parseLine("  dc.w 1<<8");
+      const line = parseLine("  dc.w 1<<8").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -161,7 +161,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses right shift", () => {
-      const line = parseLine("  dc.w value>>4");
+      const line = parseLine("  dc.w value>>4").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -176,7 +176,7 @@ describe("Expression Parsing", () => {
 
   describe("Comparison operators", () => {
     it("parses less than", () => {
-      const line = parseLine("  dc.w a<b");
+      const line = parseLine("  dc.w a<b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -189,7 +189,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses greater than", () => {
-      const line = parseLine("  dc.w a>b");
+      const line = parseLine("  dc.w a>b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -202,7 +202,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses less than or equal", () => {
-      const line = parseLine("  dc.w a<=b");
+      const line = parseLine("  dc.w a<=b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -215,7 +215,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses greater than or equal", () => {
-      const line = parseLine("  dc.w a>=b");
+      const line = parseLine("  dc.w a>=b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -228,7 +228,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses equality with ==", () => {
-      const line = parseLine("  dc.w a==b");
+      const line = parseLine("  dc.w a==b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -241,7 +241,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses equality with =", () => {
-      const line = parseLine("  dc.w a=b");
+      const line = parseLine("  dc.w a=b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -254,7 +254,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses inequality with !=", () => {
-      const line = parseLine("  dc.w a!=b");
+      const line = parseLine("  dc.w a!=b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -267,7 +267,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses inequality with <>", () => {
-      const line = parseLine("  dc.w a<>b");
+      const line = parseLine("  dc.w a<>b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -282,7 +282,7 @@ describe("Expression Parsing", () => {
 
   describe("Logical operators", () => {
     it("parses logical AND", () => {
-      const line = parseLine("  dc.w a&&b");
+      const line = parseLine("  dc.w a&&b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -295,7 +295,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses logical OR", () => {
-      const line = parseLine("  dc.w a||b");
+      const line = parseLine("  dc.w a||b").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -310,7 +310,7 @@ describe("Expression Parsing", () => {
 
   describe("Unary operators", () => {
     it("parses unary plus", () => {
-      const line = parseLine("  dc.w +value");
+      const line = parseLine("  dc.w +value").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -322,7 +322,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses unary minus", () => {
-      const line = parseLine("  dc.w -value");
+      const line = parseLine("  dc.w -value").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -334,7 +334,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses logical NOT", () => {
-      const line = parseLine("  dc.w !flag");
+      const line = parseLine("  dc.w !flag").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -346,7 +346,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bitwise complement", () => {
-      const line = parseLine("  dc.w ~mask");
+      const line = parseLine("  dc.w ~mask").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -360,7 +360,7 @@ describe("Expression Parsing", () => {
 
   describe("Parentheses and grouping", () => {
     it("parses grouped expressions", () => {
-      const line = parseLine("  dc.w (a+b)*c");
+      const line = parseLine("  dc.w (a+b)*c").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -381,7 +381,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses nested parentheses", () => {
-      const line = parseLine("  dc.w ((a+b)*c)+d");
+      const line = parseLine("  dc.w ((a+b)*c)+d").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -412,7 +412,7 @@ describe("Expression Parsing", () => {
 
   describe("Operator precedence", () => {
     it("multiplication before addition", () => {
-      const line = parseLine("  dc.w a+b*c");
+      const line = parseLine("  dc.w a+b*c").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -430,7 +430,7 @@ describe("Expression Parsing", () => {
     });
 
     it("shifts before bitwise AND", () => {
-      const line = parseLine("  dc.w a<<2&mask");
+      const line = parseLine("  dc.w a<<2&mask").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -448,7 +448,7 @@ describe("Expression Parsing", () => {
     });
 
     it("bitwise before arithmetic", () => {
-      const line = parseLine("  dc.w a&b+c");
+      const line = parseLine("  dc.w a&b+c").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -466,7 +466,7 @@ describe("Expression Parsing", () => {
     });
 
     it("arithmetic before comparison", () => {
-      const line = parseLine("  dc.w a+b<c");
+      const line = parseLine("  dc.w a+b<c").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -484,7 +484,7 @@ describe("Expression Parsing", () => {
     });
 
     it("comparison before logical AND", () => {
-      const line = parseLine("  dc.w a<b&&c>d");
+      const line = parseLine("  dc.w a<b&&c>d").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -511,7 +511,7 @@ describe("Expression Parsing", () => {
     it("parses vasm example from docs", () => {
       const line = parseLine(
         "  dc.w (DIW_XSTRT-17+(DIW_W>>4-1)<<4)>>1&$fc-SCROLL*8",
-      );
+      ).value;
       // Just verify it parses without error and produces a binary-op at top level
       const operand = line.operands?.[0];
       expect(operand?.type).toBe("value");
@@ -521,7 +521,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses label offset calculation", () => {
-      const line = parseLine("  move label+4,d0");
+      const line = parseLine("  move label+4,d0").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
         address: {
@@ -534,7 +534,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses size calculation", () => {
-      const line = parseLine("SIZE equ width*height");
+      const line = parseLine("SIZE equ width*height").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -547,7 +547,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bit mask expression", () => {
-      const line = parseLine("  dc.w (value&$FF)|(flags<<8)");
+      const line = parseLine("  dc.w (value&$FF)|(flags<<8)").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -576,7 +576,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses current address expression", () => {
-      const line = parseLine("  dc.w *+10");
+      const line = parseLine("  dc.w *+10").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -591,7 +591,7 @@ describe("Expression Parsing", () => {
 
   describe("Expressions in different contexts", () => {
     it("parses expression in absolute address with size qualifier (parens)", () => {
-      const line = parseLine("  move.l (BASE+4).w,d0");
+      const line = parseLine("  move.l (BASE+4).w,d0").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
         loc: { start: 9, end: 19 },
@@ -613,7 +613,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses expression in absolute address with size suffix", () => {
-      const line = parseLine("  move.l BASE+offset.w,d0");
+      const line = parseLine("  move.l BASE+offset.w,d0").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
         addressSize: {
@@ -630,7 +630,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses expression in absolute address without size", () => {
-      const line = parseLine("  move.l BASE+offset,d0");
+      const line = parseLine("  move.l BASE+offset,d0").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "absolute-address",
         address: {
@@ -643,7 +643,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses expression in immediate operand", () => {
-      const line = parseLine("  move #width*height,d0");
+      const line = parseLine("  move #width*height,d0").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "immediate",
         value: {
@@ -656,7 +656,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses expression in displacement", () => {
-      const line = parseLine("  move base+offset(a0),d0");
+      const line = parseLine("  move base+offset(a0),d0").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "address-register-indirect-displacement",
         displacement: {
@@ -669,7 +669,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses bitwise operators in indexed addressing displacement", () => {
-      const line = parseLine("  move.w #1,l~2(a1,d0.w)");
+      const line = parseLine("  move.w #1,l~2(a1,d0.w)").value;
       expect(line.operands?.[1]).toMatchObject({
         type: "address-register-indirect-index",
         displacement: {
@@ -690,7 +690,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses expression in PC-relative", () => {
-      const line = parseLine("  bra table+index*4(pc)");
+      const line = parseLine("  bra table+index*4(pc)").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "pc-relative",
         displacement: {
@@ -710,7 +710,7 @@ describe("Expression Parsing", () => {
 
   describe("Numeric literal parsing", () => {
     it("parses decimal numbers", () => {
-      const line1 = parseLine("  dc.w 42");
+      const line1 = parseLine("  dc.w 42").value;
       expect(line1.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -721,7 +721,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line2 = parseLine("  dc.w 0");
+      const line2 = parseLine("  dc.w 0").value;
       expect(line2.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -732,7 +732,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line3 = parseLine("  dc.w 65535");
+      const line3 = parseLine("  dc.w 65535").value;
       expect(line3.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -745,7 +745,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses hexadecimal numbers", () => {
-      const line1 = parseLine("  dc.w $FF");
+      const line1 = parseLine("  dc.w $FF").value;
       expect(line1.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -756,7 +756,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line2 = parseLine("  dc.w $1234");
+      const line2 = parseLine("  dc.w $1234").value;
       expect(line2.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -767,7 +767,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line3 = parseLine("  dc.w $ABCD");
+      const line3 = parseLine("  dc.w $ABCD").value;
       expect(line3.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -778,7 +778,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line4 = parseLine("  dc.w $0");
+      const line4 = parseLine("  dc.w $0").value;
       expect(line4.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -791,7 +791,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses binary numbers", () => {
-      const line1 = parseLine("  dc.w %1010");
+      const line1 = parseLine("  dc.w %1010").value;
       expect(line1.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -802,7 +802,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line2 = parseLine("  dc.w %11111111");
+      const line2 = parseLine("  dc.w %11111111").value;
       expect(line2.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -813,7 +813,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line3 = parseLine("  dc.w %1");
+      const line3 = parseLine("  dc.w %1").value;
       expect(line3.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -824,7 +824,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line4 = parseLine("  dc.w %0");
+      const line4 = parseLine("  dc.w %0").value;
       expect(line4.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -837,7 +837,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses octal numbers", () => {
-      const line1 = parseLine("  dc.w @77");
+      const line1 = parseLine("  dc.w @77").value;
       expect(line1.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -848,7 +848,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line2 = parseLine("  dc.w @377");
+      const line2 = parseLine("  dc.w @377").value;
       expect(line2.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -859,7 +859,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line3 = parseLine("  dc.w @7");
+      const line3 = parseLine("  dc.w @7").value;
       expect(line3.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -870,7 +870,7 @@ describe("Expression Parsing", () => {
         },
       });
 
-      const line4 = parseLine("  dc.w @0");
+      const line4 = parseLine("  dc.w @0").value;
       expect(line4.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -885,7 +885,7 @@ describe("Expression Parsing", () => {
 
   describe("Built-in symbols", () => {
     it("parses __RS offset counter", () => {
-      const line = parseLine("  dc.w __RS+4");
+      const line = parseLine("  dc.w __RS+4").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -904,7 +904,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __SO offset counter", () => {
-      const line = parseLine("  dc.w __SO");
+      const line = parseLine("  dc.w __SO").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -915,7 +915,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __FO offset counter", () => {
-      const line = parseLine("  dc.w __FO");
+      const line = parseLine("  dc.w __FO").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -926,7 +926,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses REPTN repeat counter", () => {
-      const line = parseLine("  dc.w REPTN*2");
+      const line = parseLine("  dc.w REPTN*2").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -945,7 +945,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses CARG argument counter", () => {
-      const line = parseLine("  dc.w CARG");
+      const line = parseLine("  dc.w CARG").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -956,7 +956,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses NARG argument count", () => {
-      const line = parseLine("  dc.w NARG");
+      const line = parseLine("  dc.w NARG").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -967,7 +967,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __G2 Devpac CPU type symbol", () => {
-      const line = parseLine("  dc.w __G2");
+      const line = parseLine("  dc.w __G2").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -978,7 +978,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __LK Devpac output file type symbol", () => {
-      const line = parseLine("  dc.w __LK");
+      const line = parseLine("  dc.w __LK").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -989,7 +989,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __CPU PhxAss CPU type symbol", () => {
-      const line = parseLine("  dc.w __CPU");
+      const line = parseLine("  dc.w __CPU").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1000,7 +1000,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __FPU PhxAss FPU type symbol", () => {
-      const line = parseLine("  dc.w __FPU");
+      const line = parseLine("  dc.w __FPU").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1011,7 +1011,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __MMU PhxAss MMU type symbol", () => {
-      const line = parseLine("  dc.w __MMU");
+      const line = parseLine("  dc.w __MMU").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1022,7 +1022,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __OPTC PhxAss optimization flags symbol", () => {
-      const line = parseLine("  dc.w __OPTC");
+      const line = parseLine("  dc.w __OPTC").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1033,7 +1033,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses _MOVEMBYTES BAsm MOVEM bytes symbol", () => {
-      const line = parseLine("  dc.w _MOVEMBYTES");
+      const line = parseLine("  dc.w _MOVEMBYTES").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1044,7 +1044,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __MOVEMREGS BAsm MOVEM register count symbol", () => {
-      const line = parseLine("  dc.w __MOVEMREGS");
+      const line = parseLine("  dc.w __MOVEMREGS").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1055,7 +1055,7 @@ describe("Expression Parsing", () => {
     });
 
     it("parses __VASM version/CPU bitfield symbol", () => {
-      const line = parseLine("  dc.w __VASM&$ff");
+      const line = parseLine("  dc.w __VASM&$ff").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -1074,7 +1074,7 @@ describe("Expression Parsing", () => {
     });
 
     it("treats similar names as regular symbols", () => {
-      const line = parseLine("  dc.w __RSX");
+      const line = parseLine("  dc.w __RSX").value;
       expect(line.operands?.[0]).toMatchObject({
         type: "value",
         value: {

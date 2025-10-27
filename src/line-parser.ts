@@ -7,8 +7,6 @@
 
 import {
   ParsedLine,
-  ParsedFile,
-  ParsedSourceLine,
   LabelNode,
   MnemonicNode,
   QualifierNode,
@@ -19,6 +17,7 @@ import {
   Size,
   Instruction,
   Directive,
+  ParserResult,
 } from "./types";
 import { ParseError } from "./parse-error";
 import { parseOperand } from "./operand-parser";
@@ -766,7 +765,10 @@ function parseComment(state: ParserState): CommentNode | null {
  * Main entry point: parse a line of assembly
  * @param text - The line text to parse
  */
-export function parseLine(text: string, lineNumber?: number): ParsedLine {
+export function parseLine(
+  text: string,
+  lineNumber?: number,
+): ParserResult<ParsedLine> {
   const state: ParserState = {
     text,
     pos: 0,
@@ -774,27 +776,29 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
     errors: [],
   };
 
-  const line: ParsedLine = { errors: [] };
+  const parsedLine: ParsedLine = {
+    lineNumber,
+  };
 
   // Track whether we have leading whitespace (affects label parsing)
   const hasLeadingWhitespace = /^[ \t]/.test(text);
 
   // Parse label (if at start of line or has colon)
   const label = parseLabel(state, hasLeadingWhitespace);
-  if (label) line.label = label;
+  if (label) parsedLine.label = label;
 
   // Skip whitespace
   skipWhitespace(state);
 
   // Parse mnemonic
   const mnemonic = parseMnemonic(state);
-  if (mnemonic) line.mnemonic = mnemonic;
+  if (mnemonic) parsedLine.mnemonic = mnemonic;
 
   // Parse size qualifier
-  if (line.mnemonic) {
+  if (parsedLine.mnemonic) {
     const qualifier = parseQualifier(state);
     if (qualifier) {
-      line.qualifier = qualifier;
+      parsedLine.qualifier = qualifier;
     }
   }
 
@@ -803,8 +807,8 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
 
   // Special handling for iif directive
   if (
-    line.mnemonic?.type === "directive" &&
-    (line.mnemonic as DirectiveNode).directive === "iif"
+    parsedLine.mnemonic?.type === "directive" &&
+    (parsedLine.mnemonic as DirectiveNode).directive === "iif"
   ) {
     // Parse iif: <condition> <statement>
     // Collect everything until comment or EOL
@@ -831,16 +835,19 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
           line: lineNumber,
         },
       );
-      line.inlineCondition = condExpr;
+      parsedLine.inlineCondition = condExpr;
       if (condErrors && condErrors.length > 0) {
         state.errors.push(...condErrors);
       }
 
       // Parse statement recursively
-      const statementLine = parseLine("  " + statementText);
+      const statementResult = parseLine("  " + statementText);
+      const statementLine = statementResult.value;
+      state.errors.push(...statementResult.errors);
+
       if (statementLine.operands) {
         const statementStart = text.indexOf(statementText);
-        line.operands = statementLine.operands.map((op) => ({
+        parsedLine.operands = statementLine.operands.map((op) => ({
           ...op,
           loc: {
             start: statementStart + op.loc.start - 2,
@@ -849,17 +856,14 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
           },
         }));
       }
-      if (statementLine.errors) {
-        state.errors.push(...statementLine.errors);
-      }
     }
-  } else if (line.mnemonic) {
+  } else if (parsedLine.mnemonic) {
     // Check if this is a no-operand mnemonic
     const mnemonicText =
-      line.mnemonic.type === "instruction"
-        ? (line.mnemonic as InstructionNode).instruction
-        : line.mnemonic.type === "directive"
-          ? (line.mnemonic as DirectiveNode).directive
+      parsedLine.mnemonic.type === "instruction"
+        ? (parsedLine.mnemonic as InstructionNode).instruction
+        : parsedLine.mnemonic.type === "directive"
+          ? (parsedLine.mnemonic as DirectiveNode).directive
           : null;
 
     const isNoOperand =
@@ -869,17 +873,17 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
     if (!isNoOperand) {
       // Regular operand parsing
       const category =
-        line.mnemonic.type === "instruction"
+        parsedLine.mnemonic.type === "instruction"
           ? "instruction"
-          : line.mnemonic.type === "directive"
+          : parsedLine.mnemonic.type === "directive"
             ? "directive"
-            : line.mnemonic.type === "macro"
+            : parsedLine.mnemonic.type === "macro"
               ? "macro"
               : undefined;
 
       const { operands, errors } = parseOperandList(state, category);
       if (operands.length > 0) {
-        line.operands = operands;
+        parsedLine.operands = operands;
       }
       if (errors.length > 0) {
         state.errors.push(...errors);
@@ -891,59 +895,10 @@ export function parseLine(text: string, lineNumber?: number): ParsedLine {
 
   // Parse comment
   const comment = parseComment(state);
-  if (comment) line.comment = comment;
-
-  // Add errors to result if any
-  if (state.errors.length > 0) {
-    line.errors = state.errors;
-  }
-
-  return line;
-}
-
-/**
- * Parse an entire source file (multiple lines)
- * @param source - The source code as a string (can contain multiple lines)
- * @returns ParsedFile object with all parsed lines and aggregated error information
- */
-export function parseFile(source: string): ParsedFile {
-  // Normalize line endings to \n
-  const normalizedSource = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  // Split into lines
-  const textLines = normalizedSource.split("\n");
-
-  const parsedLines: ParsedSourceLine[] = [];
-  const allErrors: Array<{ lineNumber: number; error: ParseError }> = [];
-  let totalErrorCount = 0;
-
-  // Parse each line
-  textLines.forEach((text, index) => {
-    const lineNumber = index + 1; // 1-indexed
-    const parsed = parseLine(text, lineNumber);
-
-    parsedLines.push({
-      lineNumber,
-      text,
-      parsed,
-    });
-
-    // Collect errors from this line
-    if (parsed.errors) {
-      totalErrorCount += parsed.errors.length;
-      parsed.errors.forEach((error) => {
-        allErrors.push({
-          lineNumber,
-          error,
-        });
-      });
-    }
-  });
+  if (comment) parsedLine.comment = comment;
 
   return {
-    lines: parsedLines,
-    totalLines: textLines.length,
-    errorCount: totalErrorCount,
-    errors: allErrors,
+    value: parsedLine,
+    errors: state.errors,
   };
 }

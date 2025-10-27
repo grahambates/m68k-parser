@@ -1,4 +1,4 @@
 export type * from "./types";
-export type { ParseError, ParseErrorCode } from "./parse-error";
 
-export { parseLine, parseFile } from "./line-parser";
+export { parseLine } from "./line-parser";
+export { parseFile } from "./file-parser";

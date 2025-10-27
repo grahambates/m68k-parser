@@ -3,21 +3,21 @@ import { parseLine } from "../index";
 describe("parse AST", () => {
   describe("#parseLine() with type information", () => {
     it("parses labels with scope", () => {
-      const global = parseLine("label:");
+      const global = parseLine("label:").value;
       expect(global.label).toMatchObject({
         type: "label",
         label: "label",
         scope: "global",
       });
 
-      const local = parseLine(".local:");
+      const local = parseLine(".local:").value;
       expect(local.label).toMatchObject({
         type: "label",
         label: ".local",
         scope: "local",
       });
 
-      const external = parseLine("exported::");
+      const external = parseLine("exported::").value;
       expect(external.label).toMatchObject({
         type: "label",
         label: "exported",
@@ -26,19 +26,19 @@ describe("parse AST", () => {
     });
 
     it("parses instructions, directives, and macros", () => {
-      const instruction = parseLine("  move d0,d1");
+      const instruction = parseLine("  move d0,d1").value;
       expect(instruction.mnemonic).toMatchObject({
         type: "instruction",
         instruction: "move",
       });
 
-      const directive = parseLine("  dc.b 1");
+      const directive = parseLine("  dc.b 1").value;
       expect(directive.mnemonic).toMatchObject({
         type: "directive",
         directive: "dc",
       });
 
-      const macro = parseLine("  foo");
+      const macro = parseLine("  foo").value;
       expect(macro.mnemonic).toMatchObject({
         type: "macro",
         macro: "foo",
@@ -46,7 +46,7 @@ describe("parse AST", () => {
     });
 
     it("parses size with type", () => {
-      const line = parseLine("  move.w d0,d1");
+      const line = parseLine("  move.w d0,d1").value;
       expect(line.qualifier).toMatchObject({
         type: "size",
         size: "w",
@@ -54,14 +54,14 @@ describe("parse AST", () => {
     });
 
     it("parses comments with hasPrefix", () => {
-      const withPrefix = parseLine("  move d0,d1 ; comment");
+      const withPrefix = parseLine("  move d0,d1 ; comment").value;
       expect(withPrefix.comment).toMatchObject({
         type: "comment",
         hasPrefix: true,
         content: "comment",
       });
 
-      const positional = parseLine("  rts comment here");
+      const positional = parseLine("  rts comment here").value;
       expect(positional.comment).toMatchObject({
         type: "comment",
         hasPrefix: false,
@@ -71,7 +71,7 @@ describe("parse AST", () => {
 
     describe("operand addressing modes", () => {
       it("parses data registers", () => {
-        const line = parseLine("  move d0,d7");
+        const line = parseLine("  move d0,d7").value;
         expect(line.operands).toHaveLength(2);
         expect(line.operands?.[0]).toMatchObject({
           type: "data-register",
@@ -84,7 +84,7 @@ describe("parse AST", () => {
       });
 
       it("parses address registers", () => {
-        const line = parseLine("  move a0,sp");
+        const line = parseLine("  move a0,sp").value;
         expect(line.operands).toHaveLength(2);
         expect(line.operands?.[0]).toMatchObject({
           type: "address-register",
@@ -98,42 +98,42 @@ describe("parse AST", () => {
 
       it("parses special registers", () => {
         // Status Register
-        const sr = parseLine("  move sr,d0");
+        const sr = parseLine("  move sr,d0").value;
         expect(sr.operands?.[0]).toMatchObject({
           type: "special-register",
           register: "sr",
         });
 
         // Condition Code Register
-        const ccr = parseLine("  move d0,ccr");
+        const ccr = parseLine("  move d0,ccr").value;
         expect(ccr.operands?.[1]).toMatchObject({
           type: "special-register",
           register: "ccr",
         });
 
         // User Stack Pointer
-        const usp = parseLine("  move usp,a0");
+        const usp = parseLine("  move usp,a0").value;
         expect(usp.operands?.[0]).toMatchObject({
           type: "special-register",
           register: "usp",
         });
 
         // Supervisor Stack Pointer
-        const ssp = parseLine("  move ssp,a1");
+        const ssp = parseLine("  move ssp,a1").value;
         expect(ssp.operands?.[0]).toMatchObject({
           type: "special-register",
           register: "ssp",
         });
 
         // Program Counter (in some contexts)
-        const pc = parseLine("  move pc,d0");
+        const pc = parseLine("  move pc,d0").value;
         expect(pc.operands?.[0]).toMatchObject({
           type: "special-register",
           register: "pc",
         });
 
         // 68010+ registers
-        const vbr = parseLine("  movec vbr,d0");
+        const vbr = parseLine("  movec vbr,d0").value;
         expect(vbr.operands?.[0]).toMatchObject({
           type: "special-register",
           register: "vbr",
@@ -141,7 +141,7 @@ describe("parse AST", () => {
       });
 
       it("parses immediate values", () => {
-        const line = parseLine("  move #100,d0");
+        const line = parseLine("  move #100,d0").value;
         expect(line.operands?.[0]).toMatchObject({
           type: "immediate",
           value: {
@@ -152,39 +152,36 @@ describe("parse AST", () => {
       });
 
       it("parses address register indirect", () => {
-        const simple = parseLine("  move (a0),d0");
+        const simple = parseLine("  move (a0),d0").value;
         expect(simple.operands?.[0]).toMatchObject({
           type: "address-register-indirect",
           register: {
             type: "address-register",
             register: "a0",
           },
-          mode: "simple",
         });
 
-        const postInc = parseLine("  move (a0)+,d0");
+        const postInc = parseLine("  move (a0)+,d0").value;
         expect(postInc.operands?.[0]).toMatchObject({
-          type: "address-register-indirect",
+          type: "address-register-indirect-postinc",
           register: {
             type: "address-register",
             register: "a0",
           },
-          mode: "post-increment",
         });
 
-        const preDec = parseLine("  move -(a0),d0");
+        const preDec = parseLine("  move -(a0),d0").value;
         expect(preDec.operands?.[0]).toMatchObject({
-          type: "address-register-indirect",
+          type: "address-register-indirect-predec",
           register: {
             type: "address-register",
             register: "a0",
           },
-          mode: "pre-decrement",
         });
       });
 
       it("parses address register indirect with displacement", () => {
-        const line = parseLine("  move 10(a0),d0");
+        const line = parseLine("  move 10(a0),d0").value;
         expect(line.operands?.[0]).toMatchObject({
           type: "address-register-indirect-displacement",
           displacement: {
@@ -199,7 +196,7 @@ describe("parse AST", () => {
       });
 
       it("parses address register indirect with index (dot syntax)", () => {
-        const line = parseLine("  move 10(a0,d1.w),d0");
+        const line = parseLine("  move 10(a0,d1.w),d0").value;
         expect(line.operands?.[0]).toMatchObject({
           type: "address-register-indirect-index",
           displacement: {
@@ -222,7 +219,7 @@ describe("parse AST", () => {
       });
 
       it("parses address register indirect with index (comma syntax)", () => {
-        const line = parseLine("  move 10(a0,d1,w),d0");
+        const line = parseLine("  move 10(a0,d1,w),d0").value;
         expect(line.operands?.[0]).toMatchObject({
           type: "address-register-indirect-index",
           displacement: {
@@ -245,7 +242,7 @@ describe("parse AST", () => {
       });
 
       it("parses PC relative", () => {
-        const simple = parseLine("  bra label(pc)");
+        const simple = parseLine("  bra label(pc)").value;
         expect(simple.operands?.[0]).toMatchObject({
           type: "pc-relative",
           displacement: {
@@ -254,7 +251,7 @@ describe("parse AST", () => {
           },
         });
 
-        const indexed = parseLine("  move offset(pc,d0.w),d1");
+        const indexed = parseLine("  move offset(pc,d0.w),d1").value;
         expect(indexed.operands?.[0]).toMatchObject({
           type: "pc-relative-index",
           displacement: {
@@ -273,21 +270,21 @@ describe("parse AST", () => {
       });
 
       it("parses string literals", () => {
-        const double = parseLine('  dc.b "hello"');
+        const double = parseLine('  dc.b "hello"').value;
         expect(double.operands?.[0]).toMatchObject({
           type: "string-literal",
           quote: '"',
           content: "hello",
         });
 
-        const single = parseLine("  dc.b 'world'");
+        const single = parseLine("  dc.b 'world'").value;
         expect(single.operands?.[0]).toMatchObject({
           type: "string-literal",
           quote: "'",
           content: "world",
         });
 
-        const chevron = parseLine("  macro <arg>");
+        const chevron = parseLine("  macro <arg>").value;
         expect(chevron.operands?.[0]).toMatchObject({
           type: "string-literal",
           quote: "<>",
@@ -297,7 +294,7 @@ describe("parse AST", () => {
 
       it("parses absolute addresses", () => {
         // Absolute with explicit size in parens
-        const sizedParens = parseLine("  move ($1000).w,d0");
+        const sizedParens = parseLine("  move ($1000).w,d0").value;
         expect(sizedParens.operands?.[0]).toMatchObject({
           type: "absolute-address",
           loc: { start: 7, end: 16 },
@@ -318,7 +315,7 @@ describe("parse AST", () => {
         });
 
         // Absolute short (hex with $)
-        const hexAddr = parseLine("  move $1000,d0");
+        const hexAddr = parseLine("  move $1000,d0").value;
         expect(hexAddr.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -328,7 +325,7 @@ describe("parse AST", () => {
         });
 
         // Absolute with binary literal
-        const binAddr = parseLine("  move %10110101,d0");
+        const binAddr = parseLine("  move %10110101,d0").value;
         expect(binAddr.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -338,7 +335,7 @@ describe("parse AST", () => {
         });
 
         // Absolute with octal literal
-        const octAddr = parseLine("  move @377,d0");
+        const octAddr = parseLine("  move @377,d0").value;
         expect(octAddr.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -348,7 +345,7 @@ describe("parse AST", () => {
         });
 
         // Absolute with decimal number
-        const decAddr = parseLine("  move 32768,d0");
+        const decAddr = parseLine("  move 32768,d0").value;
         expect(decAddr.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -358,7 +355,7 @@ describe("parse AST", () => {
         });
 
         // Absolute with .w suffix (without parens)
-        const shortSuffix = parseLine("  move $1000.w,d0");
+        const shortSuffix = parseLine("  move $1000.w,d0").value;
         expect(shortSuffix.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -372,7 +369,7 @@ describe("parse AST", () => {
         });
 
         // Absolute with .l suffix (without parens)
-        const longSuffix = parseLine("  move $FF0000.l,d0");
+        const longSuffix = parseLine("  move $FF0000.l,d0").value;
         expect(longSuffix.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -388,7 +385,7 @@ describe("parse AST", () => {
 
       it("parses expressions", () => {
         // Simple symbol in instruction context - becomes absolute-address
-        const line = parseLine("  move.l label,d0");
+        const line = parseLine("  move.l label,d0").value;
         expect(line.operands?.[0]).toMatchObject({
           type: "absolute-address",
           address: {
@@ -398,7 +395,7 @@ describe("parse AST", () => {
         });
 
         // Complex expression in directive context - becomes value with parsed expression
-        const expr = parseLine("  dc.w $1000+offset");
+        const expr = parseLine("  dc.w $1000+offset").value;
         expect(expr.operands?.[0]).toMatchObject({
           type: "value",
           value: {
@@ -409,7 +406,7 @@ describe("parse AST", () => {
       });
 
       it("parses unknown/incomplete operands", () => {
-        const line = parseLine("  move d0,");
+        const line = parseLine("  move d0,").value;
         expect(line.operands).toHaveLength(2);
         expect(line.operands?.[1]).toMatchObject({
           type: "unknown",
@@ -418,7 +415,7 @@ describe("parse AST", () => {
 
       it("parses register lists", () => {
         // Simple register range
-        const range = parseLine("  movem d0-d7,-(sp)");
+        const range = parseLine("  movem d0-d7,-(sp)").value;
         expect(range.operands?.[0]).toMatchObject({
           type: "register-list",
           raw: ["d0-d7"],
@@ -426,7 +423,7 @@ describe("parse AST", () => {
         });
 
         // Multiple ranges with slash
-        const multi = parseLine("  movem d0-d7/a0-a6,(sp)");
+        const multi = parseLine("  movem d0-d7/a0-a6,(sp)").value;
         expect(multi.operands?.[0]).toMatchObject({
           type: "register-list",
           raw: ["d0-d7", "a0-a6"],
@@ -450,7 +447,7 @@ describe("parse AST", () => {
         });
 
         // Individual registers
-        const individual = parseLine("  movem d0/d1/a0,(a0)");
+        const individual = parseLine("  movem d0/d1/a0,(a0)").value;
         expect(individual.operands?.[0]).toMatchObject({
           type: "register-list",
           raw: ["d0", "d1", "a0"],
@@ -458,7 +455,7 @@ describe("parse AST", () => {
         });
 
         // Mixed ranges and individuals
-        const mixed = parseLine("  movem d0-d2/d5/a0-a1,(sp)+");
+        const mixed = parseLine("  movem d0-d2/d5/a0-a1,(sp)+").value;
         expect(mixed.operands?.[0]).toMatchObject({
           type: "register-list",
           raw: ["d0-d2", "d5", "a0-a1"],
@@ -468,7 +465,7 @@ describe("parse AST", () => {
 
       it("parses macro parameters", () => {
         // Numeric parameter
-        const numeric = parseLine("  move \\1,d0");
+        const numeric = parseLine("  move \\1,d0").value;
         expect(numeric.operands?.[0]).toMatchObject({
           type: "macro-parameter",
           paramType: "numeric",
@@ -476,7 +473,7 @@ describe("parse AST", () => {
         });
 
         // Special parameter (@) - as standalone operand
-        const special = parseLine("  move d0,\\@");
+        const special = parseLine("  move d0,\\@").value;
         expect(special.operands?.[1]).toMatchObject({
           type: "macro-parameter",
           paramType: "special",
@@ -484,7 +481,7 @@ describe("parse AST", () => {
         });
 
         // Named parameter
-        const named = parseLine("  move \\<size>,d0");
+        const named = parseLine("  move \\<size>,d0").value;
         expect(named.operands?.[0]).toMatchObject({
           type: "macro-parameter",
           paramType: "named",
@@ -495,7 +492,7 @@ describe("parse AST", () => {
 
     it("parses directive operands as value type", () => {
       // Data definition directives should have value operands, not absolute-address
-      const dcb = parseLine("  dc.b 0,1,2");
+      const dcb = parseLine("  dc.b 0,1,2").value;
       expect(dcb.mnemonic).toMatchObject({});
       expect(dcb.operands).toHaveLength(3);
       expect(dcb.operands?.[0]).toMatchObject({
@@ -521,7 +518,7 @@ describe("parse AST", () => {
       });
 
       // Hex values in directives
-      const dcw = parseLine("  dc.w $1000,$2000");
+      const dcw = parseLine("  dc.w $1000,$2000").value;
       expect(dcw.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -531,7 +528,7 @@ describe("parse AST", () => {
       });
 
       // Binary values in directives
-      const dcbin = parseLine("  dc.b %11110000");
+      const dcbin = parseLine("  dc.b %11110000").value;
       expect(dcbin.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -541,7 +538,7 @@ describe("parse AST", () => {
       });
 
       // Octal values in directives
-      const dcoct = parseLine("  dc.b @377");
+      const dcoct = parseLine("  dc.b @377").value;
       expect(dcoct.operands?.[0]).toMatchObject({
         type: "value",
         value: {
@@ -553,7 +550,7 @@ describe("parse AST", () => {
 
     it("parses equate directives", () => {
       // EQU directive
-      const equ = parseLine("MYCONST equ $1000");
+      const equ = parseLine("MYCONST equ $1000").value;
       expect(equ.label).toMatchObject({
         type: "label",
         scope: "global",
@@ -569,7 +566,7 @@ describe("parse AST", () => {
       });
 
       // SET directive
-      const set = parseLine("MYVAR set 100");
+      const set = parseLine("MYVAR set 100").value;
       expect(set.label).toMatchObject({
         type: "label",
         scope: "global",
@@ -577,7 +574,7 @@ describe("parse AST", () => {
       expect(set.mnemonic).toMatchObject({});
 
       // = directive (already tested in index.test.ts but verify AST)
-      const equals = parseLine("VALUE = $FF");
+      const equals = parseLine("VALUE = $FF").value;
       expect(equals.label).toMatchObject({
         type: "label",
         scope: "global",
@@ -585,7 +582,7 @@ describe("parse AST", () => {
       expect(equals.mnemonic).toMatchObject({});
 
       // = directive without whitespace
-      const equalsNoSpace = parseLine("FOO=1");
+      const equalsNoSpace = parseLine("FOO=1").value;
       expect(equalsNoSpace.label).toMatchObject({
         type: "label",
         scope: "global",
@@ -604,7 +601,7 @@ describe("parse AST", () => {
     it("parses a complete instruction with all AST features", () => {
       const line = parseLine(
         "label:    move.w     #1,10(a0,d1.w)    ; comment here",
-      );
+      ).value;
 
       expect(line.label).toMatchObject({
         type: "label",

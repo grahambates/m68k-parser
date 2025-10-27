@@ -39,7 +39,7 @@ describe("Error Handling and Edge Cases", () => {
     it("accepts consecutive operators as unary", () => {
       // 1++2 is valid: 1 + (+2)
       const line = parseLine(" move.w #1++2,d0");
-      const binaryNode = (line.operands?.[0] as ValueNode)
+      const binaryNode = (line.value.operands?.[0] as ValueNode)
         .value as BinaryOperatorNode;
       expect(line.errors).toHaveLength(0);
       expect(binaryNode.type).toBe("binary-op");
@@ -66,7 +66,7 @@ describe("Error Handling and Edge Cases", () => {
     it("handles deeply nested expressions without error", () => {
       const line = parseLine(" move.w #((((1)))),d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.[0].type).toBe("immediate");
+      expect(line.value.operands?.[0].type).toBe("immediate");
     });
 
     it("detects binary operator without left operand in group", () => {
@@ -84,7 +84,7 @@ describe("Error Handling and Edge Cases", () => {
     it("accepts zero in all formats", () => {
       const line1 = parseLine(" dc.w 0,$0,%0,@0");
       expect(line1.errors).toHaveLength(0);
-      expect(line1.operands?.length).toBe(4);
+      expect(line1.value.operands?.length).toBe(4);
     });
 
     it("detects malformed hex number ($ alone)", () => {
@@ -109,7 +109,7 @@ describe("Error Handling and Edge Cases", () => {
     it("accepts large hex numbers", () => {
       const line = parseLine(" dc.w $FFFFFFFF");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.[0].type).toBe("value");
+      expect(line.value.operands?.[0].type).toBe("value");
     });
 
     it("accepts long binary numbers", () => {
@@ -167,7 +167,7 @@ describe("Error Handling and Edge Cases", () => {
   });
 
   describe("Bitfield errors", () => {
-    // Note: Bitfield syntax (d0{1:8}) is parsed as separate operands currently
+    // Note: Bitfield syntax (d0{1:8}) is parsed as separate value.operands currently
     // The { and } are reported as unknown characters when not in proper context
 
     it("reports error for standalone bitfield syntax", () => {
@@ -182,7 +182,7 @@ describe("Error Handling and Edge Cases", () => {
     it("accepts numeric macro parameters", () => {
       const line = parseLine(" move.w \\1,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.[0].type).toBe("macro-parameter");
+      expect(line.value.operands?.[0].type).toBe("macro-parameter");
     });
 
     it("accepts special macro parameter \\@", () => {
@@ -214,7 +214,7 @@ describe("Error Handling and Edge Cases", () => {
   describe("Operator combinations", () => {
     it("parses unary minus before number", () => {
       const line = parseLine(" move.w #-128,d0");
-      const unaryNode = (line.operands?.[0] as ImmediateNode)
+      const unaryNode = (line.value.operands?.[0] as ImmediateNode)
         .value as UnaryOperatorNode;
       expect(line.errors).toHaveLength(0);
       expect(unaryNode.type).toBe("unary-op");
@@ -227,7 +227,7 @@ describe("Error Handling and Edge Cases", () => {
 
     it("parses bitwise complement", () => {
       const line = parseLine(" move.w #~$FF,d0");
-      const unaryNode = (line.operands?.[0] as ImmediateNode)
+      const unaryNode = (line.value.operands?.[0] as ImmediateNode)
         .value as UnaryOperatorNode;
       expect(line.errors).toHaveLength(0);
       expect(unaryNode.operator).toBe("~");
@@ -235,7 +235,7 @@ describe("Error Handling and Edge Cases", () => {
 
     it("parses logical not", () => {
       const line = parseLine(" move.w #!flag,d0");
-      const unaryNode = (line.operands?.[0] as ImmediateNode)
+      const unaryNode = (line.value.operands?.[0] as ImmediateNode)
         .value as UnaryOperatorNode;
       expect(line.errors).toHaveLength(0);
       expect(unaryNode.operator).toBe("!");
@@ -248,7 +248,7 @@ describe("Error Handling and Edge Cases", () => {
 
     it("parses complex operator precedence", () => {
       const line = parseLine(" dc.w a+b*c-d/e");
-      const binaryNode = (line.operands?.[0] as ValueNode)
+      const binaryNode = (line.value.operands?.[0] as ValueNode)
         .value as BinaryOperatorNode;
       expect(line.errors).toHaveLength(0);
       // Should parse as (a+(b*c))-(d/e)
@@ -301,9 +301,9 @@ describe("Error Handling and Edge Cases", () => {
     it("distinguishes angle bracket string from comparison operators", () => {
       const line1 = parseLine(" dc.b <text>");
       const line2 = parseLine(" dc.w a<b");
-      const binaryNode = (line2.operands?.[0] as ValueNode)
+      const binaryNode = (line2.value.operands?.[0] as ValueNode)
         .value as BinaryOperatorNode;
-      expect(line1.operands?.[0].type).toBe("string-literal");
+      expect(line1.value.operands?.[0].type).toBe("string-literal");
       expect(binaryNode.type).toBe("binary-op");
     });
   });
@@ -343,13 +343,13 @@ describe("Error Handling and Edge Cases", () => {
     it("parses complex memory indirect with expressions", () => {
       const line = parseLine(" move.w ([base+4,a0,d0.w*2],offset+8),d1");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.[0].type).toBe("memory-indirect");
+      expect(line.value.operands?.[0].type).toBe("memory-indirect");
     });
 
     it("parses PC-relative with complex displacement", () => {
       const line = parseLine(" move.w table+index*4(pc),d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.[0].type).toBe("pc-relative");
+      expect(line.value.operands?.[0].type).toBe("pc-relative");
     });
 
     it("parses indexed addressing with expression displacement", () => {
@@ -362,13 +362,15 @@ describe("Error Handling and Edge Cases", () => {
     it("handles empty operand gracefully", () => {
       const line = parseLine(" move.w ,d0");
       // Should either error or parse as unknown
-      expect(line.operands?.length).toBeGreaterThan(0);
+      expect(line.value.operands?.length).toBeGreaterThan(0);
     });
 
     it("handles whitespace in expressions", () => {
       const line = parseLine(" move.w # 1 + 2 ,d0");
       expect(line.errors).toHaveLength(0);
-      expect((line.operands?.[0] as ValueNode).value.type).toBe("binary-op");
+      expect((line.value.operands?.[0] as ValueNode).value.type).toBe(
+        "binary-op",
+      );
     });
 
     it("handles whitespace in indexed addressing", () => {
@@ -380,7 +382,7 @@ describe("Error Handling and Edge Cases", () => {
   describe("Mixed operator types", () => {
     it("correctly prioritizes bitwise over arithmetic", () => {
       const line = parseLine(" dc.w a&b+c");
-      const valueNode = line.operands?.[0] as ValueNode;
+      const valueNode = line.value.operands?.[0] as ValueNode;
       const val = valueNode.value as BinaryOperatorNode;
       const left = val?.left as BinaryOperatorNode;
       expect(val?.type).toBe("binary-op");
@@ -391,7 +393,7 @@ describe("Error Handling and Edge Cases", () => {
 
     it("correctly prioritizes shift over bitwise", () => {
       const line = parseLine(" dc.w a<<2&mask");
-      const valueNode = line.operands?.[0] as ValueNode;
+      const valueNode = line.value.operands?.[0] as ValueNode;
       const val = valueNode?.value as BinaryOperatorNode;
       const left = val?.left as BinaryOperatorNode;
       expect(val?.type).toBe("binary-op");
@@ -405,58 +407,58 @@ describe("Error Handling and Edge Cases", () => {
     it("handles shift left operator without breaking operand split", () => {
       const line = parseLine(" move.w (a<<2),d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
-      expect(line.operands?.[0].type).toBe("address-register-indirect");
-      expect(line.operands?.[1].type).toBe("data-register");
+      expect(line.value.operands?.length).toBe(2);
+      expect(line.value.operands?.[0].type).toBe("address-register-indirect");
+      expect(line.value.operands?.[1].type).toBe("data-register");
     });
 
     it("handles shift right operator without breaking operand split", () => {
       const line = parseLine(" move.w (a>>2),d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
 
     it("handles less-than operator without breaking operand split", () => {
       const line = parseLine(" move.w a<b,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
 
     it("handles greater-than operator without breaking operand split", () => {
       const line = parseLine(" move.w a>b,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
 
     it("handles less-or-equal operator without breaking operand split", () => {
       const line = parseLine(" move.w a<=b,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
 
     it("handles greater-or-equal operator without breaking operand split", () => {
       const line = parseLine(" move.w a>=b,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
 
     it("handles not-equal operator without breaking operand split", () => {
       const line = parseLine(" move.w a<>b,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
 
     it("still handles angle bracket strings correctly", () => {
       const line = parseLine(" dc.b <text>");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(1);
-      expect(line.operands?.[0].type).toBe("string-literal");
+      expect(line.value.operands?.length).toBe(1);
+      expect(line.value.operands?.[0].type).toBe("string-literal");
     });
 
     it("handles shift operator without parentheses", () => {
       const line = parseLine(" move.w 1<<8,d0");
       expect(line.errors).toHaveLength(0);
-      expect(line.operands?.length).toBe(2);
+      expect(line.value.operands?.length).toBe(2);
     });
   });
 });
