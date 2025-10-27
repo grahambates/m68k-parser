@@ -15,6 +15,7 @@ import {
   MacroParameterNode,
   SizeNode,
   Location,
+  UnknownNode,
 } from "./types";
 import { parseExpression } from "./expression-parser";
 import {
@@ -186,11 +187,12 @@ function parseIndexSpec(
     | DataRegisterNode
     | AddressRegisterNode
     | SymbolNode
-    | MacroParameterNode;
-  size?: SizeNode | SymbolNode | MacroParameterNode;
+    | MacroParameterNode
+    | UnknownNode;
+  size?: SizeNode | MacroParameterNode | UnknownNode;
   scaleFactor?: ExpressionNode;
   errors: ParseError[];
-} | null {
+} {
   let pos = 0;
   let registerNode:
     | DataRegisterNode
@@ -210,7 +212,19 @@ function parseIndexSpec(
     } else {
       // Not a valid macro parameter, try register
       const regMatch = /^([ad][0-7]|sp)/i.exec(text);
-      if (!regMatch) return null;
+      if (!regMatch)
+        return {
+          register: {
+            type: "unknown",
+            loc,
+          },
+          errors: [
+            malformedIndexedAddressing(
+              `Invalid index register format '${text}'`,
+              loc,
+            ),
+          ],
+        };
       registerNode = createRegisterNode(regMatch[1], loc) as
         | DataRegisterNode
         | AddressRegisterNode;
@@ -225,12 +239,23 @@ function parseIndexSpec(
         | AddressRegisterNode;
       pos = regMatch[1].length;
     } else {
-      // Not a register or macro, return null
-      return null;
+      // Not a register or macro
+      return {
+        register: {
+          type: "unknown",
+          loc,
+        },
+        errors: [
+          malformedIndexedAddressing(
+            `Invalid index register format '${text}'`,
+            loc,
+          ),
+        ],
+      };
     }
   }
 
-  let size: SizeNode | SymbolNode | MacroParameterNode | undefined;
+  let size: SizeNode | MacroParameterNode | UnknownNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
   const errors: ParseError[] = [];
 
@@ -241,11 +266,10 @@ function parseIndexSpec(
     const sizeMatch = /^([wl]|\\\S+|\w+)/i.exec(text.substring(pos));
     if (sizeMatch) {
       const indexSizeResult = createAddressSizeNode(sizeMatch[1], loc);
-      if (indexSizeResult.success) {
-        size = indexSizeResult.value;
-      } else {
+      if (indexSizeResult.errors) {
         errors.push(...indexSizeResult.errors);
       }
+      size = indexSizeResult.value;
       pos += sizeMatch[1].length;
     }
   }
@@ -310,33 +334,36 @@ function validateScaleFactor(
 function createAddressSizeNode(
   name: string,
   loc: Location,
-): StrictParseResult<SizeNode | MacroParameterNode> {
+): ParserResult<SizeNode | MacroParameterNode | UnknownNode> {
   // Check if it's a macro parameter
   const macroPar = parseMacroParameter(name, loc);
   if (macroPar) {
     return {
-      success: true,
       value: macroPar,
+      errors: [],
     };
   }
 
-  const lower = name.toLowerCase();
+  const size = name.toLowerCase();
 
   // Check if it's a valid size
-  if (isAddressSize(lower)) {
+  if (isAddressSize(size)) {
     return {
-      success: true,
       value: {
         type: "size",
-        size: lower,
+        size,
         loc,
       },
+      errors: [],
     };
   }
 
   // Invalid
   return {
-    success: false,
+    value: {
+      type: "unknown",
+      loc,
+    },
     errors: [invalidIndexSize(name, loc)],
   };
 }
@@ -348,15 +375,18 @@ function createAddressSizeNode(
 function parseMemoryIndirectWithTokens(
   text: string,
   loc: Location,
-): StrictParseResult<MemoryIndirectNode> {
+): ParserResult<MemoryIndirectNode | UnknownNode> {
   const { tokens, errors } = tokenizeOperand(text);
   let pos = 0;
 
   // If tokenizer had errors, return them
   if (errors.length > 0) {
     return {
-      success: false,
-      errors: errors,
+      value: {
+        type: "unknown",
+        loc,
+      },
+      errors,
     };
   }
 
@@ -386,7 +416,10 @@ function parseMemoryIndirectWithTokens(
   // Memory indirect must start with ( followed by [
   if (current().type !== "lparen") {
     return {
-      success: false,
+      value: {
+        type: "unknown",
+        loc,
+      },
       errors: [
         expectedToken(["("], { start: loc.start, end: loc.start + 1 }, text[0]),
       ],
@@ -396,7 +429,10 @@ function parseMemoryIndirectWithTokens(
 
   if (current().type !== "lbracket") {
     return {
-      success: false,
+      value: {
+        type: "unknown",
+        loc,
+      },
       errors: [
         expectedToken(
           ["["],
@@ -419,8 +455,9 @@ function parseMemoryIndirectWithTokens(
     | AddressRegisterNode
     | SymbolNode
     | MacroParameterNode
+    | UnknownNode
     | undefined;
-  let indexSize: SizeNode | SymbolNode | MacroParameterNode | undefined;
+  let indexSize: SizeNode | MacroParameterNode | UnknownNode | undefined;
   let scaleFactor: ExpressionNode | undefined;
 
   const innerParts: string[] = [];
@@ -444,17 +481,15 @@ function parseMemoryIndirectWithTokens(
   }
 
   if (current().type !== "rbracket") {
-    return {
-      success: false,
-      errors: [
-        unclosedBracket({
-          start: loc.start + openBracket.position,
-          end: loc.start + openBracket.position + 1,
-        }),
-      ],
-    };
+    errors.push(
+      unclosedBracket({
+        start: loc.start + openBracket.position,
+        end: loc.start + openBracket.position + 1,
+      }),
+    );
+  } else {
+    consume("rbracket");
   }
-  consume("rbracket");
 
   // Parse the inner parts
   if (innerParts.length === 1) {
@@ -465,10 +500,7 @@ function parseMemoryIndirectWithTokens(
     } else {
       const bdResult = parseExpression(part, loc);
       if (bdResult.errors) {
-        return {
-          success: false,
-          errors: bdResult.errors,
-        };
+        errors.push(...bdResult.errors);
       }
       baseDisplacement = bdResult.value;
     }
@@ -491,16 +523,11 @@ function parseMemoryIndirectWithTokens(
     };
 
     const indexSpec = parseIndexSpec(second, secondLoc);
+    if (indexSpec.errors) {
+      errors.push(...indexSpec.errors);
+    }
 
-    if (firstIsBaseReg && indexSpec) {
-      // Check for parseIndexSpec error first
-      if (indexSpec.errors) {
-        return {
-          success: false,
-          errors: indexSpec.errors,
-        };
-      }
-
+    if (firstIsBaseReg) {
       // [An,Rn.s*scale]
       baseRegister = createRegisterNode(first, loc) as AddressRegisterNode;
       indexRegister = indexSpec.register;
@@ -510,19 +537,13 @@ function parseMemoryIndirectWithTokens(
       // Validate scale factor if it's a literal
       const scaleError = validateScaleFactor(scaleFactor);
       if (scaleError) {
-        return {
-          success: false,
-          errors: [scaleError],
-        };
+        errors.push(scaleError);
       }
     } else {
       // [bd,An]
       const bdResult = parseExpression(first, loc);
       if (bdResult.errors) {
-        return {
-          success: false,
-          errors: bdResult.errors,
-        };
+        errors.push(...bdResult.errors);
       }
       baseDisplacement = bdResult.value;
       if (isAddressRegister(second.toLowerCase())) {
@@ -537,10 +558,7 @@ function parseMemoryIndirectWithTokens(
 
     const bdResult = parseExpression(bd, loc);
     if (bdResult.errors) {
-      return {
-        success: false,
-        errors: bdResult.errors,
-      };
+      errors.push(...bdResult.errors);
     }
     baseDisplacement = bdResult.value;
     if (isAddressRegister(an.toLowerCase())) {
@@ -560,27 +578,19 @@ function parseMemoryIndirectWithTokens(
     };
 
     const indexSpec = parseIndexSpec(idx, idxLoc);
-    if (indexSpec) {
-      // Check for parseIndexSpec error first
-      if (indexSpec.errors) {
-        return {
-          success: false,
-          errors: indexSpec.errors,
-        };
-      }
+    // Check for parseIndexSpec error first
+    if (indexSpec.errors) {
+      errors.push(...indexSpec.errors);
+    }
 
-      indexRegister = indexSpec.register;
-      indexSize = indexSpec.size;
-      scaleFactor = indexSpec.scaleFactor;
+    indexRegister = indexSpec.register;
+    indexSize = indexSpec.size;
+    scaleFactor = indexSpec.scaleFactor;
 
-      // Validate scale factor if it's a literal
-      const scaleError = validateScaleFactor(scaleFactor);
-      if (scaleError) {
-        return {
-          success: false,
-          errors: [scaleError],
-        };
-      }
+    // Validate scale factor if it's a literal
+    const scaleError = validateScaleFactor(scaleFactor);
+    if (scaleError) {
+      errors.push(scaleError);
     }
   }
 
@@ -592,10 +602,7 @@ function parseMemoryIndirectWithTokens(
     if (outerPart) {
       const odResult = parseExpression(outerPart, loc);
       if (odResult.errors) {
-        return {
-          success: false,
-          errors: odResult.errors,
-        };
+        errors.push(...odResult.errors);
       }
       outerDisplacement = odResult.value;
     }
@@ -603,20 +610,17 @@ function parseMemoryIndirectWithTokens(
 
   // Must end with )
   if (current().type !== "rparen") {
-    return {
-      success: false,
-      errors: [
-        unclosedParen({
-          start: loc.start + openParen.position,
-          end: loc.start + openParen.position + 1,
-        }),
-      ],
-    };
+    errors.push(
+      unclosedParen({
+        start: loc.start + openParen.position,
+        end: loc.start + openParen.position + 1,
+      }),
+    );
+  } else {
+    consume("rparen");
   }
-  consume("rparen");
 
   return {
-    success: true,
     value: {
       type: "memory-indirect",
       loc,
@@ -627,6 +631,7 @@ function parseMemoryIndirectWithTokens(
       scaleFactor,
       outerDisplacement,
     },
+    errors,
   };
 }
 
@@ -637,15 +642,18 @@ function parseMemoryIndirectWithTokens(
 function parseIndexedAddressingWithTokens(
   text: string,
   loc: Location,
-): StrictParseResult<OperandNode> {
-  const { tokens, errors: tokenizerErrors } = tokenizeOperand(text);
+): ParserResult<OperandNode> {
+  const { tokens, errors } = tokenizeOperand(text);
   let pos = 0;
 
   // If tokenizer had errors, return them
-  if (tokenizerErrors.length > 0) {
+  if (errors.length > 0) {
     return {
-      success: false,
-      errors: tokenizerErrors,
+      value: {
+        type: "unknown",
+        loc,
+      },
+      errors,
     };
   }
 
@@ -669,7 +677,10 @@ function parseIndexedAddressingWithTokens(
 
   if (current().type !== "lparen") {
     return {
-      success: false,
+      value: {
+        type: "unknown",
+        loc,
+      },
       errors: [
         expectedToken(
           ["("],
@@ -705,17 +716,15 @@ function parseIndexedAddressingWithTokens(
   }
 
   if (current().type !== "rparen") {
-    return {
-      success: false,
-      errors: [
-        unclosedParen({
-          start: loc.start + openParen.position,
-          end: loc.start + openParen.position + 1,
-        }),
-      ],
-    };
+    errors.push(
+      unclosedParen({
+        start: loc.start + openParen.position,
+        end: loc.start + openParen.position + 1,
+      }),
+    );
+  } else {
+    consume();
   }
-  consume();
 
   // Parse based on number of parts
   if (parts.length === 2) {
@@ -735,60 +744,34 @@ function parseIndexedAddressingWithTokens(
     };
 
     const indexSpec = parseIndexSpec(indexPart, indexPartLoc);
-    if (!indexSpec) {
-      return {
-        success: false,
-        errors: [
-          malformedIndexedAddressing(
-            `Invalid index register format '${indexPart}'`,
-            loc,
-          ),
-        ],
-      };
-    }
-
-    // Check for parseIndexSpec error
     if (indexSpec.errors) {
-      return {
-        success: false,
-        errors: indexSpec.errors,
-      };
+      errors.push(...indexSpec.errors);
     }
-
-    const indexRegister = indexSpec.register;
-    const indexSize = indexSpec.size;
-    const scaleFactor = indexSpec.scaleFactor;
 
     // Validate scale factor if it's a literal
-    const scaleError = validateScaleFactor(scaleFactor);
+    const scaleError = validateScaleFactor(indexSpec.scaleFactor);
     if (scaleError) {
-      return {
-        success: false,
-        errors: [scaleError],
-      };
+      errors.push(scaleError);
     }
 
     // Parse displacement and check for errors
     const dispResult = parseExpression(displacement || "0", loc);
     if (dispResult.errors) {
-      return {
-        success: false,
-        errors: dispResult.errors,
-      };
+      errors.push(...dispResult.errors);
     }
 
     // Check if PC relative or address register
     if (baseReg === "pc") {
       return {
-        success: true,
         value: {
           type: "pc-relative-index",
           loc,
           displacement: dispResult.value,
-          indexRegister,
-          indexSize,
-          scaleFactor,
+          indexRegister: indexSpec.register,
+          indexSize: indexSpec.size,
+          scaleFactor: indexSpec.scaleFactor,
         },
+        errors,
       };
     } else {
       // Accept any base register, including macro parameters and symbols
@@ -807,23 +790,20 @@ function parseIndexedAddressingWithTokens(
         baseRegLoc,
       );
       if (baseRegResult.error) {
-        return {
-          success: false,
-          errors: [baseRegResult.error],
-        };
+        errors.push(baseRegResult.error);
       }
 
       return {
-        success: true,
         value: {
           type: "address-register-indirect-index",
           loc,
           displacement: displacement ? dispResult.value : undefined,
           baseRegister: baseRegResult.node,
-          indexRegister,
-          indexSize,
-          scaleFactor,
+          indexRegister: indexSpec.register,
+          indexSize: indexSpec.size,
+          scaleFactor: indexSpec.scaleFactor,
         },
+        errors,
       };
     }
   } else if (parts.length === 3) {
@@ -841,23 +821,18 @@ function parseIndexedAddressingWithTokens(
         | DataRegisterNode
         | AddressRegisterNode;
       const indexSizeResult = createAddressSizeNode(part2, loc);
-      if (!indexSizeResult.success) {
-        return indexSizeResult;
+      if (indexSizeResult.errors) {
+        errors.push(...indexSizeResult.errors);
       }
       const indexSize = indexSizeResult.value;
-
       // Parse displacement and check for errors
       const dispResult = parseExpression(displacement || "0", loc);
       if (dispResult.errors) {
-        return {
-          success: false,
-          errors: dispResult.errors,
-        };
+        errors.push(...dispResult.errors);
       }
 
       if (baseReg === "pc") {
         return {
-          success: true,
           value: {
             type: "pc-relative-index",
             loc,
@@ -866,6 +841,7 @@ function parseIndexedAddressingWithTokens(
             indexSize,
             scaleFactor: undefined,
           },
+          errors,
         };
       } else {
         // Accept any base register, including macro parameters and symbols
@@ -879,18 +855,25 @@ function parseIndexedAddressingWithTokens(
           line: loc.line,
         };
 
+        const baseRegResult = createAddressRegisterOrSymbolNode(
+          baseReg,
+          baseRegLoc,
+        );
+        if (baseRegResult.error) {
+          errors.push(baseRegResult.error);
+        }
+
         return {
-          success: true,
           value: {
             type: "address-register-indirect-index",
             loc,
             displacement: displacement ? dispResult.value : undefined,
-            baseRegister: createAddressRegisterOrSymbolNode(baseReg, baseRegLoc)
-              .node,
+            baseRegister: baseRegResult.node,
             indexRegister,
             indexSize,
             scaleFactor: undefined,
           },
+          errors,
         };
       }
     }
@@ -912,59 +895,33 @@ function parseIndexedAddressingWithTokens(
     };
 
     const indexSpec = parseIndexSpec(indexPart, indexPartLoc);
-    if (!indexSpec) {
-      return {
-        success: false,
-        errors: [
-          malformedIndexedAddressing(
-            `Invalid index register format '${indexPart}'`,
-            loc,
-          ),
-        ],
-      };
-    }
-
-    // Check for parseIndexSpec error
     if (indexSpec.errors) {
-      return {
-        success: false,
-        errors: indexSpec.errors,
-      };
+      errors.push(...indexSpec.errors);
     }
-
-    const indexRegister = indexSpec.register;
-    const indexSize = indexSpec.size;
-    const scaleFactor = indexSpec.scaleFactor;
 
     // Validate scale factor if it's a literal
-    const scaleError = validateScaleFactor(scaleFactor);
+    const scaleError = validateScaleFactor(indexSpec.scaleFactor);
     if (scaleError) {
-      return {
-        success: false,
-        errors: [scaleError],
-      };
+      errors.push(scaleError);
     }
 
     // Parse displacement and check for errors
     const dispResult = parseExpression(disp, loc);
     if (dispResult.errors) {
-      return {
-        success: false,
-        errors: dispResult.errors,
-      };
+      errors.push(...dispResult.errors);
     }
 
     if (baseReg === "pc") {
       return {
-        success: true,
         value: {
           type: "pc-relative-index",
           loc,
           displacement: dispResult.value,
-          indexRegister,
-          indexSize,
-          scaleFactor,
+          indexRegister: indexSpec.register,
+          indexSize: indexSpec.size,
+          scaleFactor: indexSpec.scaleFactor,
         },
+        errors,
       };
     } else {
       // Accept any base register, including macro parameters and symbols
@@ -983,27 +940,38 @@ function parseIndexedAddressingWithTokens(
         line: loc.line,
       };
 
+      const baseRegResult = createAddressRegisterOrSymbolNode(
+        baseReg,
+        baseRegLoc,
+      );
+      if (baseRegResult.error) {
+        errors.push(baseRegResult.error);
+      }
+
       return {
-        success: true,
         value: {
           type: "address-register-indirect-index",
           loc,
           displacement: dispResult.value,
-          baseRegister: createAddressRegisterOrSymbolNode(baseReg, baseRegLoc)
-            .node,
-          indexRegister,
-          indexSize,
-          scaleFactor,
+          baseRegister: baseRegResult.node,
+          indexRegister: indexSpec.register,
+          indexSize: indexSpec.size,
+          scaleFactor: indexSpec.scaleFactor,
         },
+        errors,
       };
     }
   }
 
+  errors.push(
+    malformedIndexedAddressing(`Invalid indexed addressing format`, loc),
+  );
   return {
-    success: false,
-    errors: [
-      malformedIndexedAddressing(`Invalid indexed addressing format`, loc),
-    ],
+    value: {
+      type: "unknown",
+      loc,
+    },
+    errors,
   };
 }
 
@@ -1343,18 +1311,7 @@ export function parseOperand(
   // Memory indirect addressing (68020+): ([bd,An,Rn.s*scale],od) or ([bd,An],od) or ([An],od)
   // Check for opening parenthesis followed by square bracket
   if (trimmed.startsWith("([")) {
-    const result = parseMemoryIndirectWithTokens(trimmed, loc);
-    if (result.success) {
-      return { value: result.value, errors: [] };
-    }
-    // If token-based parser failed, return unknown with error
-    return {
-      value: {
-        type: "unknown",
-        loc,
-      },
-      errors: result.errors,
-    };
+    return parseMemoryIndirectWithTokens(trimmed, loc);
   }
 
   // Address register indirect with pre-decrement: -(An)
@@ -1478,19 +1435,7 @@ export function parseOperand(
     /^\(([^,)]+),\s*([^,)]+),\s*(.+)\)$/i.test(trimmed);
 
   if (hasIndexedPattern) {
-    const result = parseIndexedAddressingWithTokens(trimmed, loc);
-    if (result.success) {
-      return { value: result.value, errors: [] };
-    }
-    // Pattern matched indexed addressing, but parsing failed with an error
-    // Return unknown node with error
-    return {
-      value: {
-        type: "unknown",
-        loc,
-      },
-      errors: result.errors,
-    };
+    return parseIndexedAddressingWithTokens(trimmed, loc);
   }
 
   // Address register indirect with displacement: disp(an) or PC relative: disp(pc)
@@ -1584,21 +1529,15 @@ export function parseOperand(
   // Absolute address with explicit size: (expr).w or (expr).l
   const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/i.exec(trimmed);
   if (absoluteSizedMatch) {
-    const { value: addrExpr, errors: addrErrors } = parseExpression(
+    const { value: addrExpr, errors } = parseExpression(
       absoluteSizedMatch[1],
       loc,
     );
     const indexSizeResult = createAddressSizeNode(absoluteSizedMatch[2], loc);
-    if (!indexSizeResult.success) {
-      return {
-        value: {
-          type: "absolute-address",
-          loc,
-          address: addrExpr,
-        },
-        errors: indexSizeResult.errors,
-      };
+    if (indexSizeResult.errors) {
+      errors.push(...indexSizeResult.errors);
     }
+
     return {
       value: {
         type: "absolute-address",
@@ -1606,14 +1545,14 @@ export function parseOperand(
         address: addrExpr,
         addressSize: indexSizeResult.value,
       },
-      errors: addrErrors,
+      errors,
     };
   }
 
   // Absolute address with .w or .l suffix (without parens): label.w, $1000.w
   const absoluteWithSizeMatch = /^(.+)\.(w|l)$/i.exec(trimmed);
   if (absoluteWithSizeMatch) {
-    const { value: addrExpr, errors: addrErrors } = parseExpression(
+    const { value: addrExpr, errors } = parseExpression(
       absoluteWithSizeMatch[1],
       loc,
     );
@@ -1621,15 +1560,8 @@ export function parseOperand(
       absoluteWithSizeMatch[2],
       loc,
     );
-    if (!addressSizeResult.success) {
-      return {
-        value: {
-          type: "absolute-address",
-          loc,
-          address: addrExpr,
-        },
-        errors: addressSizeResult.errors,
-      };
+    if (addressSizeResult.errors) {
+      errors.push(...addressSizeResult.errors);
     }
     return {
       value: {
@@ -1638,7 +1570,7 @@ export function parseOperand(
         address: addrExpr,
         addressSize: addressSizeResult.value,
       },
-      errors: addrErrors,
+      errors,
     };
   }
 

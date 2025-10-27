@@ -303,8 +303,9 @@ export interface AddressRegisterIndirectIndexNode extends Node {
     | DataRegisterNode
     | AddressRegisterNode
     | SymbolNode
-    | MacroParameterNode;
-  indexSize?: SizeNode | SymbolNode | MacroParameterNode;
+    | MacroParameterNode
+    | UnknownNode;
+  indexSize?: SizeNode | MacroParameterNode | UnknownNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
 }
 
@@ -312,7 +313,7 @@ export interface AddressRegisterIndirectIndexNode extends Node {
 export interface AbsoluteAddressNode extends Node {
   type: "absolute-address";
   address: ExpressionNode; // Parsed expression
-  addressSize?: SizeNode | SymbolNode | MacroParameterNode;
+  addressSize?: SizeNode | MacroParameterNode | UnknownNode;
 }
 
 // PC relative: offset(pc)
@@ -329,8 +330,9 @@ export interface PCRelativeIndexNode extends Node {
     | DataRegisterNode
     | AddressRegisterNode
     | SymbolNode
-    | MacroParameterNode;
-  indexSize?: SizeNode | SymbolNode | MacroParameterNode;
+    | MacroParameterNode
+    | UnknownNode;
+  indexSize?: SizeNode | MacroParameterNode | UnknownNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
 }
 
@@ -356,8 +358,9 @@ export interface MemoryIndirectNode extends Node {
     | DataRegisterNode
     | AddressRegisterNode
     | SymbolNode
-    | MacroParameterNode; // [bd,An,Rn,...]
-  indexSize?: SizeNode | SymbolNode | MacroParameterNode;
+    | MacroParameterNode
+    | UnknownNode; // [bd,An,Rn,...]
+  indexSize?: SizeNode | MacroParameterNode | UnknownNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
   outerDisplacement?: ExpressionNode; // [...],od
 }

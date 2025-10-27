@@ -12,7 +12,9 @@
       "Bash(perl -i -pe:*)",
       "Bash(npm install:*)",
       "Bash(npm pack:*)",
-      "Bash(node preview.js:*)"
+      "Bash(node preview.js:*)",
+      "Bash(node test-multiple-errors.js:*)",
+      "Bash(node test-multiple-errors.cjs:*)"
     ],
     "deny": [],
     "ask": []
