@@ -1,10 +1,3 @@
-/**
- * Recursive Descent Line Parser for M68k Assembly
- *
- * This parser uses a character-by-character approach with proper error recovery
- * and detailed error messages. Suitable for IDE/language server use.
- */
-
 import {
   ParsedLine,
   LabelNode,

@@ -1,8 +1,3 @@
-/**
- * Parse error types and utilities for M68k operand parsing
- * Provides detailed error messages with position information
- */
-
 import { Location } from "./types";
 
 export type ParseErrorCode =
