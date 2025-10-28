@@ -865,3 +865,15 @@ export type UnaryOp = (typeof unaryOps)[number];
 export function isUnaryOp(op: string): op is UnaryOp {
   return unaryOps.includes(op as UnaryOp);
 }
+
+export const memoryTypes = ["fast", "chip"] as const;
+export type MemoryType = (typeof memoryTypes)[number];
+export function isMemoryType(type: string): type is MemoryType {
+  return memoryTypes.includes(type as MemoryType);
+}
+
+export const sectionTypes = ["code", "data", "bss"] as const;
+export type SectionType = (typeof sectionTypes)[number];
+export function isSectionType(type: string): type is SectionType {
+  return sectionTypes.includes(type as SectionType);
+}

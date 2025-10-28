@@ -524,7 +524,7 @@ function parseQualifier(state: ParserState): QualifierNode | null {
 function parseOperandList(
   state: ParserState,
   context: {
-    memonic: string;
+    mnemonic: string;
     mnemonicType: "instruction" | "directive" | "macro" | "macro-parameter";
   },
 ): { operands: OperandNode[]; errors: ParseError[] } {
@@ -873,7 +873,7 @@ export function parseLine(
     if (!isNoOperand) {
       // Regular operand parsing
       const { operands, errors } = parseOperandList(state, {
-        memonic: mnemonicText,
+        mnemonic: mnemonicText,
         mnemonicType: parsedLine.mnemonic.type,
       });
       if (operands.length > 0) {

@@ -13,6 +13,8 @@ import type {
   AddressSize,
   BinaryOp,
   UnaryOp,
+  SectionType,
+  MemoryType,
 } from "./syntax";
 import type { ParseError, ParseErrorCode } from "./parse-error";
 
@@ -206,6 +208,9 @@ export type OperandNode =
   | StringLiteralNode
   | MacroParameterNode
   | ValueNode
+  | SectionTypeNode
+  | MemoryTypeNode
+  | OptOptionNode
   | UnknownNode;
 
 // Data register operand (d0-d7)
@@ -344,7 +349,7 @@ export interface PCRelativeIndexNode extends Node {
 // String literal: "text", 'text', <text>
 export interface StringLiteralNode extends Node {
   type: "string-literal";
-  quote: '"' | "'" | "<>";
+  quote?: '"' | "'" | "<>";
   content: string;
 }
 
@@ -375,6 +380,22 @@ export interface BitfieldNode extends Node {
   type: "bitfield";
   offset: ExpressionNode; // Offset or register reference
   width?: ExpressionNode; // Width or register reference (optional, defaults to 1)
+}
+
+export interface SectionTypeNode extends Node {
+  type: "section-type";
+  sectionType: SectionType;
+}
+
+export interface MemoryTypeNode extends Node {
+  type: "memory-type";
+  memoryType: MemoryType;
+}
+
+export interface OptOptionNode extends Node {
+  type: "opt-option";
+  option: string;
+  mode?: "enable" | "disable";
 }
 
 // Unknown/incomplete

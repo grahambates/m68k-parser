@@ -27,6 +27,8 @@ import {
   isFPUControlRegister,
   isRegister,
   isAddressSize,
+  isSectionType,
+  isMemoryType,
 } from "./syntax";
 import {
   tokenizeOperand,
@@ -1072,13 +1074,79 @@ export function parseOperand(
   loc: Location,
   context: {
     operandIndex: number;
-    memonic: string;
+    mnemonic: string;
     mnemonicType: "instruction" | "directive" | "macro" | "macro-parameter";
   },
 ): ParserResult<OperandNode> {
+  const lower = text.toLowerCase();
+
   // String literals: "text", 'text', <text>
   if (isStringLiteral(text)) {
     return parseStringLiteral(text, loc);
+  }
+
+  // Special cases based on context:
+
+  // String or filename without quotes
+  if (
+    context.mnemonic === "printt" ||
+    (["include", "incdir", "incbin"].includes(context.mnemonic) &&
+      context.operandIndex === 0)
+  ) {
+    return {
+      value: {
+        type: "string-literal",
+        loc,
+        content: text,
+      },
+      errors: [],
+    };
+  }
+
+  // Section
+  if (context.mnemonic === "section") {
+    if (context.operandIndex === 1 && isSectionType(lower)) {
+      return {
+        value: {
+          type: "section-type",
+          loc,
+          sectionType: lower,
+        },
+        errors: [],
+      };
+    }
+    if (context.operandIndex === 2 && isMemoryType(lower)) {
+      return {
+        value: {
+          type: "memory-type",
+          loc,
+          memoryType: lower,
+        },
+        errors: [],
+      };
+    }
+  }
+
+  // Opt
+  if (context.mnemonic === "opt") {
+    let option = lower;
+    let mode: "enable" | "disable" | undefined;
+    if (text.endsWith("+")) {
+      option = option.slice(0, -1);
+      mode = "enable";
+    } else if (text.endsWith("-")) {
+      option = option.slice(0, -1);
+      mode = "disable";
+    }
+    return {
+      value: {
+        type: "opt-option",
+        loc,
+        option,
+        mode,
+      },
+      errors: [],
+    };
   }
 
   // Macro parameter: \1, \@, \<name>, etc.
@@ -1090,13 +1158,26 @@ export function parseOperand(
     };
   }
 
+  // For directives use value type
+  // Don't check any more addressing modes
+  if (context.mnemonicType === "directive") {
+    const { value, errors } = parseExpression(text, loc);
+    return {
+      value: {
+        type: "value",
+        loc,
+        value,
+      },
+      errors,
+    };
+  }
+
   // Addressing modes:
 
   // Register
-  const register = text.toLowerCase();
-  if (isRegister(register)) {
+  if (isRegister(lower)) {
     return {
-      value: createRegisterNode(register, loc),
+      value: createRegisterNode(lower, loc),
       errors: [],
     };
   }
@@ -1176,20 +1257,6 @@ export function parseOperand(
         registers,
       },
       errors: [],
-    };
-  }
-
-  // For directives use value type
-  // Don't check any more addressing modes
-  if (context.mnemonicType === "directive") {
-    const { value, errors } = parseExpression(text, loc);
-    return {
-      value: {
-        type: "value",
-        loc,
-        value,
-      },
-      errors,
     };
   }
 
@@ -1374,35 +1441,7 @@ export function parseOperand(
     };
   }
 
-  // Absolute address with explicit size: (expr).w or (expr).l
-  const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/di.exec(text);
-  if (absoluteSizedMatch) {
-    const { value: addrExpr, errors } = parseExpression(absoluteSizedMatch[1], {
-      start: loc.start + (absoluteSizedMatch.indices?.[1][0] ?? 0),
-      end: loc.start + (absoluteSizedMatch.indices?.[1][1] ?? 0),
-      line: loc.line,
-    });
-    const indexSizeResult = createAddressSizeNode(absoluteSizedMatch[2], {
-      start: loc.start + (absoluteSizedMatch.indices?.[2][0] ?? 0),
-      end: loc.start + (absoluteSizedMatch.indices?.[2][1] ?? 0),
-      line: loc.line,
-    });
-    if (indexSizeResult.errors) {
-      errors.push(...indexSizeResult.errors);
-    }
-
-    return {
-      value: {
-        type: "absolute-address",
-        loc,
-        address: addrExpr,
-        addressSize: indexSizeResult.value,
-      },
-      errors,
-    };
-  }
-
-  // Absolute address with .w or .l suffix (without parens): label.w, $1000.w
+  // Absolute address with .w or .l suffix label.w, $1000.w
   const absoluteWithSizeMatch = /^(.+)\.(w|l)$/di.exec(text);
   if (absoluteWithSizeMatch) {
     const { value: addrExpr, errors } = parseExpression(
