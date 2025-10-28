@@ -218,29 +218,6 @@ describe("parse AST", () => {
         });
       });
 
-      it("parses address register indirect with index (comma syntax)", () => {
-        const line = parseLine("  move 10(a0,d1,w),d0").value;
-        expect(line.operands?.[0]).toMatchObject({
-          type: "address-register-indirect-index",
-          displacement: {
-            type: "numeric-literal",
-            format: "decimal",
-          },
-          baseRegister: {
-            type: "address-register",
-            register: "a0",
-          },
-          indexRegister: {
-            type: "data-register",
-            register: "d1",
-          },
-          indexSize: {
-            type: "size",
-            size: "w",
-          },
-        });
-      });
-
       it("parses PC relative", () => {
         const simple = parseLine("  bra label(pc)").value;
         expect(simple.operands?.[0]).toMatchObject({
@@ -300,12 +277,12 @@ describe("parse AST", () => {
           loc: { start: 7, end: 16 },
           address: {
             type: "group",
-            loc: { start: 7, end: 16 },
+            loc: { start: 7, end: 14 },
             expression: {
               type: "numeric-literal",
               format: "hex",
               value: 0x1000,
-              loc: { start: 7, end: 16 },
+              loc: { start: 7, end: 14 },
             },
           },
           addressSize: {

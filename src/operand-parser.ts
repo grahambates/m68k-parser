@@ -172,7 +172,7 @@ function createAddressRegisterOrSymbolNode(
 /**
  * Helper to parse index register with optional size and scale factor
  * Format: Rn or Rn.size or Rn.size*scale or Rn*scale or \1 or \<param>
- * Returns the register, size, and scale factor (as expression), or null if not parseable
+ * Returns the register, size, and scale factor (as expression)
  */
 function parseIndexSpec(
   text: string,
@@ -188,7 +188,15 @@ function parseIndexSpec(
   scaleFactor?: ExpressionNode;
   errors: ParseError[];
 } {
-  let pos = 0;
+  // Text up to first '*', '.' or end
+  const regText = text.match(/^[^*.]+/)?.[0] ?? "";
+  const regLoc: Location = {
+    start: loc.start,
+    end: loc.start + regText.length,
+    line: loc.line,
+  };
+  let pos = regText.length;
+
   let registerNode:
     | DataRegisterNode
     | AddressRegisterNode
@@ -196,49 +204,22 @@ function parseIndexSpec(
     | MacroParameterNode;
 
   // Try to match macro parameter first: \1, \@, \<name>, etc.
-  // Match: \ followed by: digit, letter, @-variants, <name>, ?n, or .-+ symbols
-  const macroMatch =
-    /^(\\(?:\d+|[a-z]|@!|@\?|@@|@|<[^>]+>|\?(?:\d+|[a-z])|[.+-]))/.exec(text);
-  if (macroMatch) {
-    const macroParam = parseMacroParameter(macroMatch[1], loc);
-    if (macroParam) {
-      registerNode = macroParam;
-      pos = macroMatch[1].length;
-    } else {
-      // Not a valid macro parameter, try register
-      const regMatch = /^([ad][0-7]|sp)/i.exec(text);
-      if (!regMatch)
-        return {
-          register: {
-            type: "unknown",
-            loc,
-          },
-          errors: [
-            malformedIndexedAddressing(
-              `Invalid index register format '${text}'`,
-              loc,
-            ),
-          ],
-        };
-      registerNode = createRegisterNode(regMatch[1], loc) as
-        | DataRegisterNode
-        | AddressRegisterNode;
-      pos = regMatch[1].length;
-    }
+  const macroParam = parseMacroParameter(regText, regLoc);
+  if (macroParam) {
+    registerNode = macroParam;
   } else {
     // Try register name
-    const regMatch = /^([ad][0-7]|sp)/i.exec(text);
+    const regMatch = /^([ad][0-7]|sp)/i.exec(regText);
     if (regMatch) {
-      registerNode = createRegisterNode(regMatch[1], loc) as
+      registerNode = createRegisterNode(regText, regLoc) as
         | DataRegisterNode
         | AddressRegisterNode;
-      pos = regMatch[1].length;
     } else {
       // Not a register or macro
       return {
         register: {
           type: "unknown",
-          loc,
+          loc: regLoc,
         },
         errors: [
           malformedIndexedAddressing(
@@ -260,7 +241,11 @@ function parseIndexSpec(
     // Find the size part (up to * or end)
     const sizeMatch = /^([wl]|\\\S+|\w+)/i.exec(text.substring(pos));
     if (sizeMatch) {
-      const indexSizeResult = createAddressSizeNode(sizeMatch[1], loc);
+      const indexSizeResult = createAddressSizeNode(sizeMatch[1], {
+        start: loc.start + pos,
+        end: loc.start + pos + sizeMatch[1].length,
+        line: loc.line,
+      });
       if (indexSizeResult.errors) {
         errors.push(...indexSizeResult.errors);
       }
@@ -271,30 +256,19 @@ function parseIndexSpec(
 
   // Check for scale factor after *
   if (text[pos] === "*") {
-    const starPos = pos;
     pos++; // skip *
-    const afterStar = text.substring(pos);
-    const scaleExpr = afterStar.trim();
+    const scaleExpr = text.substring(pos);
+    const scaleLoc: Location = {
+      start: loc.start + pos,
+      end: loc.start + pos + scaleExpr.length,
+      line: loc.line,
+    };
     if (scaleExpr) {
-      // Calculate precise location of the scale factor expression
-      const trimStart = afterStar.length - afterStar.trimStart().length;
-      const scaleStart = pos + trimStart;
-      const scaleEnd = scaleStart + scaleExpr.length;
-      const scaleLoc: Location = {
-        start: loc.start + scaleStart,
-        end: loc.start + scaleEnd,
-        line: loc.line,
-      };
       const { value: scaleNode } = parseExpression(scaleExpr, scaleLoc);
       scaleFactor = scaleNode;
     } else {
       // Missing scale factor after *
-      errors.push(
-        missingScaleFactor({
-          start: loc.start + starPos,
-          end: loc.start + starPos + 1,
-        }),
-      );
+      errors.push(missingScaleFactor(scaleLoc));
     }
   }
 
@@ -367,7 +341,7 @@ function createAddressSizeNode(
  * OperandToken-based parser for memory indirect addressing: ([bd,An,Rn.s*scale],od)
  * Returns ParseResult with detailed error information
  */
-function parseMemoryIndirectWithTokens(
+function parseMemoryIndirect(
   text: string,
   loc: Location,
 ): ParserResult<MemoryIndirectNode | UnknownNode> {
@@ -634,7 +608,7 @@ function parseMemoryIndirectWithTokens(
  * OperandToken-based parser for indexed addressing: disp(base,index.size*scale)
  * Handles both address register and PC relative with index
  */
-function parseIndexedAddressingWithTokens(
+function parseIndexedAddressing(
   text: string,
   loc: Location,
 ): ParserResult<OperandNode> {
@@ -728,17 +702,12 @@ function parseIndexedAddressingWithTokens(
     const indexPart = parts[1];
 
     // Parse index: d1.w*2, a2.l*4, d1*(foo+1), etc.
-    // Calculate precise location of indexPart
-    const commaIndex = text.indexOf(",");
-    const indexPartStart = text.indexOf(indexPart, commaIndex + 1);
-    const indexPartEnd = indexPartStart + indexPart.length;
-    const indexPartLoc: Location = {
+    const indexPartStart = text.indexOf(",") + 1;
+    const indexSpec = parseIndexSpec(indexPart, {
       start: loc.start + indexPartStart,
-      end: loc.start + indexPartEnd,
+      end: loc.start + indexPartStart + indexPart.length,
       line: loc.line,
-    };
-
-    const indexSpec = parseIndexSpec(indexPart, indexPartLoc);
+    });
     if (indexSpec.errors) {
       errors.push(...indexSpec.errors);
     }
@@ -750,9 +719,16 @@ function parseIndexedAddressingWithTokens(
     }
 
     // Parse displacement and check for errors
-    const dispResult = parseExpression(displacement || "0", loc);
-    if (dispResult.errors) {
-      errors.push(...dispResult.errors);
+    let dispResult: ParserResult<ExpressionNode> | undefined;
+    if (displacement) {
+      dispResult = parseExpression(displacement, {
+        start: loc.start,
+        end: loc.start + displacement.length,
+        line: loc.line,
+      });
+      if (dispResult.errors) {
+        errors.push(...dispResult.errors);
+      }
     }
 
     // Check if PC relative or address register
@@ -761,7 +737,7 @@ function parseIndexedAddressingWithTokens(
         value: {
           type: "pc-relative-index",
           loc,
-          displacement: dispResult.value,
+          displacement: dispResult?.value,
           indexRegister: indexSpec.register,
           indexSize: indexSpec.size,
           scaleFactor: indexSpec.scaleFactor,
@@ -770,13 +746,10 @@ function parseIndexedAddressingWithTokens(
       };
     } else {
       // Accept any base register, including macro parameters and symbols
-      // Calculate precise location of the base register
       const parenIndex = text.indexOf("(");
-      const baseRegStart = parenIndex + 1; // Right after opening paren
-      const baseRegEnd = baseRegStart + baseReg.length;
       const baseRegLoc: Location = {
-        start: loc.start + baseRegStart,
-        end: loc.start + baseRegEnd,
+        start: loc.start + parenIndex + 1,
+        end: loc.start + parenIndex + 1 + baseReg.length,
         line: loc.line,
       };
 
@@ -792,7 +765,7 @@ function parseIndexedAddressingWithTokens(
         value: {
           type: "address-register-indirect-index",
           loc,
-          displacement: displacement ? dispResult.value : undefined,
+          displacement: dispResult?.value,
           baseRegister: baseRegResult.node,
           indexRegister: indexSpec.register,
           indexSize: indexSpec.size,
@@ -802,94 +775,19 @@ function parseIndexedAddressingWithTokens(
       };
     }
   } else if (parts.length === 3) {
-    // (base,index,size) or (disp,base,index.size*scale)
-    // Need to disambiguate based on whether third part is just a size letter
-    const part0 = parts[0];
-    const part1 = parts[1].toLowerCase();
-    const part2 = parts[2].toLowerCase();
+    // (disp,base,index.size*scale)
+    const disp = parts[0];
+    const baseReg = parts[1];
+    const indexPart = parts[2];
 
-    // Check if part2 is just a size letter (w or l)
-    if (/^[wl]$/i.test(part2)) {
-      // Format: (base,index,size) or disp(base,index,size) - comma-separated size
-      const baseReg = part0.toLowerCase();
-      const indexRegister = createRegisterNode(part1, loc) as
-        | DataRegisterNode
-        | AddressRegisterNode;
-      const indexSizeResult = createAddressSizeNode(part2, loc);
-      if (indexSizeResult.errors) {
-        errors.push(...indexSizeResult.errors);
-      }
-      const indexSize = indexSizeResult.value;
-      // Parse displacement and check for errors
-      const dispResult = parseExpression(displacement || "0", loc);
-      if (dispResult.errors) {
-        errors.push(...dispResult.errors);
-      }
-
-      if (baseReg === "pc") {
-        return {
-          value: {
-            type: "pc-relative-index",
-            loc,
-            displacement: dispResult.value,
-            indexRegister,
-            indexSize,
-            scaleFactor: undefined,
-          },
-          errors,
-        };
-      } else {
-        // Accept any base register, including macro parameters and symbols
-        // Calculate precise location of the base register
-        const parenIndex = text.indexOf("(");
-        const baseRegStart = parenIndex + 1; // Right after opening paren
-        const baseRegEnd = baseRegStart + baseReg.length;
-        const baseRegLoc: Location = {
-          start: loc.start + baseRegStart,
-          end: loc.start + baseRegEnd,
-          line: loc.line,
-        };
-
-        const baseRegResult = createAddressRegisterOrSymbolNode(
-          baseReg,
-          baseRegLoc,
-        );
-        if (baseRegResult.error) {
-          errors.push(baseRegResult.error);
-        }
-
-        return {
-          value: {
-            type: "address-register-indirect-index",
-            loc,
-            displacement: displacement ? dispResult.value : undefined,
-            baseRegister: baseRegResult.node,
-            indexRegister,
-            indexSize,
-            scaleFactor: undefined,
-          },
-          errors,
-        };
-      }
-    }
-
-    // Otherwise, format: (disp,base,index.size*scale)
-    const disp = part0;
-    const baseReg = part1;
-    const indexPart = part2;
-
-    // Calculate precise location of indexPart (after second comma)
     const firstCommaIndex = text.indexOf(",");
     const secondCommaIndex = text.indexOf(",", firstCommaIndex + 1);
-    const indexPartStart = text.indexOf(indexPart, secondCommaIndex + 1);
-    const indexPartEnd = indexPartStart + indexPart.length;
-    const indexPartLoc: Location = {
-      start: loc.start + indexPartStart,
-      end: loc.start + indexPartEnd,
-      line: loc.line,
-    };
 
-    const indexSpec = parseIndexSpec(indexPart, indexPartLoc);
+    const indexSpec = parseIndexSpec(indexPart, {
+      start: loc.start + secondCommaIndex + 1,
+      end: loc.start + secondCommaIndex + 1 + indexPart.length,
+      line: loc.line,
+    });
     if (indexSpec.errors) {
       errors.push(...indexSpec.errors);
     }
@@ -901,7 +799,11 @@ function parseIndexedAddressingWithTokens(
     }
 
     // Parse displacement and check for errors
-    const dispResult = parseExpression(disp, loc);
+    const dispResult = parseExpression(disp, {
+      start: loc.start + 1,
+      end: loc.start + 1 + disp.length,
+      line: loc.line,
+    });
     if (dispResult.errors) {
       errors.push(...dispResult.errors);
     }
@@ -920,25 +822,11 @@ function parseIndexedAddressingWithTokens(
       };
     } else {
       // Accept any base register, including macro parameters and symbols
-      // Calculate precise location of the base register (it's part1, after first comma)
-      const parenIndex = text.indexOf("(");
-      const firstCommaIndex = text.indexOf(",", parenIndex);
-      const baseRegStart = firstCommaIndex + 1; // Right after first comma
-      // Find the actual start of baseReg, skipping whitespace
-      const afterComma = text.substring(firstCommaIndex + 1);
-      const trimStart = afterComma.length - afterComma.trimStart().length;
-      const actualBaseRegStart = baseRegStart + trimStart;
-      const baseRegEnd = actualBaseRegStart + baseReg.length;
-      const baseRegLoc: Location = {
-        start: loc.start + actualBaseRegStart,
-        end: loc.start + baseRegEnd,
+      const baseRegResult = createAddressRegisterOrSymbolNode(baseReg, {
+        start: loc.start + firstCommaIndex + 1,
+        end: loc.start + secondCommaIndex,
         line: loc.line,
-      };
-
-      const baseRegResult = createAddressRegisterOrSymbolNode(
-        baseReg,
-        baseRegLoc,
-      );
+      });
       if (baseRegResult.error) {
         errors.push(baseRegResult.error);
       }
@@ -973,10 +861,7 @@ function parseIndexedAddressingWithTokens(
 /**
  * OperandToken-based parser for bitfield specifications: {offset:width}
  */
-function parseBitfieldWithTokens(
-  text: string,
-  loc: Location,
-): ParserResult<OperandNode> {
+function parseBitfield(text: string, loc: Location): ParserResult<OperandNode> {
   const { tokens, errors: errors } = tokenizeOperand(text);
   let pos = 0;
 
@@ -1157,10 +1042,15 @@ function expandFPURegisterRange(spec: string): FPUDataRegister[] {
  */
 export function parseOperand(
   text: string,
-  loc: Location,
+  origLoc: Location,
   mnemonicCategory?: "instruction" | "directive" | "macro",
 ): ParserResult<OperandNode> {
   const trimmed = text.trim();
+  const loc = {
+    start: origLoc.start + text.indexOf(trimmed),
+    end: origLoc.start + text.indexOf(trimmed) + trimmed.length,
+    line: origLoc.line,
+  };
 
   // If it's empty or only whitespace, mark as unknown
   if (!trimmed) {
@@ -1209,19 +1099,22 @@ export function parseOperand(
     };
   }
 
-  // Bitfield specification (68020+): {offset:width} or {offset}
-  if (trimmed.startsWith("{")) {
-    return parseBitfieldWithTokens(trimmed, loc);
-  }
-
   // Addressing modes:
+
+  // Register
+  const register = trimmed.toLowerCase();
+  if (isRegister(register)) {
+    return {
+      value: createRegisterNode(register, loc),
+      errors: [],
+    };
+  }
 
   // Immediate: #value
   if (trimmed.startsWith("#")) {
     const exprText = trimmed.slice(1);
-    const exprStart = loc.start + text.indexOf(exprText);
     const { value: exprValue, errors: exprErrors } = parseExpression(exprText, {
-      start: exprStart,
+      start: loc.start + 1,
       end: loc.end,
       line: loc.line,
     });
@@ -1232,16 +1125,6 @@ export function parseOperand(
         value: exprValue,
       },
       errors: exprErrors,
-    };
-  }
-
-  // Check potential register types
-  const register = trimmed.toLowerCase();
-
-  if (isRegister(register)) {
-    return {
-      value: createRegisterNode(register, loc),
-      errors: [],
     };
   }
 
@@ -1293,37 +1176,38 @@ export function parseOperand(
     };
   }
 
+  // For directives/macros use value type
+  // Don't check any more addressing modes
+  if (mnemonicCategory !== "instruction") {
+    const { value, errors } = parseExpression(trimmed, loc);
+    return {
+      value: {
+        type: "value",
+        loc,
+        value,
+      },
+      errors,
+    };
+  }
+
+  // Bitfield specification (68020+): {offset:width} or {offset}
+  if (trimmed.startsWith("{")) {
+    return parseBitfield(trimmed, loc);
+  }
+
   // Memory indirect addressing (68020+): ([bd,An,Rn.s*scale],od) or ([bd,An],od) or ([An],od)
-  // Check for opening parenthesis followed by square bracket
   if (trimmed.startsWith("([")) {
-    return parseMemoryIndirectWithTokens(trimmed, loc);
+    return parseMemoryIndirect(trimmed, loc);
   }
 
   // Address register indirect with pre-decrement: -(An)
   const preDecMatch = /^-\(([^)]+)\)$/i.exec(trimmed);
   if (preDecMatch) {
-    const registerName = preDecMatch[1].trim();
-    // Calculate precise location of the register (after "-(")
-    const registerStart = text.indexOf("(") + 1;
-    const afterParen = text.substring(registerStart);
-    const trimStart = afterParen.length - afterParen.trimStart().length;
-    const actualRegisterStart = registerStart + trimStart;
-    const registerEnd = actualRegisterStart + registerName.length;
-    const registerLoc: Location = {
-      start: loc.start + actualRegisterStart,
-      end: loc.start + registerEnd,
+    const baseRegResult = createAddressRegisterOrSymbolNode(preDecMatch[1], {
+      start: loc.start + 2,
+      end: loc.end - 1,
       line: loc.line,
-    };
-
-    const errors: ParseError[] = [];
-
-    const baseRegResult = createAddressRegisterOrSymbolNode(
-      registerName,
-      registerLoc,
-    );
-    if (baseRegResult.error) {
-      errors.push(baseRegResult.error);
-    }
+    });
 
     return {
       value: {
@@ -1331,35 +1215,18 @@ export function parseOperand(
         loc,
         register: baseRegResult.node,
       },
-      errors,
+      errors: baseRegResult.error ? [baseRegResult.error] : [],
     };
   }
 
   // Address register indirect with post-increment: (An)+
   const postIncMatch = /^\(([^)]+)\)\+$/i.exec(trimmed);
   if (postIncMatch) {
-    const registerName = postIncMatch[1].trim();
-    // Calculate precise location of the register (after "(")
-    const registerStart = text.indexOf("(") + 1;
-    const afterParen = text.substring(registerStart);
-    const trimStart = afterParen.length - afterParen.trimStart().length;
-    const actualRegisterStart = registerStart + trimStart;
-    const registerEnd = actualRegisterStart + registerName.length;
-    const registerLoc: Location = {
-      start: loc.start + actualRegisterStart,
-      end: loc.start + registerEnd,
+    const baseRegResult = createAddressRegisterOrSymbolNode(postIncMatch[1], {
+      start: loc.start + 1,
+      end: loc.end - 2,
       line: loc.line,
-    };
-
-    const errors: ParseError[] = [];
-
-    const baseRegResult = createAddressRegisterOrSymbolNode(
-      registerName,
-      registerLoc,
-    );
-    if (baseRegResult.error) {
-      errors.push(baseRegResult.error);
-    }
+    });
 
     return {
       value: {
@@ -1367,23 +1234,25 @@ export function parseOperand(
         loc,
         register: baseRegResult.node,
       },
-      errors,
+      errors: baseRegResult.error ? [baseRegResult.error] : [],
     };
   }
 
   // Address register indirect with displacement (displacement inside parens): (disp,an) or (disp,pc)
   // Check this first before indexed addressing to distinguish (disp,An) from (An,Rn)
   // Pattern: parentheses with comma, where second part is an ADDRESS register or PC (not data register)
-  const dispInParensMatch = /^\(([^,)]+),\s*(a[0-7]|sp|pc)\s*\)$/i.exec(
+  const dispInParensMatch = /^\(([^,)]+),\s*(a[0-7]|sp|pc)\s*\)$/di.exec(
     trimmed,
   );
   if (dispInParensMatch) {
-    const displacement = dispInParensMatch[1].trim();
-    const register = dispInParensMatch[2].trim().toLowerCase();
-    const { value: dispExpr, errors: dispErrors } = parseExpression(
-      displacement,
-      loc,
-    );
+    const displacement = dispInParensMatch[1];
+    const register = dispInParensMatch[2].toLowerCase();
+
+    const { value: dispNode, errors } = parseExpression(displacement, {
+      start: loc.start + 1,
+      end: loc.start + 1 + displacement.length,
+      line: loc.line,
+    });
 
     // PC relative without index: (disp,pc)
     if (register === "pc") {
@@ -1391,37 +1260,25 @@ export function parseOperand(
         value: {
           type: "pc-relative",
           loc,
-          displacement: dispExpr,
+          displacement: dispNode,
         },
-        errors: dispErrors,
+        errors,
       };
     }
 
     // Address register indirect with displacement: (disp,an)
-    // Calculate precise location of the register (after comma)
-    const commaIndex = text.indexOf(",");
-    const registerStart = commaIndex + 1;
-    const afterComma = text.substring(registerStart);
-    const trimStart = afterComma.length - afterComma.trimStart().length;
-    const actualRegisterStart = registerStart + trimStart;
-    const registerEnd = actualRegisterStart + register.length;
-    const registerLoc: Location = {
-      start: loc.start + actualRegisterStart,
-      end: loc.start + registerEnd,
+    const regResult = createAddressRegisterOrSymbolNode(register, {
+      start: loc.start + (dispInParensMatch.indices?.[2][0] ?? 0),
+      end: loc.start + (dispInParensMatch.indices?.[2][1] ?? 0),
       line: loc.line,
-    };
-
-    const regResult = createAddressRegisterOrSymbolNode(register, registerLoc);
-
-    // Collect all errors
-    const errors: ParseError[] = [...dispErrors];
+    });
     if (regResult.error) errors.push(regResult.error);
 
     return {
       value: {
         type: "address-register-indirect-displacement",
         loc,
-        displacement: dispExpr,
+        displacement: dispNode,
         register: regResult.node,
       },
       errors,
@@ -1436,12 +1293,12 @@ export function parseOperand(
     /^\(([^,)]+),\s*([^,)]+),\s*(.+)\)$/i.test(trimmed);
 
   if (hasIndexedPattern) {
-    return parseIndexedAddressingWithTokens(trimmed, loc);
+    return parseIndexedAddressing(trimmed, loc);
   }
 
   // Address register indirect with displacement: disp(an) or PC relative: disp(pc)
   // Note: This should NOT match if there's a comma inside parens (that's indexed addressing)
-  const dispMatch = /^([^(]*)\(([^),]+)\)$/i.exec(trimmed);
+  const dispMatch = /^([^(]*)\(([^),]+)\)$/di.exec(trimmed);
   if (dispMatch) {
     const displacement = dispMatch[1].trim();
     const register = dispMatch[2].trim().toLowerCase();
@@ -1527,13 +1384,18 @@ export function parseOperand(
   }
 
   // Absolute address with explicit size: (expr).w or (expr).l
-  const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/i.exec(trimmed);
+  const absoluteSizedMatch = /^(\([^)]+\))\.(w|l)$/di.exec(trimmed);
   if (absoluteSizedMatch) {
-    const { value: addrExpr, errors } = parseExpression(
-      absoluteSizedMatch[1],
-      loc,
-    );
-    const indexSizeResult = createAddressSizeNode(absoluteSizedMatch[2], loc);
+    const { value: addrExpr, errors } = parseExpression(absoluteSizedMatch[1], {
+      start: loc.start + (absoluteSizedMatch.indices?.[1][0] ?? 0),
+      end: loc.start + (absoluteSizedMatch.indices?.[1][1] ?? 0),
+      line: loc.line,
+    });
+    const indexSizeResult = createAddressSizeNode(absoluteSizedMatch[2], {
+      start: loc.start + (absoluteSizedMatch.indices?.[2][0] ?? 0),
+      end: loc.start + (absoluteSizedMatch.indices?.[2][1] ?? 0),
+      line: loc.line,
+    });
     if (indexSizeResult.errors) {
       errors.push(...indexSizeResult.errors);
     }
@@ -1550,16 +1412,21 @@ export function parseOperand(
   }
 
   // Absolute address with .w or .l suffix (without parens): label.w, $1000.w
-  const absoluteWithSizeMatch = /^(.+)\.(w|l)$/i.exec(trimmed);
+  const absoluteWithSizeMatch = /^(.+)\.(w|l)$/di.exec(trimmed);
   if (absoluteWithSizeMatch) {
     const { value: addrExpr, errors } = parseExpression(
       absoluteWithSizeMatch[1],
-      loc,
+      {
+        start: loc.start + (absoluteWithSizeMatch.indices?.[1][0] ?? 0),
+        end: loc.start + (absoluteWithSizeMatch.indices?.[1][1] ?? 0),
+        line: loc.line,
+      },
     );
-    const addressSizeResult = createAddressSizeNode(
-      absoluteWithSizeMatch[2],
-      loc,
-    );
+    const addressSizeResult = createAddressSizeNode(absoluteWithSizeMatch[2], {
+      start: loc.start + (absoluteWithSizeMatch.indices?.[2][0] ?? 0),
+      end: loc.start + (absoluteWithSizeMatch.indices?.[2][1] ?? 0),
+      line: loc.line,
+    });
     if (addressSizeResult.errors) {
       errors.push(...addressSizeResult.errors);
     }
@@ -1632,25 +1499,13 @@ export function parseOperand(
   // This includes: labels, complex expressions like "offset+4", arithmetic, etc.
   const { value: expr, errors: exprErrors } = parseExpression(trimmed, loc);
 
-  if (mnemonicCategory === "instruction") {
-    // For instructions, all expressions are absolute addresses
-    return {
-      value: {
-        type: "absolute-address",
-        loc,
-        address: expr,
-      },
-      errors: exprErrors,
-    };
-  } else {
-    // For directives and macros, use value type
-    return {
-      value: {
-        type: "value",
-        loc,
-        value: expr,
-      },
-      errors: exprErrors,
-    };
-  }
+  // For instructions, all expressions are absolute addresses
+  return {
+    value: {
+      type: "absolute-address",
+      loc,
+      address: expr,
+    },
+    errors: exprErrors,
+  };
 }

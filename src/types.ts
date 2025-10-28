@@ -330,7 +330,7 @@ export interface PCRelativeNode extends Node {
 // PC relative: offset(pc,d0) or offset(pc,d0.w*2)
 export interface PCRelativeIndexNode extends Node {
   type: "pc-relative-index";
-  displacement: ExpressionNode; // Parsed displacement expression
+  displacement?: ExpressionNode; // Parsed displacement expression
   indexRegister:
     | DataRegisterNode
     | AddressRegisterNode

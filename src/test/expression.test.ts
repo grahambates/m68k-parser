@@ -597,7 +597,7 @@ describe("Expression Parsing", () => {
         loc: { start: 9, end: 19 },
         address: {
           type: "group",
-          loc: { start: 9, end: 19 },
+          loc: { start: 9, end: 17 },
           expression: {
             type: "binary-op",
             operator: "+",
