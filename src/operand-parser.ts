@@ -1063,14 +1063,18 @@ function parseStringLiteral(
  * @param text - The operand string to parse
  * @param start - Start position in the original line
  * @param end - End position in the original line
- * @param mnemonicCategory - Optional category of the mnemonic (instruction vs directive)
+ * @param context - Operand context
  * @param lineNumber - Optional 1-indexed line number for location tracking
  * @returns Object with operand node and optional error
  */
 export function parseOperand(
   text: string,
   loc: Location,
-  mnemonicCategory?: "instruction" | "directive" | "macro",
+  context: {
+    operandIndex: number;
+    memonic: string;
+    mnemonicType: "instruction" | "directive" | "macro" | "macro-parameter";
+  },
 ): ParserResult<OperandNode> {
   // String literals: "text", 'text', <text>
   if (isStringLiteral(text)) {
@@ -1177,7 +1181,7 @@ export function parseOperand(
 
   // For directives use value type
   // Don't check any more addressing modes
-  if (mnemonicCategory === "directive") {
+  if (context.mnemonicType === "directive") {
     const { value, errors } = parseExpression(text, loc);
     return {
       value: {
@@ -1200,7 +1204,7 @@ export function parseOperand(
   }
 
   // Address register indirect with pre-decrement: -(An)
-  const preDecMatch = /^-\(([a-z0-9_.\\@<>]+)\)$/i.exec(text);
+  const preDecMatch = /^-\(([a-z0-9_.\\@]+)\)$/i.exec(text);
   if (preDecMatch) {
     const baseRegResult = createAddressRegisterOrSymbolNode(preDecMatch[1], {
       start: loc.start + 2,
@@ -1219,7 +1223,7 @@ export function parseOperand(
   }
 
   // Address register indirect with post-increment: (An)+
-  const postIncMatch = /^\(([a-z0-9_.\\@<>]+)\)\+$/i.exec(text);
+  const postIncMatch = /^\(([a-z0-9_.\\@]+)\)\+$/i.exec(text);
   if (postIncMatch) {
     const baseRegResult = createAddressRegisterOrSymbolNode(postIncMatch[1], {
       start: loc.start + 1,
@@ -1295,7 +1299,7 @@ export function parseOperand(
 
   // Address register indirect with displacement: disp(an) or PC relative: disp(pc)
   // Note: This should NOT match if there's a comma inside parens (that's indexed addressing)
-  const dispMatch = /^(.*[^+\-/|~&,.])?\(([a-z0-9_.,\\@<>]+)\)$/di.exec(text);
+  const dispMatch = /^(.*[^+\-/|~&,.])?\(([a-z0-9_.,\\@]+)\)$/di.exec(text);
   if (dispMatch) {
     const displacement = dispMatch[1];
     const register = dispMatch[2];
@@ -1486,7 +1490,7 @@ export function parseOperand(
   // This includes: labels, complex expressions like "offset+4", arithmetic, etc.
   const { value: expr, errors: exprErrors } = parseExpression(text, loc);
 
-  if (mnemonicCategory === "macro") {
+  if (context.mnemonicType === "macro") {
     // Use value type for macros
     return {
       value: {

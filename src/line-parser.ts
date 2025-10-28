@@ -11,6 +11,7 @@ import {
   Instruction,
   Directive,
   ParserResult,
+  MacroNode,
 } from "./types";
 import { ParseError } from "./parse-error";
 import { parseOperand } from "./operand-parser";
@@ -522,7 +523,10 @@ function parseQualifier(state: ParserState): QualifierNode | null {
  */
 function parseOperandList(
   state: ParserState,
-  mnemonicCategory?: "instruction" | "directive" | "macro",
+  context: {
+    memonic: string;
+    mnemonicType: "instruction" | "directive" | "macro" | "macro-parameter";
+  },
 ): { operands: OperandNode[]; errors: ParseError[] } {
   const operands: OperandNode[] = [];
   const errors: ParseError[] = [];
@@ -681,7 +685,10 @@ function parseOperandList(
           end: opEnd,
           line: state.line,
         },
-        mnemonicCategory,
+        {
+          ...context,
+          operandIndex: operands.length,
+        },
       );
       operands.push(operand);
       // Collect all errors from the result
@@ -857,7 +864,7 @@ export function parseLine(
         ? (parsedLine.mnemonic as InstructionNode).instruction
         : parsedLine.mnemonic.type === "directive"
           ? (parsedLine.mnemonic as DirectiveNode).directive
-          : null;
+          : (parsedLine.mnemonic as MacroNode).macro;
 
     const isNoOperand =
       mnemonicText &&
@@ -865,16 +872,10 @@ export function parseLine(
 
     if (!isNoOperand) {
       // Regular operand parsing
-      const category =
-        parsedLine.mnemonic.type === "instruction"
-          ? "instruction"
-          : parsedLine.mnemonic.type === "directive"
-            ? "directive"
-            : parsedLine.mnemonic.type === "macro"
-              ? "macro"
-              : undefined;
-
-      const { operands, errors } = parseOperandList(state, category);
+      const { operands, errors } = parseOperandList(state, {
+        memonic: mnemonicText,
+        mnemonicType: parsedLine.mnemonic.type,
+      });
       if (operands.length > 0) {
         parsedLine.operands = operands;
       }
