@@ -536,15 +536,15 @@ function parseOperandList(
 
     // Check for comment marker
     // Semicolon always starts a comment
-    // Asterisk only starts a comment if followed by space or is at EOL (not part of expression like *+10)
+    // Asterisk only starts a comment if preceeded by space or is at EOL (not part of expression like *+10)
     if (peek(state) === ";") {
       break;
     }
-    if (peek(state) === "*") {
-      const next = peek(state, 1);
-      // If * is followed by space/tab/EOL, it's a comment
+    if (peek(state) === "*" && operands.length > 0) {
+      const prev = peek(state, -1);
+      // If * is preceeded by space/tab/EOL, it's a comment
       // If followed by operator or alphanumeric, it's part of expression (current address or mult)
-      if (!next || next === " " || next === "\t") {
+      if (!prev || prev === " " || prev === "\t") {
         break;
       }
     }
