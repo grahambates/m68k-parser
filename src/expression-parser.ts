@@ -39,8 +39,26 @@ export function parseExpression(
     pos++;
   }
 
+  function tokenLocation(token: ExpressionToken): Location {
+    let tokenLength: number;
+    if (token.type === "eof") {
+      tokenLength = 0;
+    } else if ("value" in token) {
+      tokenLength = token.value.length;
+    } else {
+      tokenLength = 1;
+    }
+
+    return {
+      start: loc.start + token.position,
+      end: loc.start + token.position + tokenLength,
+      line: loc.line,
+    };
+  }
+
   function parsePrimary(): ExpressionNode {
     const token = current();
+    const tokLoc = tokenLocation(token);
 
     if (token.type === "number") {
       advance();
@@ -55,7 +73,7 @@ export function parseExpression(
         format: token.format,
         raw: token.value,
         value,
-        loc,
+        loc: tokLoc,
       };
     }
 
@@ -67,15 +85,15 @@ export function parseExpression(
       if (isBuiltinSymbol(symbolName)) {
         return {
           type: "builtin-symbol",
+          loc: tokLoc,
           name: symbolName,
-          loc,
         };
       }
 
       return {
         type: "symbol",
+        loc: tokLoc,
         name: symbolName,
-        loc,
       };
     }
 
@@ -83,7 +101,7 @@ export function parseExpression(
       advance();
       return {
         type: "current-address",
-        loc,
+        loc: tokLoc,
       };
     }
 
@@ -104,12 +122,11 @@ export function parseExpression(
         type: "macro-parameter",
         paramType,
         param,
-        loc,
+        loc: tokLoc,
       };
     }
 
     if (token.type === "lparen") {
-      const parenPos = token.position;
       advance();
       const expr = parseLogicalOr(); // Start from lowest precedence
       if (current()?.type === "rparen") {
@@ -117,30 +134,29 @@ export function parseExpression(
       } else {
         // Missing closing parenthesis
         if (!parseError) {
-          parseError = unclosedParen({
-            start: loc.start + parenPos,
-            end: loc.start + parenPos + 1,
-          });
+          parseError = unclosedParen(tokLoc);
         }
       }
       return {
         type: "group",
+        loc: {
+          ...tokLoc,
+          end: loc.start + current().position,
+        },
         expression: expr,
-        loc,
       };
     }
 
     // If we can't parse, return unknown and set error
     if (!parseError && token) {
-      const tokenValue = "value" in token ? token.value : "";
-      parseError = invalidExpression(`Unexpected token '${token.type}'`, {
-        start: loc.start + (token.position || 0),
-        end: loc.start + (token.position || 0) + (tokenValue?.length || 1),
-      });
+      parseError = invalidExpression(
+        `Unexpected token '${token.type}'`,
+        tokLoc,
+      );
     }
     return {
       type: "unknown",
-      loc,
+      loc: tokLoc,
     };
   }
 
@@ -153,9 +169,12 @@ export function parseExpression(
       const operand = parseUnary();
       return {
         type: "unary-op",
+        loc: {
+          ...tokenLocation(token),
+          end: operand.loc.end,
+        },
         operator,
         operand,
-        loc,
       };
     }
 
@@ -186,10 +205,14 @@ export function parseExpression(
       const right = parseHigher();
       left = {
         type: "binary-op",
+        loc: {
+          start: left.loc.start,
+          end: right.loc.end,
+          line: left.loc.line,
+        },
         operator: operator as BinaryOp, // Type will be validated by caller
         left,
         right,
-        loc: left.loc,
       };
       token = current();
     }

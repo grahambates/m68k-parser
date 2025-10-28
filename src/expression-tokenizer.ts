@@ -18,10 +18,10 @@ export type ExpressionToken =
     }
   | { type: "symbol"; value: string; position: number }
   | { type: "operator"; value: string; position: number }
+  | { type: "macro-parameter"; value: string; position: number }
   | { type: "lparen"; position: number }
   | { type: "rparen"; position: number }
   | { type: "current-address"; position: number }
-  | { type: "macro-parameter"; value: string; position: number }
   | { type: "eof"; position: number };
 
 export interface ExpressionTokenizeResult {
