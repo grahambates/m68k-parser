@@ -282,7 +282,7 @@ describe("parse AST", () => {
               type: "numeric-literal",
               format: "hex",
               value: 0x1000,
-              loc: { start: 7, end: 14 },
+              loc: { start: 8, end: 13 },
             },
           },
           addressSize: {

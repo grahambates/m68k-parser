@@ -408,7 +408,7 @@ describe("Error Handling and Edge Cases", () => {
       const line = parseLine(" move.w (a<<2),d0");
       expect(line.errors).toHaveLength(0);
       expect(line.value.operands?.length).toBe(2);
-      expect(line.value.operands?.[0].type).toBe("address-register-indirect");
+      expect(line.value.operands?.[0].type).toBe("absolute-address");
       expect(line.value.operands?.[1].type).toBe("data-register");
     });
 

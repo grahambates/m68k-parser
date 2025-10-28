@@ -1154,9 +1154,9 @@ export function parseOperand(
     };
   }
 
-  // For directives/macros use value type
+  // For directives use value type
   // Don't check any more addressing modes
-  if (mnemonicCategory !== "instruction") {
+  if (mnemonicCategory === "directive") {
     const { value, errors } = parseExpression(text, loc);
     return {
       value: {
@@ -1179,7 +1179,7 @@ export function parseOperand(
   }
 
   // Address register indirect with pre-decrement: -(An)
-  const preDecMatch = /^-\(([^)]+)\)$/i.exec(text);
+  const preDecMatch = /^-\(([a-z0-9_.\\@<>]+)\)$/i.exec(text);
   if (preDecMatch) {
     const baseRegResult = createAddressRegisterOrSymbolNode(preDecMatch[1], {
       start: loc.start + 2,
@@ -1198,7 +1198,7 @@ export function parseOperand(
   }
 
   // Address register indirect with post-increment: (An)+
-  const postIncMatch = /^\(([^)]+)\)\+$/i.exec(text);
+  const postIncMatch = /^\(([a-z0-9_.\\@<>]+)\)\+$/i.exec(text);
   if (postIncMatch) {
     const baseRegResult = createAddressRegisterOrSymbolNode(postIncMatch[1], {
       start: loc.start + 1,
@@ -1274,7 +1274,7 @@ export function parseOperand(
 
   // Address register indirect with displacement: disp(an) or PC relative: disp(pc)
   // Note: This should NOT match if there's a comma inside parens (that's indexed addressing)
-  const dispMatch = /^([^(]*)\(([^),]+)\)$/di.exec(text);
+  const dispMatch = /^(.*[^+\-/|~&,.])?\(([a-z0-9_.,\\@<>]+)\)$/di.exec(text);
   if (dispMatch) {
     const displacement = dispMatch[1];
     const register = dispMatch[2];
@@ -1465,13 +1465,25 @@ export function parseOperand(
   // This includes: labels, complex expressions like "offset+4", arithmetic, etc.
   const { value: expr, errors: exprErrors } = parseExpression(text, loc);
 
-  // For instructions, all expressions are absolute addresses
-  return {
-    value: {
-      type: "absolute-address",
-      loc,
-      address: expr,
-    },
-    errors: exprErrors,
-  };
+  if (mnemonicCategory === "macro") {
+    // Use value type for macros
+    return {
+      value: {
+        type: "value",
+        loc,
+        value: expr,
+      },
+      errors: exprErrors,
+    };
+  } else {
+    // For instructions use absolute addresses
+    return {
+      value: {
+        type: "absolute-address",
+        loc,
+        address: expr,
+      },
+      errors: exprErrors,
+    };
+  }
 }
