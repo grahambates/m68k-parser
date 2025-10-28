@@ -16,6 +16,7 @@ import {
   SizeNode,
   Location,
   UnknownNode,
+  StringLiteralNode,
 } from "./types";
 import { parseExpression } from "./expression-parser";
 import {
@@ -1031,6 +1032,32 @@ function expandFPURegisterRange(spec: string): FPUDataRegister[] {
   return [];
 }
 
+const isStringLiteral = (text: string) =>
+  text.startsWith('"') || text.startsWith("'") || text.startsWith("<");
+
+function parseStringLiteral(
+  text: string,
+  loc: Location,
+): ParserResult<StringLiteralNode> {
+  const quote = text.startsWith("<") ? ("<>" as const) : (text[0] as '"' | "'");
+  const endQuote = quote === "<>" ? ">" : quote;
+  const hasEndQuote = text.endsWith(endQuote);
+  const quoteStartLength = quote === "<>" ? 1 : 1;
+  const content = hasEndQuote
+    ? text.slice(quoteStartLength, -1)
+    : text.slice(quoteStartLength);
+
+  return {
+    value: {
+      type: "string-literal",
+      loc,
+      quote,
+      content,
+    },
+    errors: [],
+  };
+}
+
 /**
  * Parse an operand string and determine its type (addressing mode)
  * @param text - The operand string to parse
@@ -1046,26 +1073,8 @@ export function parseOperand(
   mnemonicCategory?: "instruction" | "directive" | "macro",
 ): ParserResult<OperandNode> {
   // String literals: "text", 'text', <text>
-  if (text.startsWith('"') || text.startsWith("'") || text.startsWith("<")) {
-    const quote = text.startsWith("<")
-      ? ("<>" as const)
-      : (text[0] as '"' | "'");
-    const endQuote = quote === "<>" ? ">" : quote;
-    const hasEndQuote = text.endsWith(endQuote);
-    const quoteStartLength = quote === "<>" ? 1 : 1;
-    const content = hasEndQuote
-      ? text.slice(quoteStartLength, -1)
-      : text.slice(quoteStartLength);
-
-    return {
-      value: {
-        type: "string-literal",
-        loc,
-        quote,
-        content,
-      },
-      errors: [],
-    };
+  if (isStringLiteral(text)) {
+    return parseStringLiteral(text, loc);
   }
 
   // Macro parameter: \1, \@, \<name>, etc.
@@ -1091,18 +1100,30 @@ export function parseOperand(
   // Immediate: #value
   if (text.startsWith("#")) {
     const exprText = text.slice(1);
-    const { value: exprValue, errors: exprErrors } = parseExpression(exprText, {
+    const exprLoc: Location = {
       start: loc.start + 1,
       end: loc.end,
       line: loc.line,
-    });
+    };
+    if (isStringLiteral(exprText)) {
+      const { value, errors } = parseStringLiteral(exprText, exprLoc);
+      return {
+        value: {
+          type: "immediate",
+          loc,
+          value,
+        },
+        errors,
+      };
+    }
+    const { value, errors } = parseExpression(exprText, exprLoc);
     return {
       value: {
         type: "immediate",
         loc,
-        value: exprValue,
+        value,
       },
-      errors: exprErrors,
+      errors,
     };
   }
 

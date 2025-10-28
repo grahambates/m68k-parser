@@ -268,10 +268,10 @@ export interface MacroParameterNode extends Node {
   param: string; // The parameter identifier
 }
 
-// Immediate value (#123, #$FF, etc.)
+// Immediate value (#123, #$FF, #'f' etc.)
 export interface ImmediateNode extends Node {
   type: "immediate";
-  value: ExpressionNode; // Parsed expression (the part after #)
+  value: ExpressionNode | StringLiteralNode; // Parsed expression (the part after #)
 }
 
 // Address register indirect: (a0)

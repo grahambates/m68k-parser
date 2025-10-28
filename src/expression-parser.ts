@@ -6,7 +6,7 @@ import { ParseError, unclosedParen, invalidExpression } from "./parse-error";
 /**
  * Parse an expression string into an expression AST
  * Uses recursive descent parser with vasm operator precedence
- * @param expr - The expression string to parse
+ * @param expr1 - The expression string to parse
  * @param loc - Location in the original source
  * @returns Parser result with expression node and optional error
  */
@@ -14,10 +14,8 @@ export function parseExpression(
   expr: string,
   loc: Location,
 ): ParserResult<ExpressionNode> {
-  const trimmed = expr.trim();
-
   // Handle empty expressions
-  if (!trimmed) {
+  if (!expr) {
     return {
       value: {
         type: "unknown",
@@ -27,7 +25,7 @@ export function parseExpression(
     };
   }
 
-  const { tokens, errors: tokenizerErrors } = tokenizeExpression(trimmed);
+  const { tokens, errors: tokenizerErrors } = tokenizeExpression(expr, loc);
   let pos = 0;
   let parseError: ParseError | undefined;
 

@@ -1,4 +1,4 @@
-import { NumberFormat } from "./types";
+import { Location, NumberFormat } from "./types";
 import { ParseError, unknownCharacter } from "./parse-error";
 import {
   isDigit,
@@ -33,7 +33,10 @@ export interface ExpressionTokenizeResult {
  * Tokenize an expression string
  * Returns tokens and any errors encountered during tokenization
  */
-export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
+export function tokenizeExpression(
+  expr: string,
+  loc: Location,
+): ExpressionTokenizeResult {
   const tokens: ExpressionToken[] = [];
   const errors: ParseError[] = [];
   let i = 0;
@@ -216,7 +219,13 @@ export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
         }
       }
       // If we couldn't parse it as a macro parameter, report unknown character
-      errors.push(unknownCharacter("\\", { start: i - 1, end: i }));
+      errors.push(
+        unknownCharacter("\\", {
+          start: loc.start + i - 1,
+          end: loc.start + i,
+          line: loc.line,
+        }),
+      );
       continue;
     }
 
@@ -232,7 +241,13 @@ export function tokenizeExpression(expr: string): ExpressionTokenizeResult {
     }
 
     // Unknown character - report error and skip it
-    errors.push(unknownCharacter(char, { start: i, end: i + 1 }));
+    errors.push(
+      unknownCharacter(char, {
+        start: loc.start + i - 1,
+        end: loc.start + i,
+        line: loc.line,
+      }),
+    );
     i++;
   }
 
