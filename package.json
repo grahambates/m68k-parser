@@ -10,7 +10,9 @@
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",
-  "bin": "./cli.js",
+  "bin": {
+    "m68k-parser": "cli.js"
+  },
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
