@@ -1,7 +1,7 @@
-import { BinaryOp, ExpressionNode, Location, ParserResult } from "./types";
-import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer";
-import { isBuiltinSymbol, isUnaryOp } from "./syntax";
-import { ParseError, unclosedParen, invalidExpression } from "./parse-error";
+import { BinaryOp, ExpressionNode, Location, ParserResult } from "./types.js";
+import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer.js";
+import { isBuiltinSymbol, isUnaryOp } from "./syntax.js";
+import { ParseError, unclosedParen, invalidExpression } from "./parse-error.js";
 
 /**
  * Parse an expression string into an expression AST

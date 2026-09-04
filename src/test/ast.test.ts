@@ -1,4 +1,4 @@
-import { parseLine } from "../index";
+import { parseLine } from "../index.js";
 
 describe("parse AST", () => {
   describe("#parseLine() with type information", () => {

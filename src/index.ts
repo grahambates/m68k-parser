@@ -1,4 +1,4 @@
-export type * from "./types";
+export type * from "./types.js";
 
-export { parseLine } from "./line-parser";
-export { parseFile } from "./file-parser";
+export { parseLine } from "./line-parser.js";
+export { parseFile } from "./file-parser.js";

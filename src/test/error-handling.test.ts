@@ -4,8 +4,8 @@ import {
   parseLine,
   UnaryOperatorNode,
   ValueNode,
-} from "../index";
-import { formatError } from "../parse-error";
+} from "../index.js";
+import { formatError } from "../parse-error.js";
 
 describe("Error Handling and Edge Cases", () => {
   describe("Error formatting", () => {

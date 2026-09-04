@@ -12,12 +12,12 @@ import {
   Directive,
   ParserResult,
   MacroNode,
-} from "./types";
-import { ParseError } from "./parse-error";
-import { parseOperand } from "./operand-parser";
-import { parseExpression } from "./expression-parser";
-import { isDirective, isInstruction, isSize, noOperand } from "./syntax";
-import { parseMacroParameter } from "./macro-utils";
+} from "./types.js";
+import { ParseError } from "./parse-error.js";
+import { parseOperand } from "./operand-parser.js";
+import { parseExpression } from "./expression-parser.js";
+import { isDirective, isInstruction, isSize, noOperand } from "./syntax.js";
+import { parseMacroParameter } from "./macro-utils.js";
 
 /**
  * Parser state - tracks position and accumulated errors

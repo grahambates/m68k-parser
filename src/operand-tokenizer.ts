@@ -9,8 +9,8 @@ import {
   isSpecialRegister,
   isFPUDataRegister,
   isFPUControlRegister,
-} from "./syntax";
-import { ParseError, unknownCharacter, malformedNumber } from "./parse-error";
+} from "./syntax.js";
+import { ParseError, unknownCharacter, malformedNumber } from "./parse-error.js";
 import {
   isIdentifierStart,
   isIdentifierPart,
@@ -19,7 +19,7 @@ import {
   isBinaryDigit,
   isOctalDigit,
   isWhitespace,
-} from "./tokenizer-utils";
+} from "./tokenizer-utils.js";
 
 export type OperandTokenType =
   | "lparen" // (

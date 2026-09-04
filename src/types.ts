@@ -15,8 +15,8 @@ import type {
   UnaryOp,
   SectionType,
   MemoryType,
-} from "./syntax";
-import type { ParseError, ParseErrorCode } from "./parse-error";
+} from "./syntax.js";
+import type { ParseError, ParseErrorCode } from "./parse-error.js";
 
 export type {
   DataRegister,

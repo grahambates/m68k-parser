@@ -17,8 +17,8 @@ import {
   Location,
   UnknownNode,
   StringLiteralNode,
-} from "./types";
-import { parseExpression } from "./expression-parser";
+} from "./types.js";
+import { parseExpression } from "./expression-parser.js";
 import {
   isAddressRegister,
   isDataRegister,
@@ -29,12 +29,12 @@ import {
   isAddressSize,
   isSectionType,
   isMemoryType,
-} from "./syntax";
+} from "./syntax.js";
 import {
   tokenizeOperand,
   OperandToken,
   OperandTokenType,
-} from "./operand-tokenizer";
+} from "./operand-tokenizer.js";
 import {
   expectedToken,
   unclosedBracket,
@@ -48,9 +48,9 @@ import {
   invalidIdentifier,
   ParseError,
   invalidIndexSize,
-} from "./parse-error";
-import { parseMacroParameter } from "./macro-utils";
-import { isValidIdentifier } from "./tokenizer-utils";
+} from "./parse-error.js";
+import { parseMacroParameter } from "./macro-utils.js";
+import { isValidIdentifier } from "./tokenizer-utils.js";
 
 /**
  * Helper to create a register node from a register name

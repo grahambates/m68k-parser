@@ -1,12 +1,12 @@
-import { Location, NumberFormat } from "./types";
-import { ParseError, unknownCharacter } from "./parse-error";
+import { Location, NumberFormat } from "./types.js";
+import { ParseError, unknownCharacter } from "./parse-error.js";
 import {
   isDigit,
   isHexDigit,
   isBinaryDigit,
   isOctalDigit,
   isWhitespace,
-} from "./tokenizer-utils";
+} from "./tokenizer-utils.js";
 
 // Expression tokenizer types
 export type ExpressionToken =

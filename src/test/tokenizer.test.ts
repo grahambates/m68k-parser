@@ -1,4 +1,4 @@
-import { tokenizeOperand } from "../operand-tokenizer";
+import { tokenizeOperand } from "../operand-tokenizer.js";
 
 describe("Operand Tokenizer", () => {
   it("should tokenize simple register", () => {

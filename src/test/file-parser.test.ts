@@ -1,4 +1,4 @@
-import { parseFile } from "../file-parser";
+import { parseFile } from "../file-parser.js";
 
 describe("parseFile", () => {
   describe("basic functionality", () => {
