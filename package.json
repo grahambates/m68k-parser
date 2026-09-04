@@ -1,6 +1,6 @@
 {
   "name": "m68k-parser",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Motorola 68000 assembly parser",
   "author": "Graham Bates",
   "repository": {
