@@ -507,6 +507,94 @@ describe("Expression Parsing", () => {
     });
   });
 
+  describe("Character literals", () => {
+    it("parses a character literal inside a grouped expression", () => {
+      const line = parseLine("ID_DOS_DISK EQU ('D'<<24)!('O'<<16)");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "binary-op",
+          operator: "|",
+          left: {
+            type: "group",
+            expression: {
+              type: "binary-op",
+              operator: "<<",
+              left: { type: "string-literal", quote: "'", content: "D" },
+              right: { type: "numeric-literal", value: 24 },
+            },
+          },
+        },
+      });
+    });
+
+    it("parses a double-quoted literal in an expression", () => {
+      const line = parseLine('  dc.l ("AB"<<8)');
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "group",
+          expression: {
+            left: { type: "string-literal", quote: '"', content: "AB" },
+          },
+        },
+      });
+    });
+
+    it("parses a multi-character literal as an operand of an operator", () => {
+      const line = parseLine("  move.l #'A'-'0',d0");
+      expect(line.errors).toHaveLength(0);
+    });
+
+    it("reports an unterminated string in an expression", () => {
+      const line = parseLine("  dc.l ('A<<8)");
+      expect(line.errors[0]).toMatchObject({ code: "UNTERMINATED_STRING" });
+    });
+  });
+
+  describe("Macro parameters embedded in symbols", () => {
+    it("parses a symbol with a trailing \\@ in a grouped expression", () => {
+      const line = parseLine("  DC.B (CMD\\@)!$80");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "binary-op",
+          operator: "|",
+          left: {
+            type: "group",
+            expression: { type: "symbol", name: "CMD\\@" },
+          },
+          right: { type: "numeric-literal", format: "hex", value: 0x80 },
+        },
+      });
+    });
+
+    it("parses a symbol with an embedded numeric macro parameter", () => {
+      const line = parseLine("  move.w #(BLTEN_\\1+1),d0");
+      expect(line.errors).toHaveLength(0);
+    });
+
+    it("parses a symbol with a trailing \\@@ macro parameter", () => {
+      const line = parseLine("  movem.l (sp)+,PUSHM_\\@@");
+      expect(line.errors).toHaveLength(0);
+    });
+
+    it("still parses a standalone macro parameter as such", () => {
+      const line = parseLine("  dc.w \\1+4");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "value",
+        value: {
+          type: "binary-op",
+          left: { type: "macro-parameter", paramType: "numeric", param: "1" },
+        },
+      });
+    });
+  });
+
   describe("Complex real-world expressions", () => {
     it("parses vasm example from docs", () => {
       const line = parseLine(

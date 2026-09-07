@@ -10,6 +10,7 @@ export type ParseErrorCode =
   | "UNCLOSED_BRACKET"
   | "UNCLOSED_PAREN"
   | "UNCLOSED_BRACE"
+  | "UNTERMINATED_STRING"
   | "UNEXPECTED_EOF"
   | "MALFORMED_MEMORY_INDIRECT"
   | "MALFORMED_INDEXED_ADDRESSING"
@@ -180,6 +181,15 @@ export function malformedBitfield(message: string, loc: Location): ParseError {
   return createError("MALFORMED_BITFIELD", message, loc, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",
   });
+}
+
+export function unterminatedString(quote: string, loc: Location): ParseError {
+  return createError(
+    "UNTERMINATED_STRING",
+    `Unterminated string - missing closing ${quote}`,
+    loc,
+    { hint: `Add a closing ${quote} to end the string` },
+  );
 }
 
 export function invalidExpression(message: string, loc: Location): ParseError {

@@ -205,6 +205,18 @@ describe("Error Handling and Edge Cases", () => {
       expect(line.errors).toHaveLength(0);
     });
 
+    it("accepts \\@ suffix on a symbol in indexed displacement", () => {
+      // Local-label macro suffix (\@) embedded in a symbol used as the
+      // displacement of a PC-relative indexed operand.
+      const line = parseLine(" move.w .jtab\\@(pc,d0.w),d1");
+      expect(line.errors).toHaveLength(0);
+    });
+
+    it("accepts \\@ suffix on a symbol in address-register indexed displacement", () => {
+      const line = parseLine(" move.w .jtab\\@(a0,d0.w),d1");
+      expect(line.errors).toHaveLength(0);
+    });
+
     it("accepts macro parameter in expressions", () => {
       const line = parseLine(" move.w #\\1+4,d0");
       expect(line.errors).toHaveLength(0);

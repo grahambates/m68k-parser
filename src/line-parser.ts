@@ -517,6 +517,18 @@ function parseQualifier(state: ParserState): QualifierNode | null {
 }
 
 /**
+ * Check whether the text following a `macro` directive is a parameter name
+ * list (`arg1,arg2`) rather than free-form documentation of the arguments.
+ */
+function isMacroParameterList(rest: string): boolean {
+  const text = rest.replace(/[;*].*$/, "").trim();
+  if (!text) return false;
+  // A name, optionally angle-bracket quoted: arg1, <arg1>
+  const name = "(?:[a-z_.][\\w.$]*|<[^<>]*>)";
+  return new RegExp(`^${name}(?:\\s*,\\s*${name})*$`, "i").test(text);
+}
+
+/**
  * Parse operand list
  * Format: operand[,operand...]
  * Stops at: comment marker (;, *), or when encountering text that can't be part of an operand
@@ -870,7 +882,17 @@ export function parseLine(
       mnemonicText &&
       noOperand.includes(mnemonicText as Instruction | Directive);
 
-    if (!isNoOperand) {
+    // A `macro` definition line optionally names its parameters, but
+    // assemblers ignore anything else that follows. Real-world sources
+    // document the arguments there instead, e.g.
+    // `ALERT MACRO (alertNumber, [paramArray])`, so only parse the remainder
+    // as operands when it's a plain list of parameter names.
+    const isMacroDefWithoutParamList =
+      parsedLine.mnemonic.type === "directive" &&
+      mnemonicText === "macro" &&
+      !isMacroParameterList(state.text.slice(state.pos));
+
+    if (!isNoOperand && !isMacroDefWithoutParamList) {
       // Regular operand parsing
       const { operands, errors } = parseOperandList(state, {
         mnemonic: mnemonicText,

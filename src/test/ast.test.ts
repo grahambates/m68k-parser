@@ -467,6 +467,36 @@ describe("parse AST", () => {
       });
     });
 
+    describe("macro definition lines", () => {
+      it("parses a parameter name list as operands", () => {
+        const line = parseLine("MyMacro macro arg1,arg2");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands).toHaveLength(2);
+        expect(line.value.operands?.[0]).toMatchObject({
+          type: "value",
+          value: { type: "symbol", name: "arg1" },
+        });
+      });
+
+      it("treats free-form argument documentation as a comment", () => {
+        // exec/alerts.i documents the arguments on the definition line
+        const line = parseLine("ALERT\t\tMACRO\t(alertNumber, [paramArray])");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands).toBeUndefined();
+        expect(line.value.comment).toMatchObject({
+          hasPrefix: false,
+          content: "(alertNumber, [paramArray])",
+        });
+      });
+
+      it("treats a slash-style argument list as a comment", () => {
+        // libraries/nonvolatile.i style: MACRO ;DataPtr SizeReg
+        const line = parseLine("SizeNVData\tMACRO\t;DataPtr SizeReg");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands).toBeUndefined();
+      });
+    });
+
     it("parses directive operands as value type", () => {
       // Data definition directives should have value operands, not absolute-address
       const dcb = parseLine("  dc.b 0,1,2").value;

@@ -1,5 +1,9 @@
 import { Location, NumberFormat } from "./types.js";
-import { ParseError, unknownCharacter } from "./parse-error.js";
+import {
+  ParseError,
+  unknownCharacter,
+  unterminatedString,
+} from "./parse-error.js";
 import {
   isDigit,
   isHexDigit,
@@ -17,6 +21,12 @@ export type ExpressionToken =
       position: number;
     }
   | { type: "symbol"; value: string; position: number }
+  | {
+      type: "string";
+      value: string;
+      quote: '"' | "'";
+      position: number;
+    }
   | { type: "operator"; value: string; position: number }
   | { type: "macro-parameter"; value: string; position: number }
   | { type: "lparen"; position: number }
@@ -27,6 +37,29 @@ export type ExpressionToken =
 export interface ExpressionTokenizeResult {
   tokens: ExpressionToken[];
   errors: ParseError[];
+}
+
+/**
+ * Macro parameter forms recognised inside expressions.
+ * Mirrors the set handled by parseMacroParameter() in macro-utils.
+ */
+const macroParameterPattern =
+  /^\\(?:\d+|@[@!?]?|<[^>]*>|\?(?:\d+|[a-z])|[.+-]|[a-z])/i;
+
+/**
+ * Read a macro parameter sequence starting at the backslash at `start`.
+ * Returns the raw text (including the backslash) or null if the backslash
+ * doesn't introduce a recognised parameter.
+ */
+function readMacroParameter(expr: string, start: number): string | null {
+  if (expr[start] !== "\\") return null;
+  const match = macroParameterPattern.exec(expr.slice(start));
+  return match ? match[0] : null;
+}
+
+/** Characters that can continue a symbol (excluding macro parameters) */
+function isSymbolPart(ch: string): boolean {
+  return /[\w.$]/.test(ch);
 }
 
 /**
@@ -184,67 +217,86 @@ export function tokenizeExpression(
       continue;
     }
 
-    // Macro parameters: \1, \@, \<name>
-    if (char === "\\") {
+    // String/character literals: 'A', "AB"
+    // In an expression these are numeric constants, e.g. ('D'<<24)!('O'<<16)
+    if (char === "'" || char === '"') {
       const position = i;
-      i++; // Skip the backslash
-      if (i < expr.length) {
-        // Check for \@
-        if (expr[i] === "@") {
-          tokens.push({ type: "macro-parameter", value: "@", position });
-          i++;
-          continue;
-        }
-        // Check for \<name>
-        if (expr[i] === "<") {
-          let value = "<";
-          i++;
-          while (i < expr.length && expr[i] !== ">") {
-            value += expr[i++];
-          }
-          if (i < expr.length && expr[i] === ">") {
-            value += expr[i++];
-          }
-          tokens.push({ type: "macro-parameter", value, position });
-          continue;
-        }
-        // Check for \number
-        if (isDigit(expr[i])) {
-          let value = "";
-          while (i < expr.length && isDigit(expr[i])) {
-            value += expr[i++];
-          }
-          tokens.push({ type: "macro-parameter", value, position });
-          continue;
-        }
+      const quote = char as '"' | "'";
+      i++; // opening quote
+      let value = "";
+      while (i < expr.length && expr[i] !== quote) {
+        value += expr[i++];
       }
-      // If we couldn't parse it as a macro parameter, report unknown character
-      errors.push(
-        unknownCharacter("\\", {
-          start: loc.start + i - 1,
-          end: loc.start + i,
-          line: loc.line,
-        }),
-      );
+      if (i < expr.length) {
+        i++; // closing quote
+      } else {
+        errors.push(
+          unterminatedString(quote, {
+            start: loc.start + position,
+            end: loc.start + i,
+            line: loc.line,
+          }),
+        );
+      }
+      tokens.push({ type: "string", value, quote, position });
       continue;
     }
 
-    // Symbols/identifiers: start with letter/underscore/dot, contain alphanumeric/underscore/dot/dollar
-    if (/[a-z_.]/i.test(char)) {
+    // Symbols and macro parameters.
+    // A symbol can embed macro parameters (e.g. `BLTEN_\1`, `CMD\@`,
+    // `PUSHM_\@@`), so identifier characters and backslash sequences are
+    // scanned together. A backslash sequence on its own is a macro parameter.
+    if (char === "\\" || /[a-z_.]/i.test(char)) {
       const position = i;
       let value = "";
-      while (i < expr.length && /[\w.$]/i.test(expr[i])) {
-        value += expr[i++];
+      let firstParam: string | null = null;
+
+      while (i < expr.length) {
+        const ch = expr[i];
+        if (ch === "\\") {
+          const param = readMacroParameter(expr, i);
+          if (!param) break;
+          if (!value) firstParam = param;
+          value += param;
+          i += param.length;
+        } else if (isSymbolPart(ch)) {
+          value += expr[i++];
+        } else {
+          break;
+        }
       }
-      tokens.push({ type: "symbol", value, position });
+
+      if (!value) {
+        // Lone backslash that doesn't introduce a macro parameter
+        i++;
+        errors.push(
+          unknownCharacter("\\", {
+            start: loc.start + position,
+            end: loc.start + position + 1,
+            line: loc.line,
+          }),
+        );
+        continue;
+      }
+
+      if (firstParam && firstParam === value) {
+        // Standalone macro parameter - value excludes the leading backslash
+        tokens.push({
+          type: "macro-parameter",
+          value: value.slice(1),
+          position,
+        });
+      } else {
+        tokens.push({ type: "symbol", value, position });
+      }
       continue;
     }
 
     // Unknown character - report error and skip it
     errors.push(
       unknownCharacter(char, {
-        start: loc.start + i - 1,
-        end: loc.start + i,
+        start: loc.start + i,
+        end: loc.start + i + 1,
         line: loc.line,
       }),
     );

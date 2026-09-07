@@ -41,6 +41,9 @@ export function parseExpression(
     let tokenLength: number;
     if (token.type === "eof") {
       tokenLength = 0;
+    } else if (token.type === "string") {
+      // Include the surrounding quotes
+      tokenLength = token.value.length + 2;
     } else if ("value" in token) {
       tokenLength = token.value.length;
     } else {
@@ -92,6 +95,16 @@ export function parseExpression(
         type: "symbol",
         loc: tokLoc,
         name: symbolName,
+      };
+    }
+
+    if (token.type === "string") {
+      advance();
+      return {
+        type: "string-literal",
+        loc: tokLoc,
+        quote: token.quote,
+        content: token.value,
       };
     }
 

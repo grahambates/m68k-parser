@@ -10,7 +10,11 @@ import {
   isFPUDataRegister,
   isFPUControlRegister,
 } from "./syntax.js";
-import { ParseError, unknownCharacter, malformedNumber } from "./parse-error.js";
+import {
+  ParseError,
+  unknownCharacter,
+  malformedNumber,
+} from "./parse-error.js";
 import {
   isIdentifierStart,
   isIdentifierPart,
@@ -305,38 +309,52 @@ export function tokenizeOperand(text: string): OperandTokenizeResult {
     // Identifiers/Registers/Symbols
     if (isIdentifierStart(ch) || ch === "\\") {
       let value = "";
-      // Handle macro parameters like \1, \@, \<name>
-      if (ch === "\\") {
-        value += advance();
+
+      // Consume a macro parameter starting at the current backslash:
+      // \1, \@, \<name>, \@@, \@!, \@?, etc.
+      const consumeMacroParameter = (): void => {
+        value += advance(); // consume backslash
         if (peek() === "<") {
           value += advance(); // <
           while (pos < text.length && peek() !== ">") {
             value += advance();
           }
           if (peek() === ">") value += advance(); // >
-        } else {
-          // \1, \@, etc. - just take next char(s)
-          while (
-            pos < text.length &&
-            (isIdentifierPart(peek()) ||
-              peek() === "@" ||
-              peek() === "?" ||
-              peek() === "!")
+          return;
+        }
+        // \1, \@, etc. - just take next char(s)
+        while (
+          pos < text.length &&
+          (isIdentifierPart(peek()) ||
+            peek() === "@" ||
+            peek() === "?" ||
+            peek() === "!")
+        ) {
+          value += advance();
+          // Special handling for \@@, \@!, \@?
+          if (
+            value.endsWith("@") &&
+            (peek() === "@" || peek() === "!" || peek() === "?")
           ) {
             value += advance();
-            // Special handling for \@@, \@!, \@?
-            if (
-              value.endsWith("@") &&
-              (peek() === "@" || peek() === "!" || peek() === "?")
-            ) {
-              value += advance();
-              break;
-            }
+            break;
           }
         }
-      } else {
-        while (pos < text.length && isIdentifierPart(peek())) {
+      };
+
+      // A symbol may mix plain identifier characters with embedded macro
+      // parameters, e.g. `.jtab\@`, `b\1`, `foo\<x>`. Handle backslash
+      // sequences explicitly so the macro parameter's trailing `@`/`?`/`!`
+      // characters are consumed rather than left stranded. `isIdentifierPart`
+      // matches `\`, so check for it first.
+      while (pos < text.length) {
+        const c = peek();
+        if (c === "\\") {
+          consumeMacroParameter();
+        } else if (isIdentifierPart(c)) {
           value += advance();
+        } else {
+          break;
         }
       }
 

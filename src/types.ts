@@ -130,6 +130,7 @@ export type ExpressionNode =
   | GroupNode
   | CurrentAddressNode
   | MacroParameterExpressionNode
+  | StringLiteralNode
   | UnknownNode;
 
 // Numeric literal in an expression
