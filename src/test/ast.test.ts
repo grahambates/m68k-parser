@@ -25,6 +25,34 @@ describe("parse AST", () => {
       });
     });
 
+    it("ignores colons inside string operands when looking for a label", () => {
+      // An indented line needs a colon to hold a label, but one inside a
+      // string belongs to the text: `LOG_INFO` here is a macro invocation.
+      const macro = parseLine(
+        '  LOG_INFO "DOS: part preloaded (%d hunks)",d6',
+      ).value;
+      expect(macro.label).toBeUndefined();
+      expect(macro.mnemonic).toMatchObject({
+        type: "macro",
+        macro: "LOG_INFO",
+      });
+      expect(macro.operands).toHaveLength(2);
+
+      const single = parseLine("  LOG_INFO 'a:b'").value;
+      expect(single.label).toBeUndefined();
+      expect(single.mnemonic).toMatchObject({ type: "macro" });
+
+      // A real indented label is still one.
+      expect(parseLine("  indented:").value.label).toMatchObject({
+        type: "label",
+        label: "indented",
+      });
+      expect(parseLine('  after: LOG_INFO "x: y"').value.label).toMatchObject({
+        type: "label",
+        label: "after",
+      });
+    });
+
     it("parses instructions, directives, and macros", () => {
       const instruction = parseLine("  move d0,d1").value;
       expect(instruction.mnemonic).toMatchObject({

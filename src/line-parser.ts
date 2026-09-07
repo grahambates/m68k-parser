@@ -87,8 +87,23 @@ function isLabelStart(
     // Must track depth to avoid false positives from colons in bitfields {offset:width}
     let i = 0;
     let depth = 0;
+    let quote: string | null = null;
     while (state.pos + i < state.text.length) {
       const ahead = peek(state, i);
+
+      // A colon inside a string is text, not a label terminator: without this
+      // `  LOG_INFO "DOS: loaded"` reads as a label followed by a comment, and
+      // the whole macro invocation disappears from the parsed line.
+      if (quote) {
+        if (ahead === quote) quote = null;
+        i++;
+        continue;
+      }
+      if (ahead === '"' || ahead === "'") {
+        quote = ahead;
+        i++;
+        continue;
+      }
 
       // Track brace/bracket depth
       if (ahead === "{" || ahead === "[" || ahead === "(") {
