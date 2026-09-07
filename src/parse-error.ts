@@ -177,6 +177,15 @@ export function malformedIndexedAddressing(
   });
 }
 
+export function malformedMemoryIndirect(
+  message: string,
+  loc: Location,
+): ParseError {
+  return createError("MALFORMED_MEMORY_INDIRECT", message, loc, {
+    hint: "Memory indirect format: ([bd,An,Xn],od) or ([bd,An],Xn,od)",
+  });
+}
+
 export function malformedBitfield(message: string, loc: Location): ParseError {
   return createError("MALFORMED_BITFIELD", message, loc, {
     hint: "Bitfield format: {offset:width} or {offset} or {Dn:Dm}",

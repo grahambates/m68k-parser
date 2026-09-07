@@ -40,6 +40,7 @@ import {
   unclosedBracket,
   unclosedParen,
   malformedIndexedAddressing,
+  malformedMemoryIndirect,
   invalidScaleFactor,
   malformedBitfield,
   unclosedBrace,
@@ -51,6 +52,35 @@ import {
 } from "./parse-error.js";
 import { parseMacroParameter } from "./macro-utils.js";
 import { isValidIdentifier } from "./tokenizer-utils.js";
+
+/**
+ * Find the index of a character in `text` that sits outside any parentheses,
+ * brackets or braces, ignoring anything inside a quoted string.
+ * Returns -1 when there is none.
+ */
+function indexOfTopLevel(text: string, char: string): number {
+  let depth = 0;
+  let quote: string | null = null;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (depth === 0 && ch === char) {
+      return i;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === ")" || ch === "]" || ch === "}") {
+      depth--;
+    }
+  }
+  return -1;
+}
 
 /**
  * Helper to create a register node from a register name
@@ -177,6 +207,21 @@ function createAddressRegisterOrSymbolNode(
  * Format: Rn or Rn.size or Rn.size*scale or Rn*scale or \1 or \<param>
  * Returns the register, size, and scale factor (as expression)
  */
+/**
+ * Check whether `text` names an index register (`Dn`/`An`/`sp`, optionally with
+ * a `.w`/`.l` size and a `*scale`) rather than a displacement expression.
+ * Used to tell `([An],Xn,od)` apart from `([An],od)`.
+ */
+function isIndexSpec(text: string): boolean {
+  const regText = text.match(/^[^*.]+/)?.[0]?.trim() ?? "";
+  if (!regText) return false;
+  if (parseMacroParameter(regText, { start: 0, end: 0 })) return true;
+  return (
+    isDataRegister(regText.toLowerCase()) ||
+    isAddressRegister(regText.toLowerCase())
+  );
+}
+
 function parseIndexSpec(
   text: string,
   loc: Location,
@@ -566,18 +611,61 @@ function parseMemoryIndirect(
     }
   }
 
-  // Parse outer displacement if present: ],od)
+  // Anything after the ] is the outer index register and/or the outer
+  // displacement: ],Xn.size*scale,od)  or  ],od)
   let outerDisplacement: ExpressionNode | undefined;
-  if (current().type === "comma") {
+  let indexPosition: "pre" | "post" | undefined = indexRegister
+    ? "pre"
+    : undefined;
+
+  const outerParts: string[] = [];
+  while (current().type === "comma") {
     consume("comma");
-    const outerPart = parseExpressionFromTokens(["rparen", "eof"]);
-    if (outerPart) {
-      const odResult = parseExpression(outerPart, loc);
-      if (odResult.errors) {
-        errors.push(...odResult.errors);
-      }
-      outerDisplacement = odResult.value;
+    outerParts.push(parseExpressionFromTokens(["comma", "rparen", "eof"]));
+  }
+
+  // The first part after the ] is the index register when it names one,
+  // otherwise everything there is the outer displacement:
+  // ([a0],d0.l,12) -> postindexed by d0.l, od 12; ([a0],12) -> od 12
+  if (outerParts.length > 0 && isIndexSpec(outerParts[0])) {
+    const outerIndex = outerParts.shift() as string;
+    const outerIndexStart = text.indexOf(outerIndex, text.indexOf("]"));
+    const indexSpec = parseIndexSpec(outerIndex, {
+      start: loc.start + outerIndexStart,
+      end: loc.start + outerIndexStart + outerIndex.length,
+      line: loc.line,
+    });
+    if (indexSpec.errors) {
+      errors.push(...indexSpec.errors);
     }
+    if (indexRegister) {
+      // The brackets already supplied an index; a memory indirect operand
+      // has one index register, either preindexed or postindexed.
+      errors.push(
+        malformedMemoryIndirect(
+          "Memory indirect has both a preindex and a postindex register",
+          loc,
+        ),
+      );
+    }
+    indexRegister = indexSpec.register;
+    indexSize = indexSpec.size;
+    scaleFactor = indexSpec.scaleFactor;
+    indexPosition = "post";
+
+    const scaleError = validateScaleFactor(scaleFactor);
+    if (scaleError) {
+      errors.push(scaleError);
+    }
+  }
+
+  const outerPart = outerParts.filter(Boolean).join(",");
+  if (outerPart) {
+    const odResult = parseExpression(outerPart, loc);
+    if (odResult.errors) {
+      errors.push(...odResult.errors);
+    }
+    outerDisplacement = odResult.value;
   }
 
   // Must end with )
@@ -602,6 +690,7 @@ function parseMemoryIndirect(
       indexSize,
       scaleFactor,
       outerDisplacement,
+      indexPosition,
     },
     errors,
   };
@@ -862,6 +951,35 @@ function parseIndexedAddressing(
 }
 
 /**
+ * Check whether `text` can be one half of a register pair: a register, a
+ * macro parameter, or a `(Rn)` / `(Rn)+` indirect for cas2. Colons also show up
+ * in operands that aren't register pairs (AmigaDOS paths such as `df0:file`),
+ * so both halves have to look the part before we treat `a:b` as a pair.
+ */
+function isRegisterPairMember(text: string): boolean {
+  if (isRegister(text.toLowerCase())) return true;
+  if (parseMacroParameter(text, { start: 0, end: 0 })) return true;
+  return /^\(\s*[a-z0-9_.\\@]+\s*\)\+?$/i.test(text);
+}
+
+/**
+ * Parse a bitfield offset or width, which is either a data register holding the
+ * value at runtime (`{d2:d3}`) or a constant expression (`{4:8}`).
+ */
+function parseBitfieldPart(
+  text: string,
+  loc: Location,
+  errors: ParseError[],
+): DataRegisterNode | ExpressionNode {
+  if (isDataRegister(text.toLowerCase())) {
+    return createRegisterNode(text, loc) as DataRegisterNode;
+  }
+  const result = parseExpression(text, loc);
+  errors.push(...result.errors);
+  return result.value;
+}
+
+/**
  * OperandToken-based parser for bitfield specifications: {offset:width}
  */
 function parseBitfield(text: string, loc: Location): ParserResult<OperandNode> {
@@ -929,12 +1047,8 @@ function parseBitfield(text: string, loc: Location): ParserResult<OperandNode> {
     };
   }
 
-  const offsetResult = parseExpression(offsetPart, loc);
-  if (offsetResult.errors) {
-    errors.push(...offsetResult.errors);
-  }
-  const offset = offsetResult.value;
-  let width: ExpressionNode | undefined;
+  const offset = parseBitfieldPart(offsetPart, loc, errors);
+  let width: DataRegisterNode | ExpressionNode | undefined;
 
   // Check for width (after colon)
   if (current().type === "colon") {
@@ -948,11 +1062,7 @@ function parseBitfield(text: string, loc: Location): ParserResult<OperandNode> {
     widthPart = widthPart.trim();
 
     if (widthPart) {
-      const widthResult = parseExpression(widthPart, loc);
-      if (widthResult.errors) {
-        errors.push(...widthResult.errors);
-      }
-      width = widthResult.value;
+      width = parseBitfieldPart(widthPart, loc, errors);
     }
   }
 
@@ -1173,6 +1283,75 @@ export function parseOperand(
   }
 
   // Addressing modes:
+
+  // Bitfield specification (68020+): <ea>{offset:width}, or {offset:width} on
+  // its own. The braces are a suffix on an effective address, e.g. d0{4:8},
+  // $dff180{0:8}, (a0){d2:d3}.
+  const braceIndex = indexOfTopLevel(text, "{");
+  if (braceIndex >= 0) {
+    const basePart = text.slice(0, braceIndex).trim();
+    const bitfieldResult = parseBitfield(text.slice(braceIndex), {
+      start: loc.start + braceIndex,
+      end: loc.end,
+      line: loc.line,
+    });
+
+    if (!basePart || bitfieldResult.value.type !== "bitfield") {
+      return bitfieldResult;
+    }
+
+    const baseResult = parseOperand(
+      basePart,
+      { start: loc.start, end: loc.start + basePart.length, line: loc.line },
+      context,
+    );
+
+    return {
+      value: { ...bitfieldResult.value, loc, base: baseResult.value },
+      errors: [...baseResult.errors, ...bitfieldResult.errors],
+    };
+  }
+
+  // Register pair (68020+): Dh:Dl and Dr:Dq for the 64-bit mulu.l/muls.l/
+  // divu.l/divs.l/divul.l/divsl.l forms, and Dc1:Dc2 / (Rn1):(Rn2) for cas2.
+  const colonIndex = indexOfTopLevel(text, ":");
+  const pairFirst = colonIndex > 0 ? text.slice(0, colonIndex).trim() : "";
+  const pairSecond = colonIndex > 0 ? text.slice(colonIndex + 1).trim() : "";
+  if (
+    pairFirst &&
+    pairSecond &&
+    isRegisterPairMember(pairFirst) &&
+    isRegisterPairMember(pairSecond)
+  ) {
+    const firstText = pairFirst;
+    const secondText = pairSecond;
+    const secondStart = text.indexOf(secondText, colonIndex + 1);
+
+    const firstResult = parseOperand(
+      firstText,
+      { start: loc.start, end: loc.start + firstText.length, line: loc.line },
+      context,
+    );
+    const secondResult = parseOperand(
+      secondText,
+      {
+        start: loc.start + secondStart,
+        end: loc.start + secondStart + secondText.length,
+        line: loc.line,
+      },
+      context,
+    );
+
+    return {
+      value: {
+        type: "register-pair",
+        loc,
+        first: firstResult.value,
+        second: secondResult.value,
+      },
+      errors: [...firstResult.errors, ...secondResult.errors],
+    };
+  }
 
   // Register
   if (isRegister(lower)) {

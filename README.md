@@ -138,8 +138,9 @@ Common assembler directives:
 - Indexed: `10(a0,d1.w)`, `(a0,d1.l*4)`
 - Absolute: `$1000.w`, `label`
 - PC-relative: `label(pc)`, `10(pc,d0)`
-- Memory indirect (68020+): `([bd,An,Rn],od)`
-- Bitfields (68020+): `{offset:width}`
+- Memory indirect (68020+): preindexed `([bd,An,Xn],od)`, postindexed `([bd,An],Xn,od)`
+- Bitfields (68020+): `d0{4:8}`, `$dff180{0:8}`, `12(a0){d0:d1}`
+- Register pairs (68020+): `d1:d2` for 64-bit `mulu.l`/`divs.l`/`divsl.l` etc., and `(a0):(a1)` for `cas2`
 
 ### Expressions
 Full expression support with:
@@ -148,6 +149,7 @@ Full expression support with:
 - Grouping with parentheses
 - Numeric literals: decimal, hex (`$FF`), binary (`%1010`), octal (`@77`)
 - Symbol references
+- Character literals: `'A'`, `('D'<<24)!('O'<<16)`
 - Current address (`*`)
 
 ## Example Output

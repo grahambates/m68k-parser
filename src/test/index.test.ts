@@ -1,4 +1,5 @@
 import { parseLine } from "../index.js";
+import type { MemoryIndirectNode } from "../index.js";
 
 describe("parse", () => {
   describe("#parseLine()", () => {
@@ -998,12 +999,12 @@ describe("parse", () => {
           {
             type: "bitfield",
             offset: {
-              type: "symbol",
-              name: "d0",
+              type: "data-register",
+              register: "d0",
             },
             width: {
-              type: "symbol",
-              name: "d1",
+              type: "data-register",
+              register: "d1",
             },
           },
           {
@@ -1015,6 +1016,144 @@ describe("parse", () => {
           },
         ],
       });
+    });
+
+    it("parses a bitfield applied to a data register", () => {
+      const line = parseLine(" bfextu d0{4:8},d1");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands).toMatchObject([
+        {
+          type: "bitfield",
+          base: { type: "data-register", register: "d0" },
+          offset: { type: "numeric-literal", value: 4 },
+          width: { type: "numeric-literal", value: 8 },
+        },
+        { type: "data-register", register: "d1" },
+      ]);
+    });
+
+    it("parses a bitfield with register offset and width", () => {
+      const line = parseLine(" bfins d1,d0{d2:d3}");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[1]).toMatchObject({
+        type: "bitfield",
+        base: { type: "data-register", register: "d0" },
+        offset: { type: "data-register", register: "d2" },
+        width: { type: "data-register", register: "d3" },
+      });
+    });
+
+    it("parses a bitfield applied to an absolute address", () => {
+      const line = parseLine(" bfclr $dff180{0:8}");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "bitfield",
+        base: {
+          type: "absolute-address",
+          address: { type: "numeric-literal", value: 0xdff180 },
+        },
+        offset: { type: "numeric-literal", value: 0 },
+        width: { type: "numeric-literal", value: 8 },
+      });
+    });
+
+    it("parses a bitfield applied to an indirect with displacement", () => {
+      const line = parseLine(" bfffo 12(a0){d0:4},d1");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "bitfield",
+        base: {
+          type: "address-register-indirect-displacement",
+          register: { type: "address-register", register: "a0" },
+        },
+        offset: { type: "data-register", register: "d0" },
+      });
+    });
+
+    it("parses a register pair for 64-bit multiply", () => {
+      const line = parseLine(" mulu.l d0,d1:d2");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands).toMatchObject([
+        { type: "data-register", register: "d0" },
+        {
+          type: "register-pair",
+          first: { type: "data-register", register: "d1" },
+          second: { type: "data-register", register: "d2" },
+        },
+      ]);
+    });
+
+    it("parses a register pair for divsl.l", () => {
+      const line = parseLine(" divsl.l d0,d1:d2");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[1]).toMatchObject({
+        type: "register-pair",
+        first: { type: "data-register", register: "d1" },
+        second: { type: "data-register", register: "d2" },
+      });
+    });
+
+    it("parses cas2 with register and indirect pairs", () => {
+      const line = parseLine(" cas2.w d0:d1,d2:d3,(a0):(a1)");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands).toHaveLength(3);
+      expect(line.value.operands?.[2]).toMatchObject({
+        type: "register-pair",
+        first: {
+          type: "address-register-indirect",
+          register: { type: "address-register", register: "a0" },
+        },
+        second: {
+          type: "address-register-indirect",
+          register: { type: "address-register", register: "a1" },
+        },
+      });
+    });
+
+    it("does not treat a colon in a path-like operand as a register pair", () => {
+      // df0:file.i is not d-something : d-something
+      const line = parseLine(" MyMacro df0:file.i");
+      expect(line.value.operands?.[0].type).not.toBe("register-pair");
+    });
+
+    it("parses memory indirect postindexed", () => {
+      const line = parseLine(" move.l ([a0],d0.l,12),d1");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "memory-indirect",
+        baseRegister: { type: "address-register", register: "a0" },
+        indexRegister: { type: "data-register", register: "d0" },
+        indexSize: { type: "size", size: "l" },
+        outerDisplacement: { type: "numeric-literal", value: 12 },
+        indexPosition: "post",
+      });
+    });
+
+    it("marks an index inside the brackets as preindexed", () => {
+      const line = parseLine(" move.l ([8,a0,d0.l*4],4),d1");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "memory-indirect",
+        indexRegister: { type: "data-register", register: "d0" },
+        indexPosition: "pre",
+      });
+    });
+
+    it("treats a non-register after the brackets as the outer displacement", () => {
+      const line = parseLine(" move.l ([a0],4),d1");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "memory-indirect",
+        outerDisplacement: { type: "numeric-literal", value: 4 },
+      });
+      expect(
+        (line.value.operands?.[0] as MemoryIndirectNode).indexPosition,
+      ).toBeUndefined();
+    });
+
+    it("reports a memory indirect with both a pre- and a postindex", () => {
+      const line = parseLine(" move.l ([a0,a1],d2.w,8),d3");
+      expect(line.errors?.[0].code).toBe("MALFORMED_MEMORY_INDIRECT");
     });
 
     it("parses memory indirect with base register and outer displacement", () => {

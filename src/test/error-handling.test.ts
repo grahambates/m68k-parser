@@ -167,14 +167,14 @@ describe("Error Handling and Edge Cases", () => {
   });
 
   describe("Bitfield errors", () => {
-    // Note: Bitfield syntax (d0{1:8}) is parsed as separate value.operands currently
-    // The { and } are reported as unknown characters when not in proper context
+    it("reports an unclosed bitfield brace", () => {
+      const line = parseLine(" bfset d0{1:8");
+      expect(line.errors?.[0].code).toBe("UNCLOSED_BRACE");
+    });
 
-    it("reports error for standalone bitfield syntax", () => {
-      const line = parseLine(" bfset d0{1:8}");
-      expect(line.errors).toBeDefined();
-      // Currently parsed as d0 followed by unknown characters
-      expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
+    it("reports an empty bitfield offset", () => {
+      const line = parseLine(" bfset d0{:8}");
+      expect(line.errors?.[0].code).toBe("MALFORMED_BITFIELD");
     });
   });
 

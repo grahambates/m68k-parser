@@ -206,6 +206,7 @@ export type OperandNode =
   | PCRelativeNode
   | PCRelativeIndexNode
   | BitfieldNode
+  | RegisterPairNode
   | StringLiteralNode
   | MacroParameterNode
   | ValueNode
@@ -374,13 +375,35 @@ export interface MemoryIndirectNode extends Node {
   indexSize?: SizeNode | MacroParameterNode | UnknownNode;
   scaleFactor?: ExpressionNode; // 68020+ scale factor (e.g., 2, 4, foo+1)
   outerDisplacement?: ExpressionNode; // [...],od
+  /**
+   * Where the index register is applied, when there is one:
+   * - "pre":  preindexed,  ([bd,An,Xn],od) - index applied before the memory fetch
+   * - "post": postindexed, ([bd,An],Xn,od) - index applied after the memory fetch
+   */
+  indexPosition?: "pre" | "post";
 }
 
-// Bitfield specification (68020+): {offset:width}
+// Bitfield specification (68020+): <ea>{offset:width}
 export interface BitfieldNode extends Node {
   type: "bitfield";
-  offset: ExpressionNode; // Offset or register reference
-  width?: ExpressionNode; // Width or register reference (optional, defaults to 1)
+  /**
+   * The effective address the bitfield applies to, e.g. `d0` in `d0{4:8}`.
+   * Undefined when the bitfield is written on its own as `{offset:width}`.
+   */
+  base?: OperandNode;
+  offset: DataRegisterNode | ExpressionNode; // Offset or Dn holding it
+  width?: DataRegisterNode | ExpressionNode; // Width or Dn holding it (optional, defaults to 1)
+}
+
+/**
+ * Register pair joined with a colon (68020+):
+ * - `Dh:Dl` / `Dr:Dq` for 64-bit mulu.l/muls.l/divu.l/divs.l/divul.l/divsl.l
+ * - `Dc1:Dc2`, `Du1:Du2` and `(Rn1):(Rn2)` for cas2
+ */
+export interface RegisterPairNode extends Node {
+  type: "register-pair";
+  first: OperandNode;
+  second: OperandNode;
 }
 
 export interface SectionTypeNode extends Node {
