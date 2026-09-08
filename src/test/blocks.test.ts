@@ -1,5 +1,11 @@
 import { parseFile } from "../index.js";
-import { blockAt, enclosingBlocks, parseBlocks } from "../block-parser.js";
+import {
+  blockAt,
+  blockRole,
+  enclosingBlocks,
+  parseBlocks,
+} from "../block-parser.js";
+import { parseLine } from "../line-parser.js";
 
 const blocks = (src: string) => parseBlocks(parseFile(src));
 
@@ -164,6 +170,37 @@ describe("parseBlocks", () => {
     it("treats an unterminated block as running to the end of the file", () => {
       const open = blocks("M macro\n nop\n nop\n");
       expect(blockAt(open, 2)).toMatchObject({ kind: "macro" });
+    });
+  });
+
+  describe("blockRole", () => {
+    const roleOf = (src: string) => blockRole(parseLine(src).value);
+
+    it("classifies openers", () => {
+      expect(roleOf("M macro")).toBe("opener");
+      expect(roleOf(" rept 4")).toBe("opener");
+      expect(roleOf(" ifeq 1")).toBe("opener");
+      expect(roleOf(" ifnd FOO")).toBe("opener");
+    });
+
+    it("classifies alternatives", () => {
+      expect(roleOf(" else")).toBe("alternative");
+      expect(roleOf(" elseif 2")).toBe("alternative");
+    });
+
+    it("classifies terminators", () => {
+      expect(roleOf(" endm")).toBe("terminator");
+      expect(roleOf(" endr")).toBe("terminator");
+      expect(roleOf(" endc")).toBe("terminator");
+      expect(roleOf(" endif")).toBe("terminator");
+    });
+
+    it("returns nothing for a line that is not block structure", () => {
+      expect(roleOf(" move.w d0,d1")).toBeUndefined();
+      expect(roleOf("Label:")).toBeUndefined();
+      expect(roleOf(" dc.w 1")).toBeUndefined();
+      expect(roleOf("")).toBeUndefined();
+      expect(blockRole(undefined)).toBeUndefined();
     });
   });
 });

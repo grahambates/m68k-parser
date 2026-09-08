@@ -16,6 +16,34 @@ export function directiveName(line: ParsedLine | undefined): string | undefined 
     : undefined;
 }
 
+/**
+ * How a directive relates to block structure, if at all.
+ *
+ * Useful for classifying a single line without deriving the whole structure:
+ * a run of instructions that crosses one of these is not a straight-line
+ * sequence, since the arms of a conditional are alternatives, a repeat body
+ * runs a different number of times than the code around it, and a macro body
+ * is not executed where it is written.
+ */
+export function blockRole(
+  line: ParsedLine | undefined,
+): "opener" | "alternative" | "terminator" | undefined {
+  const directive = directiveName(line);
+  if (!directive) {
+    return undefined;
+  }
+  if (directive in blockOpeners) {
+    return "opener";
+  }
+  if (blockAlternatives.has(directive)) {
+    return "alternative";
+  }
+  if (blockTerminators.has(directive)) {
+    return "terminator";
+  }
+  return undefined;
+}
+
 interface OpenBlock extends Block {
   /** Directives that close this block. */
   closers: readonly string[];

@@ -5,6 +5,7 @@ export { parseFile } from "./file-parser.js";
 export {
   parseBlocks,
   blockAt,
+  blockRole,
   enclosingBlocks,
   directiveName,
 } from "./block-parser.js";
