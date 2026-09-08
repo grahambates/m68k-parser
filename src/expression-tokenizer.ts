@@ -59,7 +59,7 @@ function readMacroParameter(expr: string, start: number): string | null {
 
 /** Characters that can continue a symbol (excluding macro parameters) */
 function isSymbolPart(ch: string): boolean {
-  return /[\w.$]/.test(ch);
+  return /[\w.$@]/.test(ch);
 }
 
 /**
@@ -246,7 +246,8 @@ export function tokenizeExpression(
     // A symbol can embed macro parameters (e.g. `BLTEN_\1`, `CMD\@`,
     // `PUSHM_\@@`), so identifier characters and backslash sequences are
     // scanned together. A backslash sequence on its own is a macro parameter.
-    if (char === "\\" || /[a-z_.]/i.test(char)) {
+    // `@` starts an identifier in vasm's mot syntax, as in `@palette`.
+    if (char === "\\" || /[a-z_.@]/i.test(char)) {
       const position = i;
       let value = "";
       let firstParam: string | null = null;
@@ -271,6 +272,19 @@ export function tokenizeExpression(
         i++;
         errors.push(
           unknownCharacter("\\", {
+            start: loc.start + position,
+            end: loc.start + position + 1,
+            line: loc.line,
+          }),
+        );
+        continue;
+      }
+
+      // vasm's ISBADID rejects a lone '.', '@' or '_' as an identifier.
+      if (/^[.@_]$/.test(value)) {
+        i++;
+        errors.push(
+          unknownCharacter(value, {
             start: loc.start + position,
             end: loc.start + position + 1,
             line: loc.line,

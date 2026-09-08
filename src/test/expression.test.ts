@@ -1172,4 +1172,33 @@ describe("Expression Parsing", () => {
       });
     });
   });
+
+  describe("shift operators across an operand list", () => {
+    it("does not read a later operand's '>' as closing an angle string", () => {
+      // The `<` in `(24<<6)` used to start a lookahead for a matching `>`,
+      // which found the one in a following operand and swallowed everything
+      // between as a string literal.
+      const line = parseLine(
+        "  dc.w 1,((W+16)>>4)|(24<<6),0,((W+16)>>4)|(24<<6)",
+      );
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands).toHaveLength(4);
+    });
+
+    it("still treats a leading <text> as a string", () => {
+      const line = parseLine("  MyMacro <a,b>,c");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "string-literal",
+        content: "a,b",
+      });
+      expect(line.value.operands).toHaveLength(2);
+    });
+
+    it("treats a shift in an expression as an operator", () => {
+      const line = parseLine("  dc.w (24<<6),0,(W>>4)");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands).toHaveLength(3);
+    });
+  });
 });

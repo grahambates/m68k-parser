@@ -149,6 +149,22 @@ describe("Error Handling and Edge Cases", () => {
       }
     });
 
+    it("accepts an at-sign symbol as an operand", () => {
+      // vasm's ISIDSTART allows '@' to begin an identifier, so `@palette` is
+      // an ordinary symbol rather than a malformed octal literal.
+      const line = parseLine(" move.w (@palette)+,@shadow_color");
+      expect(line.errors).toHaveLength(0);
+    });
+
+    it("still reads an at-sign before a digit as octal", () => {
+      const line = parseLine(" move.w #@777,d0");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.operands?.[0]).toMatchObject({
+        type: "immediate",
+        value: { type: "numeric-literal", format: "octal", raw: "@777" },
+      });
+    });
+
     it("detects invalid scale factor", () => {
       const line = parseLine(" move.w (a0,d0.w*3),d1");
       expect(line.errors).not.toHaveLength(0);

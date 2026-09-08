@@ -283,9 +283,13 @@ function shouldContinueOperand(
     return true;
   }
 
-  // Digit or underscore after existing content - part of expression
+  // Digit or underscore after existing content - part of expression, unless
+  // the operand already reads as complete. Motorola syntax ends the operand
+  // list at whitespace and treats the rest of the line as a comment, so the
+  // trailing `0` in `dc.w bplcon1,$08 0` is a comment rather than more
+  // expression. Same rule as for a plain letter below.
   if (/[0-9_]/.test(nextCh) && operandText.length > 0) {
-    return true;
+    return !operandLooksComplete(operandText);
   }
 
   // Plain letter after complete structure - likely a comment
@@ -622,8 +626,13 @@ function parseOperandList(
       }
 
       // Handle angle bracket strings <text> specially
-      // These are string literals, not operators, so handle them like quoted strings
-      if (ch === "<" && !inString) {
+      // These are string literals, not operators, so handle them like quoted
+      // strings. Only where the operand has not started yet: `<a,b>` is a whole
+      // argument, whereas a `<` further in is a comparison or shift operator.
+      // Without that restriction the lookahead below runs past a comma into a
+      // later operand, so `dc.w (24<<6),0,(W>>4)` swallowed `<6),0,(W>` as a
+      // string.
+      if (ch === "<" && !inString && operandText.trim() === "") {
         // Peek ahead to see if this looks like a string literal
         let lookahead = state.pos + 1;
         while (lookahead < state.text.length && state.text[lookahead] !== ">") {

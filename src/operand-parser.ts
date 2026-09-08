@@ -738,9 +738,38 @@ function parseIndexedAddressing(
     return token;
   }
 
-  // Collect displacement before opening paren (if any)
+  // Collect displacement before opening paren (if any).
+  //
+  // The register group is the last balanced parenthesised group, found by
+  // walking back from the closing paren, because the displacement can contain
+  // parens of its own: `(W+32)/8(a0,d0.w)`.
+  let openIndex = -1;
+  {
+    let depth = 0;
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const type = tokens[i].type;
+      if (type === "rparen") {
+        depth++;
+      } else if (type === "lparen") {
+        depth--;
+        if (depth === 0) {
+          openIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
   let displacement = "";
-  while (current().type !== "lparen" && current().type !== "eof") {
+  while (
+    pos !== openIndex &&
+    current().type !== "lparen" &&
+    current().type !== "eof"
+  ) {
+    displacement += current().value;
+    consume();
+  }
+  while (pos < openIndex) {
     displacement += current().value;
     consume();
   }
@@ -847,11 +876,13 @@ function parseIndexedAddressing(
         errors,
       };
     } else {
-      // Accept any base register, including macro parameters and symbols
-      const parenIndex = text.indexOf("(");
+      // Accept any base register, including macro parameters and symbols.
+      // Positioned from the paren that was actually consumed rather than the
+      // first one in the text, which belongs to the displacement in forms like
+      // `(W+32)/8(a0,d0.w)`.
       const baseRegLoc: Location = {
-        start: loc.start + parenIndex + 1,
-        end: loc.start + parenIndex + 1 + baseReg.length,
+        start: loc.start + openParen.position + 1,
+        end: loc.start + openParen.position + 1 + baseReg.length,
         line: loc.line,
       };
 
@@ -1542,11 +1573,49 @@ export function parseOperand(
     };
   }
 
+  // Displacement inside parens where the register is not a literal address
+  // register: `(vposr+1,\1)` or `(8,\1)`. Only when the first part is a
+  // compound expression rather than a bare name, since `(sin,x)` with two
+  // plain identifiers is ambiguous and is read as base plus index above.
+  const dispInParensExpr = /^\(([^,)]+),\s*([^,)\s]+)\s*\)$/di.exec(text);
+  if (dispInParensExpr && !isValidIdentifier(dispInParensExpr[1].trim())) {
+    const displacement = dispInParensExpr[1];
+    const register = dispInParensExpr[2];
+
+    const { value: dispNode, errors } = parseExpression(displacement, {
+      start: loc.start + 1,
+      end: loc.start + 1 + displacement.length,
+      line: loc.line,
+    });
+
+    const regLoc: Location = {
+      start: loc.start + (dispInParensExpr.indices?.[2][0] ?? 0),
+      end: loc.start + (dispInParensExpr.indices?.[2][1] ?? 0),
+      line: loc.line,
+    };
+    const regResult = createAddressRegisterOrSymbolNode(register, regLoc);
+    if (regResult.error) errors.push(regResult.error);
+
+    return {
+      value: {
+        type: "address-register-indirect-displacement",
+        loc,
+        displacement: dispNode,
+        register: regResult.node,
+      },
+      errors,
+    };
+  }
+
   // Address register indirect with index: disp(base,index.size*scale) or (base,index.size*scale)
   // Also handles PC relative with index: disp(pc,index.size*scale) or (pc,index.size*scale)
   // Check for indexed addressing pattern (has comma-separated parts with at least one being a register)
+  // The displacement may itself be parenthesised, as in `(W+32)/8(a0,d0.w)`,
+  // so the leading group allows parens and the greedy match anchors on the
+  // final group. Memory indirect and `(disp,An)` are both handled above, so
+  // they cannot be caught here.
   const hasIndexedPattern =
-    /^([^(]*)\(([^,)]+),(.+)\)$/i.test(text) ||
+    /^(.*)\(([^,()]+),(.+)\)$/i.test(text) ||
     /^\(([^,)]+),\s*([^,)]+),\s*(.+)\)$/i.test(text);
 
   if (hasIndexedPattern) {
@@ -1592,8 +1661,10 @@ export function parseOperand(
       };
     }
 
-    // Calculate precise location of the register (inside parentheses)
-    const parenIndex = text.indexOf("(");
+    // Calculate precise location of the register (inside parentheses).
+    // The register sits in the final group, so anchor on that rather than the
+    // first paren, which may belong to the displacement as in `(W+32)/8(a0)`.
+    const parenIndex = text.lastIndexOf("(");
     const registerLoc: Location = {
       start: loc.start + parenIndex + 1,
       end: loc.start + parenIndex + 1 + register.length,

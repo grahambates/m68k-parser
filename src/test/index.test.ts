@@ -1397,9 +1397,16 @@ describe("parse", () => {
     });
 
     it("reports error for unknown character in expression", () => {
-      const line = parseLine(" move.w #5@3,d0");
+      const line = parseLine(" move.w #5`3,d0");
       expect(line.errors).toBeDefined();
-      // @ after a digit is not valid in expressions
+      // A backtick is not valid anywhere in an expression
+      expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
+    });
+
+    it("reports a lone at-sign, which is not a valid identifier", () => {
+      // `@` starts an identifier in vasm's mot syntax, but ISBADID rejects it
+      // on its own, and it is only an octal prefix before an octal digit.
+      const line = parseLine(" move.w #@,d0");
       expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
     });
 

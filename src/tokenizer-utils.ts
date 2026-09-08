@@ -4,20 +4,26 @@
 
 /**
  * Check if a character is a valid start of an identifier
- * Allows letters and underscore
+ * Allows letters, underscore and at-sign
  * Note: Dots are NOT included here because the tokenizer needs to handle them separately
+ *
+ * `@` matches vasm's mot syntax, where ISIDSTART accepts '.', '@' and '_'
+ * alongside letters. Symbols such as `@palette` are common in Amiga sources.
  */
 export function isIdentifierStart(ch: string): boolean {
-  return /[a-zA-Z_]/.test(ch);
+  return /[a-zA-Z_@]/.test(ch);
 }
 
 /**
  * Check if a character is a valid part of an identifier
- * Allows letters, digits, underscore, dollar, and backslash
+ * Allows letters, digits, underscore, dollar, at-sign and backslash
  * Note: Dots are NOT included here because the tokenizer needs to handle them separately
+ *
+ * vasm accepts '@' within an identifier under devpac_compat, and it cannot
+ * begin anything else mid-identifier, so it is allowed unconditionally here.
  */
 export function isIdentifierPart(ch: string): boolean {
-  return /[a-zA-Z0-9_$\\]/.test(ch);
+  return /[a-zA-Z0-9_$@\\]/.test(ch);
 }
 
 /**
@@ -63,11 +69,13 @@ export function isWhitespace(ch: string): boolean {
  */
 export function isValidIdentifier(str: string): boolean {
   if (!str || str.length === 0) return false;
-  // Allow starting with letter, underscore, or dot
-  if (!/[a-zA-Z_.]/.test(str[0])) return false;
-  // Allow continuing with alphanumeric, underscore, dot, dollar, or backslash
+  // Allow starting with letter, underscore, dot or at-sign
+  if (!/[a-zA-Z_.@]/.test(str[0])) return false;
+  // vasm rejects a lone '.', '@' or '_' as an identifier
+  if (str.length === 1 && /[._@]/.test(str)) return false;
+  // Allow continuing with alphanumeric, underscore, dot, dollar, at-sign or backslash
   for (let i = 1; i < str.length; i++) {
-    if (!/[a-zA-Z0-9_.$\\]/.test(str[i])) return false;
+    if (!/[a-zA-Z0-9_.$@\\]/.test(str[i])) return false;
   }
   return true;
 }

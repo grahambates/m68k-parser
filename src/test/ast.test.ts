@@ -1,3 +1,4 @@
+import type { Location } from "../types.js";
 import { parseLine } from "../index.js";
 
 describe("parse AST", () => {
@@ -278,6 +279,42 @@ describe("parse AST", () => {
             type: "size",
             size: "w",
           },
+        });
+      });
+
+      it("parses a parenthesised displacement with an index", () => {
+        const line = parseLine("  lea (WIDTH+32)/8(a0,d0.w),a2");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands?.[0]).toMatchObject({
+          type: "address-register-indirect-index",
+          displacement: { type: "binary-op", operator: "/" },
+          baseRegister: { type: "address-register", register: "a0" },
+          indexRegister: { type: "data-register", register: "d0" },
+        });
+      });
+
+      it("locates the base register after a parenthesised displacement", () => {
+        // The register belongs to the final group, not the first paren.
+        const src = "  lea (WIDTH+32)/8(a0,d0.w),a2";
+        const operand = parseLine(src).value.operands?.[0];
+        const base = (operand as { baseRegister: { loc: Location } })
+          .baseRegister;
+        expect(src.slice(base.loc.start, base.loc.end)).toBe("a0");
+      });
+
+      it("locates the register after a parenthesised displacement", () => {
+        const src = "  move.w (WIDTH+32)/8(a0),d0";
+        const operand = parseLine(src).value.operands?.[0];
+        const register = (operand as { register: { loc: Location } }).register;
+        expect(src.slice(register.loc.start, register.loc.end)).toBe("a0");
+      });
+
+      it("parses a macro parameter as the register with a displacement", () => {
+        const line = parseLine("  btst #0,(vposr+1,\\1)");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands?.[1]).toMatchObject({
+          type: "address-register-indirect-displacement",
+          register: { type: "macro-parameter" },
         });
       });
 
