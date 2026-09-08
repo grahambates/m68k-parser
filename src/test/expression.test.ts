@@ -1201,4 +1201,33 @@ describe("Expression Parsing", () => {
       expect(line.value.operands).toHaveLength(3);
     });
   });
+
+  describe("macro parameter locations", () => {
+    it("spans the backslash for a parameter inside an expression", () => {
+      // The tokenizer strips the leading backslash from the token value, so
+      // the length has to be adjusted or the location comes up one short.
+      const src = "  dc.w    CopOffs+\\1";
+      const operand = parseLine(src).value.operands?.[0] as {
+        value: { right: { loc: { start: number; end: number } } };
+      };
+      const param = operand.value.right;
+      expect(src.slice(param.loc.start, param.loc.end)).toBe("\\1");
+    });
+
+    it("spans a named parameter inside an expression", () => {
+      const src = "  dc.w    A+\\<name>";
+      const operand = parseLine(src).value.operands?.[0] as {
+        value: { right: { loc: { start: number; end: number } } };
+      };
+      const param = operand.value.right;
+      expect(src.slice(param.loc.start, param.loc.end)).toBe("\\<name>");
+    });
+
+    it("keeps expression structure for a macro argument with a parameter", () => {
+      // The under-coverage check that falls back to raw text must not misfire
+      // here: `CopOffs+\1` is a perfectly good expression.
+      const line = parseLine("  SetCop CopOffs+\\1,d0");
+      expect(line.value.operands?.[0].type).toBe("value");
+    });
+  });
 });

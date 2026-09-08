@@ -93,6 +93,11 @@ export interface LabelNode extends Node {
   type: "label";
   scope: "global" | "local" | "external";
   label: string;
+  /**
+   * True when the label embeds a macro placeholder, as in `.loop\@`, making
+   * it a per-expansion name rather than a single definition.
+   */
+  interpolated?: boolean;
 }
 
 // CPU Instruction (e.g., move, add, bra)
@@ -151,6 +156,12 @@ export interface NumericLiteralNode extends Node {
 export interface SymbolNode extends Node {
   type: "symbol";
   name: string; // The identifier name like "label" or "MYCONST"
+  /**
+   * True when the name embeds a macro placeholder, as in `BLTEN_\1` or
+   * `.loop\@`. Such a name is a template resolved when the macro expands,
+   * so it does not refer to any symbol as written.
+   */
+  interpolated?: boolean;
 }
 
 // Built-in assembler symbols
@@ -216,6 +227,7 @@ export type OperandNode =
   | StringLiteralNode
   | MacroParameterNode
   | ValueNode
+  | MacroArgumentNode
   | SectionTypeNode
   | MemoryTypeNode
   | OptOptionNode
@@ -365,6 +377,20 @@ export interface StringLiteralNode extends Node {
 export interface ValueNode extends Node {
   type: "value";
   value: ExpressionNode; // Parsed expression
+}
+
+/**
+ * An argument to a macro call that is not an expression.
+ *
+ * Macro arguments are substituted textually, so they need not be valid
+ * operands on their own: `BITDEF MEM,24BITDMA,9` passes `24BITDMA`, which
+ * cannot be an identifier because it starts with a digit. Used only where the
+ * text does not parse as an expression in full, so ordinary arguments keep
+ * their structure.
+ */
+export interface MacroArgumentNode extends Node {
+  type: "macro-argument";
+  text: string;
 }
 
 // Memory indirect addressing (68020+): ([bd,An,Rn.s*scale],od)

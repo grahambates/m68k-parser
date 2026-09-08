@@ -1,6 +1,7 @@
 import { BinaryOp, ExpressionNode, Location, ParserResult } from "./types.js";
 import { tokenizeExpression, ExpressionToken } from "./expression-tokenizer.js";
 import { isBuiltinSymbol, isUnaryOp } from "./syntax.js";
+import { isInterpolated } from "./tokenizer-utils.js";
 import { ParseError, unclosedParen, invalidExpression } from "./parse-error.js";
 
 /**
@@ -44,6 +45,9 @@ export function parseExpression(
     } else if (token.type === "string") {
       // Include the surrounding quotes
       tokenLength = token.value.length + 2;
+    } else if (token.type === "macro-parameter") {
+      // The tokenizer strips the leading backslash from the value
+      tokenLength = token.value.length + 1;
     } else if ("value" in token) {
       tokenLength = token.value.length;
     } else {
@@ -93,6 +97,7 @@ export function parseExpression(
 
       return {
         type: "symbol",
+        ...(isInterpolated(token.value) ? { interpolated: true } : {}),
         loc: tokLoc,
         name: symbolName,
       };

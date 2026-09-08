@@ -1,3 +1,4 @@
+import { isInterpolated } from "./tokenizer-utils.js";
 import {
   ParsedLine,
   LabelNode,
@@ -219,6 +220,7 @@ function parseLabel(
 
   return {
     type: "label",
+    ...(isInterpolated(label) ? { interpolated: true } : {}),
     loc: { start, end, line: state.line },
     label,
     scope,
@@ -741,10 +743,27 @@ function parseOperandList(
           operandIndex: operands.length,
         },
       );
-      operands.push(operand);
-      // Collect all errors from the result
-      if (operandErrors && operandErrors.length > 0) {
-        errors.push(...operandErrors);
+      // A macro argument is substituted textually, so it need not be a valid
+      // operand. Where the expression stopped short of the argument's end, as
+      // for `24BITDMA`, the structured parse is wrong rather than partial, so
+      // the raw text is kept instead. Arguments that do parse in full keep
+      // their structure, which is the common case.
+      if (
+        context?.mnemonicType === "macro" &&
+        operand.type === "value" &&
+        operand.value.loc.end < opEnd
+      ) {
+        operands.push({
+          type: "macro-argument",
+          loc: { start: opStart, end: opEnd, line: state.line },
+          text: operandText,
+        });
+      } else {
+        operands.push(operand);
+        // Collect all errors from the result
+        if (operandErrors && operandErrors.length > 0) {
+          errors.push(...operandErrors);
+        }
       }
     } else {
       // Empty operand (e.g., after comma but before next operand)

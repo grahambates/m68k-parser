@@ -79,3 +79,13 @@ export function isValidIdentifier(str: string): boolean {
   }
   return true;
 }
+
+/**
+ * Does a name embed a macro placeholder?
+ *
+ * Names like `BLTEN_\1` and `.loop\@` are templates resolved when the macro
+ * expands, so as written they refer to nothing.
+ */
+export function isInterpolated(name: string): boolean {
+  return name.includes("\\");
+}

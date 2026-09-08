@@ -51,7 +51,7 @@ import {
   invalidIndexSize,
 } from "./parse-error.js";
 import { parseMacroParameter } from "./macro-utils.js";
-import { isValidIdentifier } from "./tokenizer-utils.js";
+import { isInterpolated, isValidIdentifier } from "./tokenizer-utils.js";
 
 /**
  * Find the index of a character in `text` that sits outside any parentheses,
@@ -163,6 +163,7 @@ function createAddressRegisterOrSymbolNode(
       node: {
         type: "symbol",
         name: name,
+        ...(isInterpolated(name) ? { interpolated: true } : {}),
         loc,
       },
       error: invalidBaseRegister(name, loc),
@@ -186,6 +187,7 @@ function createAddressRegisterOrSymbolNode(
       node: {
         type: "symbol",
         name: name,
+        ...(isInterpolated(name) ? { interpolated: true } : {}),
         loc,
       },
       error: invalidIdentifier(name, loc, "base register position"),
@@ -197,6 +199,7 @@ function createAddressRegisterOrSymbolNode(
     node: {
       type: "symbol",
       name: name,
+      ...(isInterpolated(name) ? { interpolated: true } : {}),
       loc,
     },
   };
@@ -270,6 +273,7 @@ function parseIndexSpec(
       registerNode = {
         type: "symbol",
         name: regText,
+        ...(isInterpolated(regText) ? { interpolated: true } : {}),
         loc: regLoc,
       };
     } else {
