@@ -1461,5 +1461,24 @@ describe("parse", () => {
       expect(line.errors?.[0].code).toBe("UNKNOWN_CHARACTER");
       expect(line.errors?.[0].got).toBe(",");
     });
-  });
+  
+    it("treats a C style comment as a comment, not division", () => {
+      // The NDK headers document constants this way. Motorola syntax ends the
+      // operand field at whitespace, so the whole `/* ... */` is a comment.
+      const line = parseLine("ASHIFTSHIFT = 12        /* bits to align */");
+      expect(line.errors).toHaveLength(0);
+      expect(line.value.comment?.content).toBe("/* bits to align */");
+      expect(line.value.operands).toHaveLength(1);
+    });
+
+    it("keeps division parsing when the asterisk is absent", () => {
+      const spaced = parseLine(" dc.w 12 / 4").value;
+      expect(spaced.comment).toBeUndefined();
+      expect(spaced.operands).toHaveLength(1);
+
+      const tight = parseLine(" dc.w 12/4").value;
+      expect(tight.comment).toBeUndefined();
+      expect(tight.operands).toHaveLength(1);
+    });
+});
 });

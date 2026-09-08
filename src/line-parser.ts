@@ -679,12 +679,18 @@ function parseOperandList(
         advance(state); // consume whitespace
         skipWhitespace(state);
 
-        // Check for definite end-of-operand markers
+        // Check for definite end-of-operand markers.
+        //
+        // `/*` is included because Motorola syntax ends the operand field at
+        // whitespace and treats the rest as a comment, which is how the C
+        // style comments in the NDK headers work. Requiring the asterisk keeps
+        // a spaced-out division such as `12 / 4` parsing as an expression.
         if (
           isEOF(state) ||
           peek(state) === "," ||
           peek(state) === ";" ||
-          peek(state) === "*"
+          peek(state) === "*" ||
+          peekString(state, 2) === "/*"
         ) {
           state.pos = saved;
           break;
