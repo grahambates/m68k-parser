@@ -877,3 +877,38 @@ export type SectionType = (typeof sectionTypes)[number];
 export function isSectionType(type: string): type is SectionType {
   return sectionTypes.includes(type as SectionType);
 }
+
+/**
+ * Directives that open a block, mapped to the directives that close it.
+ *
+ * Conditionals accept either spelling of their terminator. Every conditional
+ * opener is spelled `if` something.
+ */
+export const blockOpeners: Record<string, readonly string[]> = {
+  macro: ["endm"],
+  rept: ["endr"],
+  if: ["endc", "endif"],
+  ifeq: ["endc", "endif"],
+  ifne: ["endc", "endif"],
+  ifgt: ["endc", "endif"],
+  ifge: ["endc", "endif"],
+  iflt: ["endc", "endif"],
+  ifle: ["endc", "endif"],
+  ifb: ["endc", "endif"],
+  ifnb: ["endc", "endif"],
+  if1: ["endc", "endif"],
+  if2: ["endc", "endif"],
+  ifp1: ["endc", "endif"],
+  ifc: ["endc", "endif"],
+  ifnc: ["endc", "endif"],
+  ifd: ["endc", "endif"],
+  ifnd: ["endc", "endif"],
+  ifmacrod: ["endc", "endif"],
+  ifmacrond: ["endc", "endif"],
+};
+
+/** Directives that end one arm of a conditional and begin the next. */
+export const blockAlternatives = new Set(["else", "elseif"]);
+
+/** Every directive that closes a block. */
+export const blockTerminators = new Set(["endm", "endr", "endc", "endif"]);

@@ -26,7 +26,9 @@ export type ParseErrorCode =
   | "MALFORMED_NUMBER"
   | "MISSING_SCALE_FACTOR"
   | "INVALID_BASE_REGISTER"
-  | "INVALID_IDENTIFIER";
+  | "INVALID_IDENTIFIER"
+  | "UNTERMINATED_BLOCK"
+  | "UNEXPECTED_BLOCK_TERMINATOR";
 
 export interface ParseError {
   code: ParseErrorCode;
@@ -305,4 +307,32 @@ export function invalidIndexSize(got: string, loc: Location): ParseError {
     got,
     hint: "Index size must be .w (word) or .l (long)",
   });
+}
+
+export function unterminatedBlock(
+  opener: string,
+  expected: readonly string[],
+  loc: Location,
+): ParseError {
+  return createError(
+    "UNTERMINATED_BLOCK",
+    `Unterminated '${opener}' block`,
+    loc,
+    {
+      expected: [...expected],
+      hint: `Add ${expected.map((e) => `'${e}'`).join(" or ")} to close it`,
+    },
+  );
+}
+
+export function unexpectedBlockTerminator(
+  terminator: string,
+  loc: Location,
+): ParseError {
+  return createError(
+    "UNEXPECTED_BLOCK_TERMINATOR",
+    `'${terminator}' without a matching block`,
+    loc,
+    { got: terminator },
+  );
 }

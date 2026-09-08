@@ -66,6 +66,35 @@ export interface ParsedLine {
   comment?: CommentNode;
 }
 
+export type BlockKind = "macro" | "repeat" | "conditional";
+
+/**
+ * A macro definition, repeat or conditional block.
+ *
+ * `start`, `end` and `alternatives` are indices into `ParsedFile.lines`,
+ * counted from zero, rather than the one-based `Location.line`.
+ */
+export interface Block {
+  kind: BlockKind;
+  /** Line opening the block. */
+  start: number;
+  /** Line closing it, absent when the block is never terminated. */
+  end?: number;
+  /** Name of a macro definition, taken from its label. */
+  name?: string;
+  /** `else` and `elseif` lines, in order. Conditionals only. */
+  alternatives: number[];
+  /** Blocks nested directly inside this one, in source order. */
+  children: Block[];
+}
+
+export interface BlockStructure {
+  /** Blocks at file level, in source order. */
+  blocks: Block[];
+  /** Unterminated blocks and terminators that match nothing. */
+  errors: ParseError[];
+}
+
 export interface ParsedFile {
   lines: ParsedLine[]; // All lines in the file
   errors: ParseError[];
