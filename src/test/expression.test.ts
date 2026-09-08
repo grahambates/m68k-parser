@@ -1230,4 +1230,68 @@ describe("Expression Parsing", () => {
       expect(line.value.operands?.[0].type).toBe("value");
     });
   });
+
+  describe("float literals", () => {
+    const literal = (src: string) => {
+      const operand = parseLine(src).value.operands?.[0] as {
+        value?: { format?: string; raw?: string; value?: number };
+        format?: string;
+        raw?: string;
+        value?: number;
+      };
+      return operand.value ?? operand;
+    };
+
+    it("reads a decimal point as a float", () => {
+      // vasm's dc.s/.d/.x/.p and fequ take floating point values; without
+      // this the fraction was dropped and `dc.s 1.5` became 1.
+      expect(literal(" dc.s 1.5")).toMatchObject({
+        format: "float",
+        raw: "1.5",
+        value: 1.5,
+      });
+      expect(literal("X fequ 3.14")).toMatchObject({
+        format: "float",
+        value: 3.14,
+      });
+    });
+
+    it("reads an exponent as part of a float", () => {
+      expect(literal(" dc.s 1.5e3")).toMatchObject({
+        format: "float",
+        value: 1500,
+      });
+      expect(literal(" dc.s 1.5e-3")).toMatchObject({
+        format: "float",
+        value: 0.0015,
+      });
+    });
+
+    it("still reads a whole number as decimal", () => {
+      expect(literal(" dc.w 1")).toMatchObject({
+        format: "decimal",
+        value: 1,
+      });
+    });
+
+    it("does not treat an address size suffix as a float", () => {
+      // `1.w` is a word-sized absolute address, not the number 1.w
+      expect(parseLine(" move.w 1.w,d0").value.operands?.[0]).toMatchObject({
+        type: "absolute-address",
+      });
+      expect(parseLine(" move.w 1.w,d0").errors).toHaveLength(0);
+    });
+
+    it("does not treat a leading dot as a float", () => {
+      // A leading dot begins a local label.
+      expect(parseLine(" bra .loop").value.operands?.[0]).toMatchObject({
+        type: "absolute-address",
+      });
+    });
+
+    it("leaves a bare exponent alone", () => {
+      // `1e3` is too ambiguous to guess at, so it stays a number.
+      expect(literal(" dc.w 1e3")).toMatchObject({ format: "decimal" });
+    });
+  });
 });

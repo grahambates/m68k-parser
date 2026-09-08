@@ -100,7 +100,13 @@ export interface ParsedFile {
   errors: ParseError[];
 }
 
-export type NumberFormat = "decimal" | "hex" | "binary" | "octal";
+/**
+ * `float` covers a literal written with a decimal point, as accepted by the
+ * floating point directives `dc.s`, `dc.d`, `dc.x`, `dc.p` and by `fequ`.
+ * Whether one is meaningful where it appears is for the caller to judge:
+ * `dc.b 1.5` parses as a float but is not valid data for a byte.
+ */
+export type NumberFormat = "decimal" | "hex" | "binary" | "octal" | "float";
 
 // Location information for AST nodes
 export interface Location {

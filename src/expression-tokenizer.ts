@@ -143,12 +143,34 @@ export function tokenizeExpression(
     }
 
     if (isDigit(char)) {
-      // Decimal number
+      // Decimal number, or a float where a dot separates two runs of digits.
+      //
+      // Digits are required on both sides: `1.w` is an address size suffix,
+      // and a leading dot begins a local label. An exponent is only read as
+      // part of a dotted float, so a bare `1e3` stays a number followed by a
+      // symbol rather than being guessed at.
       const position = i;
       let value = "";
       while (i < expr.length && isDigit(expr[i])) {
         value += expr[i++];
       }
+
+      if (expr[i] === "." && isDigit(expr[i + 1])) {
+        value += expr[i++];
+        while (i < expr.length && isDigit(expr[i])) {
+          value += expr[i++];
+        }
+
+        const exponent = /^[eE][-+]?\d+/.exec(expr.slice(i));
+        if (exponent) {
+          value += exponent[0];
+          i += exponent[0].length;
+        }
+
+        tokens.push({ type: "number", value, format: "float", position });
+        continue;
+      }
+
       tokens.push({ type: "number", value, format: "decimal", position });
       continue;
     }
