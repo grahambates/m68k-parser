@@ -512,8 +512,13 @@ function parseQualifier(state: ParserState): QualifierNode | null {
   }
 
   if (!size) {
-    // Incomplete size qualifier (just a dot)
-    return null;
+    // A dot with nothing after it yet. Reported as an empty unknown qualifier
+    // rather than dropped, so a caller can tell the cursor is on a size while
+    // one is being typed.
+    return {
+      type: "unknown",
+      loc: { start: start + 1, end: start + 1, line: state.line },
+    };
   }
 
   const end = state.pos;
@@ -527,8 +532,12 @@ function parseQualifier(state: ParserState): QualifierNode | null {
     };
   }
 
-  // Invalid size, but still consumed - could add warning here
-  return null;
+  // Not a size the parser knows. The text was consumed either way, so it is
+  // reported as an unknown qualifier rather than being dropped from the tree.
+  return {
+    type: "unknown",
+    loc: { start: start + 1, end, line: state.line },
+  };
 }
 
 /**

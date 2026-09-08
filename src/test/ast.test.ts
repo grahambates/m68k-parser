@@ -246,6 +246,41 @@ describe("parse AST", () => {
         });
       });
 
+      it("parses a register alias as the index register", () => {
+        // `sin equr a1` / `x equr d5` makes this ordinary indexed addressing.
+        // Resolving the names needs a symbol table, so they come back as
+        // symbols rather than being rejected.
+        const line = parseLine("  move.w (sin,x),d2");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands?.[0]).toMatchObject({
+          type: "address-register-indirect-index",
+          baseRegister: {
+            type: "symbol",
+            name: "sin",
+          },
+          indexRegister: {
+            type: "symbol",
+            name: "x",
+          },
+        });
+      });
+
+      it("parses a register alias index with size and scale", () => {
+        const line = parseLine("  move.w 8(a0,idx.w*4),d2");
+        expect(line.errors).toHaveLength(0);
+        expect(line.value.operands?.[0]).toMatchObject({
+          type: "address-register-indirect-index",
+          indexRegister: {
+            type: "symbol",
+            name: "idx",
+          },
+          indexSize: {
+            type: "size",
+            size: "w",
+          },
+        });
+      });
+
       it("parses PC relative", () => {
         const simple = parseLine("  bra label(pc)").value;
         expect(simple.operands?.[0]).toMatchObject({

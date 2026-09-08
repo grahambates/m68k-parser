@@ -230,8 +230,22 @@ describe("parse", () => {
           instruction: "move",
         },
       });
-      // Empty qualifier is not created for incomplete/invalid sizes
-      expect(line.qualifier).toBeUndefined();
+      // A dot with nothing after it is reported as an empty unknown qualifier,
+      // so a caller can tell a size is being typed there.
+      expect(line.qualifier).toEqual({
+        type: "unknown",
+        loc: { start: 15, end: 15, line: undefined },
+      });
+    });
+
+    it("parses an unrecognised size", () => {
+      const line = parseLine("label:    move.z d0,d1").value;
+      expect(line.qualifier).toMatchObject({
+        type: "unknown",
+        loc: { start: 15, end: 16 },
+      });
+      // The rest of the line still parses.
+      expect(line.operands).toHaveLength(2);
     });
 
     it("parses an incomplete operand list", () => {

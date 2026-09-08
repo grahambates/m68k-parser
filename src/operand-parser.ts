@@ -262,8 +262,18 @@ function parseIndexSpec(
       registerNode = createRegisterNode(regText, regLoc) as
         | DataRegisterNode
         | AddressRegisterNode;
+    } else if (isValidIdentifier(regText)) {
+      // A name here is normally a register alias established with `equr`, as
+      // in `(sin,x)`. Resolving it needs a symbol table the parser does not
+      // have, so it is reported as a symbol and left for the caller to check,
+      // matching how a name in the base register position is treated.
+      registerNode = {
+        type: "symbol",
+        name: regText,
+        loc: regLoc,
+      };
     } else {
-      // Not a register or macro
+      // Not a register, alias or macro parameter
       return {
         register: {
           type: "unknown",

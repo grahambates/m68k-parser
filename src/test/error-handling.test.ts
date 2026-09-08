@@ -137,6 +137,18 @@ describe("Error Handling and Edge Cases", () => {
       expect(line.errors[0].code).toBe("INVALID_BASE_REGISTER");
     });
 
+    it("rejects an index that cannot be a register alias", () => {
+      for (const src of [
+        " move.w (a0,#5),d2",
+        " move.w (a0,123),d2",
+        " move.w (a0,$ff),d2",
+      ]) {
+        const line = parseLine(src);
+        expect(line.errors).not.toHaveLength(0);
+        expect(line.errors[0].code).toBe("MALFORMED_INDEXED_ADDRESSING");
+      }
+    });
+
     it("detects invalid scale factor", () => {
       const line = parseLine(" move.w (a0,d0.w*3),d1");
       expect(line.errors).not.toHaveLength(0);

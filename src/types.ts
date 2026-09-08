@@ -48,7 +48,13 @@ export type MnemonicNode =
   | MacroNode
   | MacroParameterNode;
 
-export type QualifierNode = SizeNode | MacroParameterNode;
+/**
+ * A size qualifier. `UnknownNode` covers a dot that is not followed by a
+ * recognised size, either because it is still being typed (`move.`) or because
+ * the size is not one the parser knows (`move.z`). Its location spans the text
+ * after the dot, which is empty in the first case.
+ */
+export type QualifierNode = SizeNode | MacroParameterNode | UnknownNode;
 
 export interface ParsedLine {
   lineNumber?: number;
